@@ -1,0 +1,16 @@
+# Machine-specific activation data: never commit.
+private/identity.plist
+
+# Build output.
+build/
+
+# Local evidence and the untouched EFI the machine booted before this repo.
+# Both contain the SMBIOS identity; keep them out of Git.
+mine/
+LOGS/
+
+# Python / editor / download noise.
+__pycache__/
+*.pyc
+.DS_Store
+*.zip
