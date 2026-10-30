@@ -17,6 +17,10 @@ build:
 	$(PYTHON) scripts/build_efi.py --identity $(IDENTITY) --force
 	$(PYTHON) scripts/verify_efi.py $(VERIFY_FLAGS) build/EFI
 
+verify:
+	@test -d build/EFI || { echo "build/EFI not found: run 'make build' first" >&2; exit 1; }
+	$(PYTHON) scripts/verify_efi.py $(VERIFY_FLAGS) build/EFI
+
 variants:
 	$(PYTHON) scripts/build_efi.py --identity $(IDENTITY) --gpu wex061 --wifi itlwm --out build/EFI --force
 	$(PYTHON) scripts/build_efi.py --identity $(IDENTITY) --gpu wex061 --wifi airportitlwm --out build/EFI-airport --force
