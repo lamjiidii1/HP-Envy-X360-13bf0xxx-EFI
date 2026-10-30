@@ -1,0 +1,370 @@
+{
+  "ACPI": {
+    "Add": [
+      {
+        "Comment": "string",
+        "Enabled": "bool",
+        "Path": "string"
+      }
+    ],
+    "Delete": "list",
+    "Patch": [
+      {
+        "Base": "string",
+        "BaseSkip": "int",
+        "Comment": "string",
+        "Count": "int",
+        "Enabled": "bool",
+        "Find": "data",
+        "Limit": "int",
+        "Mask": "data",
+        "OemTableId": "data",
+        "Replace": "data",
+        "ReplaceMask": "data",
+        "Skip": "int",
+        "TableLength": "int",
+        "TableSignature": "data"
+      }
+    ],
+    "Quirks": {
+      "FadtEnableReset": "bool",
+      "NormalizeHeaders": "bool",
+      "RebaseRegions": "bool",
+      "ResetHwSig": "bool",
+      "ResetLogoStatus": "bool",
+      "SyncTableIds": "bool"
+    }
+  },
+  "Booter": {
+    "MmioWhitelist": [
+      {
+        "Address": "int",
+        "Comment": "string",
+        "Enabled": "bool"
+      }
+    ],
+    "Patch": "list",
+    "Quirks": {
+      "AllowRelocationBlock": "bool",
+      "AvoidRuntimeDefrag": "bool",
+      "ClearTaskSwitchBit": "bool",
+      "DevirtualiseMmio": "bool",
+      "DisableSingleUser": "bool",
+      "DisableVariableWrite": "bool",
+      "DiscardHibernateMap": "bool",
+      "EnableSafeModeSlide": "bool",
+      "EnableWriteUnprotector": "bool",
+      "FixupAppleEfiImages": "bool",
+      "ForceBooterSignature": "bool",
+      "ForceExitBootServices": "bool",
+      "ProtectMemoryRegions": "bool",
+      "ProtectSecureBoot": "bool",
+      "ProtectUefiServices": "bool",
+      "ProvideCustomSlide": "bool",
+      "ProvideMaxSlide": "int",
+      "RebuildAppleMemoryMap": "bool",
+      "ResizeAppleGpuBars": "int",
+      "SetupVirtualMap": "bool",
+      "SignalAppleOS": "bool",
+      "SyncRuntimePermissions": "bool"
+    }
+  },
+  "DeviceProperties": {
+    "Add": {
+      "PciRoot(0x0)/Pci(0x1F,0x3)": {
+        "device-id": "data"
+      },
+      "PciRoot(0x0)/Pci(0x2,0x0)": {
+        "AAPL,backlight-control": "data",
+        "AAPL,slot-name": "string",
+        "built-in": "data",
+        "framebuffer-patch-enable": "data",
+        "framebuffer-stolenmem": "data",
+        "hda-gfx": "string",
+        "model": "string"
+      }
+    },
+    "Delete": {}
+  },
+  "Kernel": {
+    "Add": [
+      {
+        "Arch": "string",
+        "BundlePath": "string",
+        "Comment": "string",
+        "Enabled": "bool",
+        "ExecutablePath": "string",
+        "MaxKernel": "string",
+        "MinKernel": "string",
+        "PlistPath": "string"
+      }
+    ],
+    "Block": "list",
+    "Emulate": {
+      "Cpuid1Data": "data",
+      "Cpuid1Mask": "data",
+      "DummyPowerManagement": "bool",
+      "MaxKernel": "string",
+      "MinKernel": "string"
+    },
+    "Force": "list",
+    "Patch": "list",
+    "Quirks": {
+      "AppleCpuPmCfgLock": "bool",
+      "AppleXcpmCfgLock": "bool",
+      "AppleXcpmExtraMsrs": "bool",
+      "AppleXcpmForceBoost": "bool",
+      "CustomPciSerialDevice": "bool",
+      "CustomSMBIOSGuid": "bool",
+      "DisableIoMapper": "bool",
+      "DisableIoMapperMapping": "bool",
+      "DisableLinkeditJettison": "bool",
+      "DisableRtcChecksum": "bool",
+      "ExtendBTFeatureFlags": "bool",
+      "ExternalDiskIcons": "bool",
+      "ForceAquantiaEthernet": "bool",
+      "ForceSecureBootScheme": "bool",
+      "IncreasePciBarSize": "bool",
+      "LapicKernelPanic": "bool",
+      "LegacyCommpage": "bool",
+      "PanicNoKextDump": "bool",
+      "PowerTimeoutKernelPanic": "bool",
+      "ProvideCurrentCpuInfo": "bool",
+      "SetApfsTrimTimeout": "int",
+      "ThirdPartyDrives": "bool",
+      "XhciPortLimit": "bool"
+    },
+    "Scheme": {
+      "CustomKernel": "bool",
+      "FuzzyMatch": "bool",
+      "KernelArch": "string",
+      "KernelCache": "string"
+    }
+  },
+  "Misc": {
+    "BlessOverride": "list",
+    "Boot": {
+      "ConsoleAttributes": "int",
+      "HibernateMode": "string",
+      "HibernateSkipsPicker": "bool",
+      "HideAuxiliary": "bool",
+      "InstanceIdentifier": "string",
+      "LauncherOption": "string",
+      "LauncherPath": "string",
+      "PickerAttributes": "int",
+      "PickerAudioAssist": "bool",
+      "PickerMode": "string",
+      "PickerVariant": "string",
+      "PollAppleHotKeys": "bool",
+      "ShowPicker": "bool",
+      "TakeoffDelay": "int",
+      "Timeout": "int"
+    },
+    "Debug": {
+      "AppleDebug": "bool",
+      "ApplePanic": "bool",
+      "DisableWatchDog": "bool",
+      "DisplayDelay": "int",
+      "DisplayLevel": "int",
+      "LogModules": "string",
+      "SysReport": "bool",
+      "Target": "int"
+    },
+    "Entries": "list",
+    "Security": {
+      "AllowSetDefault": "bool",
+      "ApECID": "int",
+      "AuthRestart": "bool",
+      "BlacklistAppleUpdate": "bool",
+      "DmgLoading": "string",
+      "EnablePassword": "bool",
+      "ExposeSensitiveData": "int",
+      "HaltLevel": "int",
+      "PasswordHash": "data",
+      "PasswordSalt": "data",
+      "ScanPolicy": "int",
+      "SecureBootModel": "string",
+      "Vault": "string"
+    },
+    "Serial": {
+      "Init": "bool",
+      "Override": "bool"
+    },
+    "Tools": "list"
+  },
+  "NVRAM": {
+    "Add": {
+      "4D1EDE05-38C7-4A6A-9CC6-4BCCA8B38C14": {
+        "DefaultBackgroundColor": "data"
+      },
+      "4D1FDA02-38C7-4A6A-9CC6-4BCCA8B30102": {
+        "revcpu": "int",
+        "revcpuname": "string",
+        "revpatch": "string",
+        "rtc-blacklist": "data"
+      },
+      "7C436110-AB2A-4BBB-A880-FE41995C9F82": {
+        "ForceDisplayRotationInEFI": "int",
+        "SystemAudioVolume": "data",
+        "bluetoothExternalDongleFailed": "data",
+        "bluetoothInternalControllerInfo": "data",
+        "boot-args": "string",
+        "csr-active-config": "data",
+        "prev-lang:kbd": "data",
+        "run-efi-updater": "string"
+      }
+    },
+    "Delete": {
+      "4D1EDE05-38C7-4A6A-9CC6-4BCCA8B38C14": "list",
+      "4D1FDA02-38C7-4A6A-9CC6-4BCCA8B30102": "list",
+      "7C436110-AB2A-4BBB-A880-FE41995C9F82": "list"
+    },
+    "LegacyOverwrite": "bool",
+    "LegacySchema": {
+      "7C436110-AB2A-4BBB-A880-FE41995C9F82": "list",
+      "8BE4DF61-93CA-11D2-AA0D-00E098032B8C": "list"
+    },
+    "WriteFlash": "bool"
+  },
+  "PlatformInfo": {
+    "Automatic": "bool",
+    "CustomMemory": "bool",
+    "Generic": {
+      "AdviseFeatures": "bool",
+      "MLB": "string",
+      "MaxBIOSVersion": "bool",
+      "ProcessorType": "int",
+      "ROM": "data",
+      "SpoofVendor": "bool",
+      "SystemMemoryStatus": "string",
+      "SystemProductName": "string",
+      "SystemSerialNumber": "string",
+      "SystemUUID": "string"
+    },
+    "UpdateDataHub": "bool",
+    "UpdateNVRAM": "bool",
+    "UpdateSMBIOS": "bool",
+    "UpdateSMBIOSMode": "string",
+    "UseRawUuidEncoding": "bool"
+  },
+  "UEFI": {
+    "APFS": {
+      "EnableJumpstart": "bool",
+      "GlobalConnect": "bool",
+      "HideVerbose": "bool",
+      "JumpstartHotPlug": "bool",
+      "MinDate": "int",
+      "MinVersion": "int"
+    },
+    "AppleInput": {
+      "AppleEvent": "string",
+      "CustomDelays": "bool",
+      "GraphicsInputMirroring": "bool",
+      "KeyInitialDelay": "int",
+      "KeySubsequentDelay": "int",
+      "PointerDwellClickTimeout": "int",
+      "PointerDwellDoubleClickTimeout": "int",
+      "PointerDwellRadius": "int",
+      "PointerPollMask": "int",
+      "PointerPollMax": "int",
+      "PointerPollMin": "int",
+      "PointerSpeedDiv": "int",
+      "PointerSpeedMul": "int"
+    },
+    "Audio": {
+      "AudioCodec": "int",
+      "AudioDevice": "string",
+      "AudioOutMask": "int",
+      "AudioSupport": "bool",
+      "DisconnectHda": "bool",
+      "MaximumGain": "int",
+      "MinimumAssistGain": "int",
+      "MinimumAudibleGain": "int",
+      "PlayChime": "string",
+      "ResetTrafficClass": "bool",
+      "SetupDelay": "int"
+    },
+    "ConnectDrivers": "bool",
+    "Drivers": [
+      {
+        "Arguments": "string",
+        "Comment": "string",
+        "Enabled": "bool",
+        "HideVerbose": "bool",
+        "LoadEarly": "bool",
+        "Path": "string"
+      }
+    ],
+    "Input": {
+      "KeyFiltering": "bool",
+      "KeyForgetThreshold": "int",
+      "KeySupport": "bool",
+      "KeySupportMode": "string",
+      "KeySwap": "bool",
+      "PointerSupport": "bool",
+      "PointerSupportMode": "string",
+      "TimerResolution": "int"
+    },
+    "Output": {
+      "ClearScreenOnModeSwitch": "bool",
+      "ConsoleFont": "string",
+      "ConsoleMode": "string",
+      "DirectGopRendering": "bool",
+      "ForceResolution": "bool",
+      "GopBurstMode": "bool",
+      "GopPassThrough": "string",
+      "IgnoreTextInGraphics": "bool",
+      "InitialMode": "string",
+      "ProvideConsoleGop": "bool",
+      "ReconnectGraphicsOnConnect": "bool",
+      "ReconnectOnResChange": "bool",
+      "ReplaceTabWithSpace": "bool",
+      "Resolution": "string",
+      "SanitiseClearScreen": "bool",
+      "TextRenderer": "string",
+      "UIScale": "int",
+      "UgaPassThrough": "bool"
+    },
+    "ProtocolOverrides": {
+      "AppleAudio": "bool",
+      "AppleBootPolicy": "bool",
+      "AppleDebugLog": "bool",
+      "AppleEg2Info": "bool",
+      "AppleFramebufferInfo": "bool",
+      "AppleImageConversion": "bool",
+      "AppleImg4Verification": "bool",
+      "AppleKeyMap": "bool",
+      "AppleRtcRam": "bool",
+      "AppleSecureBoot": "bool",
+      "AppleSmcIo": "bool",
+      "AppleUserInterfaceTheme": "bool",
+      "DataHub": "bool",
+      "DeviceProperties": "bool",
+      "FirmwareVolume": "bool",
+      "HashServices": "bool",
+      "OSInfo": "bool",
+      "PciIo": "bool",
+      "UnicodeCollation": "bool"
+    },
+    "Quirks": {
+      "ActivateHpetSupport": "bool",
+      "DisableSecurityPolicy": "bool",
+      "EnableVectorAcceleration": "bool",
+      "EnableVmx": "bool",
+      "ExitBootServicesDelay": "int",
+      "ForceOcWriteFlash": "bool",
+      "ForgeUefiSupport": "bool",
+      "IgnoreInvalidFlexRatio": "bool",
+      "ReleaseUsbOwnership": "bool",
+      "ReloadOptionRoms": "bool",
+      "RequestBootVarRouting": "bool",
+      "ResizeGpuBars": "int",
+      "ResizeUsePciRbIo": "bool",
+      "ShimRetainProtocol": "bool",
+      "TscSyncTimeout": "int",
+      "UnblockFsConnect": "bool"
+    },
+    "ReservedMemory": "list",
+    "Unload": "list"
+  }
+}
