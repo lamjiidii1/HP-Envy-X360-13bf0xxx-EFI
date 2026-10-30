@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>SystemSerialNumber</key>
+	<string></string>
+	<key>MLB</key>
+	<string></string>
+	<key>SystemUUID</key>
+	<string></string>
+	<key>ROM</key>
+	<data></data>
+	<key>SystemProductName</key>
+	<string>MacBookPro16,2</string>
+	<key>ProcessorType</key>
+	<integer>1793</integer>
+	<key>SystemMemoryStatus</key>
+	<string>Soldered</string>
+</dict>
+</plist>
