@@ -119,6 +119,12 @@ Full reasoning: [docs/02-audit.md](docs/02-audit.md) and
 | [docs/09-test-plan.md](docs/09-test-plan.md) | Ordered hardware test checklist |
 | [docs/10-provenance.md](docs/10-provenance.md) | Versions, hashes, sources, modifications |
 
+Official references (OpenCore `Configuration.pdf`, the Dortania install and
+ACPI guides, upstream driver documentation) are listed in
+[docs/10-provenance.md §9](docs/10-provenance.md#9-reference-standards). Where
+a public EFI disagreed with them, the official documentation was followed and
+the deviation is recorded in the audit.
+
 ## Credits
 
 - [b00t0x](https://github.com/b00t0x) — WhateverXe, WhateverXe Graphics,

@@ -181,7 +181,32 @@ individual hashes in `payloads.tsv` are the authority.
 The absence of a file is a decision, not an omission. If one of these is added
 later, add the hash, the reason and the test that justified it here.
 
-## 9. Updating a payload
+## 9. Reference standards
+
+Official documentation is the primary source for every schema-level or
+quirk-level decision. Where a public EFI and the official documentation
+disagree, the official documentation wins; the deviation is recorded in
+[02-audit.md](02-audit.md).
+
+| Topic | Reference |
+|---|---|
+| Config schema, keys, types, quirks | OpenCorePkg 1.0.8 `Docs/Configuration.pdf` and `Docs/Sample.plist` |
+| Debug/`Target`/logging | OpenCorePkg `Docs/Configuration.pdf`, `Misc/Debug` |
+| UEFI drivers and OpenCanopy | OpenCorePkg `Docs/Configuration.pdf`, `UEFI/Drivers`, `Misc/Boot` |
+| ACPI hot patches | [Dortania Getting Started With ACPI](https://dortania.github.io/Getting-Started-With-ACPI/) |
+| Laptop install and SMBIOS | [Dortania OpenCore Install Guide](https://dortania.github.io/OpenCore-Install-Guide/) |
+| Post-install (USB map, power) | [Dortania OpenCore Post-Install](https://dortania.github.io/OpenCore-Post-Install/) |
+| WhateverXe behaviour and arguments | [b00t0x/WhateverXe](https://github.com/b00t0x/WhateverXe) README/CHANGELOG |
+| Graphics package contents/licensing | [b00t0x/WhateverXe-Graphics](https://github.com/b00t0x/WhateverXe-Graphics) `THIRD_PARTY.md` |
+| AppleALC layouts | [AppleALC supported codecs](https://github.com/acidanthera/AppleALC/wiki/Supported-codecs) |
+| USB mapping | [USBToolBox](https://github.com/USBToolBox/tool) |
+| Intel Wi-Fi/Bluetooth | [OpenIntelWireless docs](https://openintelwireless.github.io/) |
+
+`audit/config-schema.json` is the machine-readable extract of the OpenCore
+1.0.8 config structure used by the verifier; it is not a replacement for
+`ocvalidate`.
+
+## 10. Updating a payload
 
 1. Download the upstream release and record its archive hash.
 2. Replace the payload in `efi/base` or `efi/variants`.
