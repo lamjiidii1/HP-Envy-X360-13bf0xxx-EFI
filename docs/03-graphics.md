@@ -173,6 +173,14 @@ The next diagnostic is the firmware panel record itself. Capture the VBT
 report them to the WhateverXe issue tracker with the exact BIOS version and
 panel EDID. A patch cannot be written reliably without that record.
 
+If macOS will not boot far enough to collect that, run the read-only Linux
+collector as root and attach its output:
+```sh
+sudo ./scripts/collect-linux-evidence.sh
+```
+It copies ACPI tables, connector EDID, i915 debugfs (including the VBT when the
+kernel exposes it), DMI and PCI data into a timestamped `LOGS/` folder.
+
 Do **not** fall back to NootedGreen as a first move: it is a different driver
 with a different GPU support matrix, and this machine's 0x46AA is not its
 validated target.
