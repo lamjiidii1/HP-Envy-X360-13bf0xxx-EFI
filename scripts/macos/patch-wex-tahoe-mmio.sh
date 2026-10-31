@@ -252,9 +252,7 @@ print "prologue  : ok"
 print "old const : $OLD_CONST"
 print "real call : $NEW_CONST"
 
-# The five bytes sit immediately before the "TGLTahoeMMIOGuard" string in the
-# WhateverXe binary.  Anchor on that string instead of scanning for the old
-# value, so the patch is exact and idempotent.
+# Sanity-check the binary identity with the same anchor the old tool used.
 ANCHOR_OFF="$(perl -0777 -ne 'my $c = () = /\QTGLTahoeMMIOGuard\E/g; print $c ? index($_, "TGLTahoeMMIOGuard") : -1' "$BIN")"
 if [[ "$ANCHOR_OFF" == "-1" ]]; then
   print -u2 "error: the TGLTahoeMMIOGuard anchor is missing from $BIN"
@@ -265,18 +263,80 @@ if [[ "$ANCHOR_COUNT" != "1" ]]; then
   print -u2 "error: expected one TGLTahoeMMIOGuard anchor, found $ANCHOR_COUNT"
   exit 4
 fi
-BIN_CALL_OFF=$(( ANCHOR_OFF - 5 ))
-CURRENT_CONST="$(hexdump_at "$BIN_CALL_OFF" 5 "$BIN")"
 
-if [[ "$CURRENT_CONST" == "$OLD_CONST" ]]; then
-  :
-elif [[ "$CURRENT_CONST" == "$NEW_CONST" ]]; then
-  print "already patched: $BIN already carries $NEW_CONST."
+# The five bytes immediately before the anchor string are a dead data copy:
+# nothing loads or compares them.  Earlier versions of this tool patched that
+# copy by mistake, which produced no effect at runtime.  Put it back so the
+# result is deterministic no matter which state the kext arrived in.
+DEAD_OFF=$(( ANCHOR_OFF - 5 ))
+DEAD_NOW="$(hexdump_at "$DEAD_OFF" 5 "$BIN")"
+if [[ "$NEW_CONST" != "$OLD_CONST" && "$DEAD_NOW" == "$NEW_CONST" ]]; then
+  if (( DRY_RUN )); then
+    print "dead copy : would restore the unreferenced copy before the anchor to $OLD_CONST"
+  else
+    OFFSET="$DEAD_OFF" NEW_HEX="$OLD_CONST" perl -0777 -i -pe '
+      my $off = $ENV{OFFSET};
+      my $new = pack("H*", $ENV{NEW_HEX});
+      substr($_, $off, 5) = $new;
+    ' "$BIN"
+    print "dead copy : restored the unreferenced copy before the anchor to $OLD_CONST"
+  fi
+elif [[ "$DEAD_NOW" != "$OLD_CONST" ]]; then
+  print -u2 "error: unexpected bytes before the anchor: $DEAD_NOW"
+  print -u2 "       expected the original constant $OLD_CONST."
+  exit 3
+fi
+
+# The live comparison reads a five-byte stack array built by
+#   c7 45 <disp8> <imm32>    movl $imm32,-N(%rbp)
+#   c6 45 <disp8> 00         movb $0,-(N-4)(%rbp)
+# so the real change is the four-byte immediate of that movl.  There is
+# exactly one such initialiser with the Tahoe constant; match it, not the
+# data copy.
+OLD_CONST4="${OLD_CONST:0:8}"
+NEW_CONST4="${NEW_CONST:0:8}"
+
+if [[ "${NEW_CONST:8:2}" != "00" ]]; then
+  print -u2 "error: the high byte of the call displacement is ${NEW_CONST:8:2}, not 00."
+  print -u2 "       This tool only rewrites the four-byte immediate; stop here."
+  exit 3
+fi
+
+CANDIDATES="$(perl - "$BIN" "$OLD_CONST4" "$NEW_CONST4" <<'PERL'
+use strict;
+use warnings;
+my ($path, $oldhex, $newhex) = @ARGV;
+open my $fh, '<:raw', $path or die "open $path: $!\n";
+local $/;
+my $d = <$fh>;
+close $fh;
+sub sites {
+    my ($pat) = @_;
+    my @out;
+    my $p = -1;
+    while (($p = index($d, $pat, $p + 1)) >= 0) {
+        push @out, $p if $p >= 3 && substr($d, $p - 3, 2) eq "\xC7\x45";
+    }
+    return @out;
+}
+my @old = sites(pack('H*', $oldhex));
+my @new = sites(pack('H*', $newhex));
+my $off = (@old == 1 && @new == 0) ? $old[0]
+        : (@old == 0 && @new == 1) ? $new[0] : 0;
+printf "%d %d %d\n", scalar @old, scalar @new, $off;
+PERL
+)"
+
+read -r OLD_N NEW_N BIN_CALL_OFF <<< "$CANDIDATES"
+
+if (( OLD_N == 0 && NEW_N == 1 )); then
+  print "already patched: $BIN already carries $NEW_CONST at 0x$(printf '%x' $BIN_CALL_OFF)."
   exit 0
-else
-  print -u2 "error: unexpected bytes before the anchor: $CURRENT_CONST"
-  print -u2 "       expected the old constant $OLD_CONST."
-  print -u2 "       Do not guess; restore from $BIN.orig or rebuild the EFI."
+fi
+if (( OLD_N != 1 || NEW_N != 0 )); then
+  print -u2 "error: expected one Tahoe protectCall initialiser, found old=$OLD_N new=$NEW_N."
+  print -u2 "       This is not the expected WhateverXe build, or it was patched"
+  print -u2 "       differently. Do not guess; restore from $BIN.orig or rebuild."
   exit 3
 fi
 
@@ -287,7 +347,7 @@ if [[ "$NEW_CONST" == "$OLD_CONST" ]]; then
 fi
 
 if (( DRY_RUN )); then
-  print "dry run   : would replace $CURRENT_CONST with $NEW_CONST at 0x$(printf '%x' $BIN_CALL_OFF)"
+  print "dry run   : would replace $OLD_CONST4 with $NEW_CONST4 at 0x$(printf '%x' $BIN_CALL_OFF)"
   exit 0
 fi
 
@@ -297,15 +357,15 @@ if [[ ! -f "$BIN.orig" ]]; then
   print "backup    : $BIN.orig"
 fi
 
-OFFSET="$BIN_CALL_OFF" NEW_HEX="$NEW_CONST" perl -0777 -i -pe '
+OFFSET="$BIN_CALL_OFF" NEW_HEX="$NEW_CONST4" perl -0777 -i -pe '
   my $off = $ENV{OFFSET};
   my $new = pack("H*", $ENV{NEW_HEX});
-  substr($_, $off, 5) = $new;
+  substr($_, $off, 4) = $new;
 ' "$BIN"
 
-AFTER_CONST="$(hexdump_at "$BIN_CALL_OFF" 5 "$BIN")"
-if [[ "$AFTER_CONST" != "$NEW_CONST" ]]; then
-  print -u2 "error: patch verification failed: found $AFTER_CONST, expected $NEW_CONST"
+AFTER_CONST="$(hexdump_at "$BIN_CALL_OFF" 4 "$BIN")"
+if [[ "$AFTER_CONST" != "$NEW_CONST4" ]]; then
+  print -u2 "error: patch verification failed: found $AFTER_CONST, expected $NEW_CONST4"
   print -u2 "       Restore with --restore and report this."
   exit 3
 fi
