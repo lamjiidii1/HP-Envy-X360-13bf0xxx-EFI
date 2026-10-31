@@ -127,15 +127,25 @@ guarantee the current 19 MB fallback.
 
 ## How to test the new variant
 
-1. On macOS, install **WhateverXe Graphics 0.3.2** (it replaces Compat 0.6.0
+Upstream order matters: **boot the target macOS with the latest WhateverXe
+before installing the latest graphics package.** The package updates Compat
+and AuxKC; the EFI provides the matching WEX binary.
+
+1. Copy `build/EFI` (default variant) to the ESP, replacing the old EFI. Keep
+   the old EFI on a USB stick. Do **not** install the graphics package yet.
+2. Boot macOS with the new EFI. The internal panel may remain on the
+   software-rendered fallback at this stage; that is expected. Confirm the
+   driver loaded:
+   ```sh
+   kmutil showloaded | grep -i whateverxe   # expect 0.6.1
+   ```
+3. On macOS, install **WhateverXe Graphics 0.3.2** (it replaces Compat 0.6.0
    with 0.6.1 and updates the patched Apple kexts in AuxKC):
    `WhateverXe-Graphics-0.3.2.pkg`, SHA-256
    `7ac6c7149248c483efbd93555294d587a93d81392421f3af8a4f5b1b5fcc0101`
-   (see [docs/10-provenance.md](10-provenance.md)).
-2. Copy `build/EFI` (default variant) to the ESP, replacing the old EFI. Keep
-   the old EFI on a USB stick.
-3. Boot with the default variant. If it works, stop. If it does not:
-4. Reboot the `--debug` build, let it reach the desktop, and collect:
+   (see [docs/10-provenance.md](10-provenance.md)). Restart when it finishes.
+4. After the restart, check acceleration. If it works, stop. If it does not:
+5. Reboot the `--debug` build, let it reach the desktop, and collect:
    ```sh
    ioreg -l -p IODeviceTree > ioreg.txt
    ioreg -rc IONDRVFramebuffer -d1 > iondrv.txt
@@ -143,7 +153,7 @@ guarantee the current 19 MB fallback.
    log show --last 5m --predicate 'process == "kernel"' > kernel.log
    system_profiler SPDisplaysDataType
    ```
-5. Try the fallback variant (`--gpu hp-adlp-edp`) with the same EFI otherwise.
+6. Try the fallback variant (`--gpu hp-adlp-edp`) with the same EFI otherwise.
 
 ### Success criteria
 

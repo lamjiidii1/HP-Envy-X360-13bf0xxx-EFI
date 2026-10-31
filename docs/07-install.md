@@ -76,10 +76,19 @@ diskutil unmount /Volumes/EFI
 Keep the folder structure exactly `EFI/BOOT/BOOTx64.efi` and
 `EFI/OC/OpenCore.efi`.
 
-## 4. Install the matching graphics package (macOS side)
+## 4. Boot the new EFI, then install the matching graphics package
 
-The EFI only contains `WhateverXe.kext`. The patched Apple drivers and
-`AppleIntelTGLCompat` are installed **inside macOS**:
+Upstream order: **boot the target macOS with the latest WhateverXe first, then
+install the latest graphics package.** The EFI provides the WEX binary; the
+package updates Compat and AuxKC.
+
+1. Copy `build/EFI` to the ESP/USB and boot macOS from it (§3 and §5). The
+   internal panel may stay on the software fallback at this point; that is
+   expected. Confirm the driver:
+   ```sh
+   kmutil showloaded | grep -i whateverxe    # expect 0.6.1
+   ```
+2. Install the package that matches the EFI variant:
 
 | EFI variant | Required package |
 |---|---|
@@ -96,13 +105,13 @@ shasum -a 256 WhateverXe-Graphics-0.3.2.pkg
 sudo installer -pkg WhateverXe-Graphics-0.3.2.pkg -target /
 ```
 
-The package rebuilds the Auxiliary Kernel Collection. Reboot afterwards.
+3. The package rebuilds the Auxiliary Kernel Collection. **Restart** after it
+   succeeds, then check acceleration (§5).
 
-**Order matters when upgrading from the old install:** install the new
-Graphics package first (so Compat 0.6.1 is in place), then boot the new EFI
-with WhateverXe 0.6.1. Booting 0.6.1 against Compat 0.6.0 is a version
-mismatch; booting 0.6.0 against Compat 0.6.1 may be tolerated but is not the
-supported pair.
+Do not reverse this order. Installing 0.3.2 while the old 0.6.0 EFI is still
+on the ESP leaves WEX 0.6.0 running against Compat 0.6.1; installing 0.3.1
+while booting the new 0.6.1 EFI is the opposite mismatch. The supported pair is
+WEX 0.6.1 with Graphics 0.3.2, and the EFI must boot first.
 
 ## 5. First boot
 
@@ -121,10 +130,11 @@ supported pair.
 
 ## 6. Switching Wi-Fi stack
 
-Build with the other variant and copy only the OC folder:
+The default build uses AirportItlwm. If it does not attach on 26.7.2, build the
+`itlwm` fallback and copy only the OC folder:
 
 ```sh
-./scripts/build_efi.py --wifi airportitlwm --out build/EFI-airport --force
+./scripts/build_efi.py --wifi itlwm --out build/EFI-itlwm --force
 ```
 
 The build script copies exactly one Wi-Fi kext and points the single config
