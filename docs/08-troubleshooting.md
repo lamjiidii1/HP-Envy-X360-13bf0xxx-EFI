@@ -168,6 +168,21 @@ Checks, in order:
    ninth byte check (index 16) as `1`; a remaining `0` means the ESP you
    patched is not the ESP that booted. See [docs/03-graphics.md](03-graphics.md).
 
+   If the script said `verify: e85ff302` but index 16 is still `0`, inspect the
+   binary that is actually on the ESP before rerunning anything:
+
+   ```sh
+   K=/Volumes/EFI/EFI/OC/Kexts/WhateverXe.kext/Contents/MacOS/WhateverXe
+   xxd -s 0x17904 -l 8 "$K"    # c745 a8e8 5ff3 02b9  <- live immediate patched
+   xxd -s 0xcdf8e -l 5 "$K"    # e82f f302 00        <- dead copy stays original
+   ```
+
+   `e82f…` at `0x17907` means this ESP is not the one that booted. `e85f…` at
+   `0xCDF8E` means the older script patched the dead copy next to the
+   `TGLTahoeMMIOGuard` string; rerun the current script, which restores it and
+   patches the real `movl` immediate. Reboot explicitly from the USB with F9
+   if the internal ESP also holds an OpenCore copy.
+
 5. **The panel record is not the problem.** `WhateverXeFirmwarePanel` is
    `[0, 0, 9, 0, 0]` on this unit because the VBT sets `panel_type = 0xFF`
    (panel chosen by PnP ID). That is expected and patch 0004 admits the Combo A

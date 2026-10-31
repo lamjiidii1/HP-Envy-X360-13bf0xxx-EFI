@@ -188,11 +188,18 @@ framebuffer (`IONDRVFramebuffer`) stays attached, the accelerator
    `_pmap_enter_options` — the same function WhateverXe resolves as `fn` and
    patches at `+0x10C1`/`+0x1197`. The 26.7.1 constant (`+0x2F32F`) and the
    25G332 one (`+0x2F35F`) differ by `0x30`, a link-time layout change.
-2. **The fix is one five-byte constant.** `scripts/macos/patch-wex-tahoe-mmio.sh`
-   reads the real call from the kernel on the machine and rewrites the stale
-   `E8 2F F3 02 00` in the injected kext. The 25G332 KDK kernel was checked
-   against the running build: both report
+2. **The fix is one four-byte immediate.** The kext stores the constant twice:
+   a dead five-byte copy at `0xCDF8E` (immediately before the
+   `TGLTahoeMMIOGuard` string, with no code or pointer reference) and the live
+   `imm32` at `0x17907`, inside `movl $imm32,-0x58(%rbp)` at `0x17904`. The
+   `memcmp` at `0x17D7B` reads that stack array. `scripts/macos/patch-wex-tahoe-mmio.sh`
+   reads the real call from the kernel on the machine and rewrites the live
+   four bytes; it requires exactly one `C7 45`-prefixed candidate. The 25G332
+   KDK kernel was checked against the running build: both report
    `root:xnu-12377.161.15.701.48~2/RELEASE_X86_64`.
+   The first attempt (hash `7fab9aa3…`) anchored on the string and patched the
+   dead copy; the guard stayed at `0`, which confirms the distinction. The
+   corrected binary is `d76d850e…`.
 3. **A downgrade to 26.7.1 is the guaranteed fallback.** The same kext, same
    Graphics 0.3.1 and same VBT are proven there.
 
@@ -226,7 +233,7 @@ Decision table:
 | Observation | Meaning | Next step |
 |---|---|---|
 | `UCRouted=Yes`, `UCPreflight=Yes`, `StartAllowed=Yes`, AIFB/Accelerator ≥ 1 | fixed | record success; fold the corrected constant into the default variant |
-| `UCRouted` stays `No`, `TGLTahoeMMIOGuard` still shows another zero | the kernel differs from what the script expects | stop; collect the guard and the build number |
+| `UCRouted` stays `No`, `TGLTahoeMMIOGuard` still shows another zero | the booted ESP has an unpatched or wrongly patched kext, or the kernel differs from what the script expects | verify `0x17907`=`e85ff302` and `0xCDF8E`=`e82ff30200` on that ESP; then collect the guard and the build number |
 | `UCRouted=Yes` but `UCPreflight=No` | pmap mapping check failed | collect the new `TGLMMIOMappingEvidence`; do not change DVMT/SMBIOS |
 | `UCRouted=Yes`, `Preflight=Yes`, `StartAllowed` still `No` | a later gate blocks the probe | capture `N97NativeKernelReady`, `N97DisplayStep`, the last `[IGFB]` lines |
 | Patch cannot be applied (no `_IOProtectCacheMode` in the kernel) | no KDK/kernel symbols on the machine | install the matching Kernel Debug Kit or downgrade to 26.7.1 |

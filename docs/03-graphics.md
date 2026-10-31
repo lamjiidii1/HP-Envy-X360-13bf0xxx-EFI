@@ -114,6 +114,25 @@ The constant in the shipped kext is the 26.7.1 value
 `E8 2F F3 02 00`. On 26.7.2 the call target moved, so the check fails even
 though the function is the same.
 
+The value appears **twice** in the kext binary, and only one copy is live:
+
+| Offset | What it is | Referenced? |
+|---|---|---|
+| `0xCDF8E` | five bytes immediately before the `TGLTahoeMMIOGuard` string | no — dead data |
+| `0x17907` | `imm32` of `movl $imm32,-0x58(%rbp)` at `0x17904` (`C7 45 A8 E8 2F F3 02`) | yes — the live comparison |
+
+The next instruction, `movb $0,-0x54(%rbp)`, supplies the fifth byte, and the
+`memcmp` at `0x17D7B` reads the five-byte stack array from `-0x58(%rbp)`.
+Nothing loads or compares the data copy next to the string.
+
+This distinction matters. The first version of the repair script anchored on
+the string and rewrote the dead copy at `0xCDF8E`. The file hash changed and
+the script reported success, but the guard after reboot was still `0x0` at
+index 16. The script now finds the unique `C7 45`-prefixed immediate, requires
+exactly one candidate, and rewrites only those four bytes. It also restores
+the dead copy if an earlier run changed it, so every starting state converges
+to the same binary.
+
 Measured from the 25G332 KDK (`_IOProtectCacheMode` at file offset `0x19b410`,
 `__TEXT` at `0xffffff8000200000`), the real bytes on this build are:
 
@@ -130,8 +149,10 @@ difference of `0x30`).
 
 For this build, the default `WhateverXe.kext` binary goes from SHA-256
 `c090b9dd35398c72e9567b38b9bb9b61415ab7fcfe22ffc78cbafc93ee67e49b`
-to `7fab9aa31133155c299a89d59de57d0936568185eccd4f64c155f5081e2a1db0`
-when patched for 25G332. The kernel file extracted from
+to `d76d850e3907066df4e5facb38d8c7f2e2d7a4b5ab574ad1102acee8382f7787`
+when patched for 25G332. (The intermediate hash `7fab9aa3…` from the first
+attempt is **not** a valid result: it has the wrong byte patched.) The kernel
+file extracted from
 `Kernel_Debug_Kit_26.7.2_build_25G332.dmg` reports the same version string as
 the running kernel (`root:xnu-12377.161.15.701.48~2/RELEASE_X86_64`) and has
 SHA-256 `a91aad0da9d0a2f545c06859524bb048f4e2e392e46aa12da9fabe652081be53`,
@@ -140,9 +161,9 @@ so the bytes read from it apply to the booted kernel.
 ## The fix
 
 `scripts/macos/patch-wex-tahoe-mmio.sh` reads the real five bytes from the
-kernel Mach-O and replaces the stale constant in the injected WhateverXe
-binary. It keeps a `.orig` backup, patches by a unique anchor
-(`TGLTahoeMMIOGuard`) instead of scanning for the old bytes, and does not touch
+kernel Mach-O and replaces the stale four-byte immediate in the injected
+WhateverXe binary. It keeps a `.orig` backup, matches the unique
+`C7 45`-prefixed initialiser rather than the dead data copy, and does not touch
 the kernel or the installed graphics package.
 
 The system kernel on disk is usually stripped, so the script needs the
@@ -167,7 +188,10 @@ signatures, the kext SHA-256 before and after, then verifies the patched bytes.
 
 If the script prints nothing at all, it exited before patching: update to this
 version, because the older one depended on `nm` from the Command Line Tools and
-could stop silently when that prompt was cancelled.
+could stop silently when that prompt was cancelled. If it reports
+`patched`/`verify: e85ff302` but `guard[16]` is still `0` after the reboot,
+check the two things in [docs/08-troubleshooting.md](08-troubleshooting.md):
+the on-disk bytes at `0x17907`, and which ESP OpenCore actually booted.
 
 This is a local binary change to an OpenCore-injected kext, not to a signed
 system extension. Keep the backup; if the machine behaves worse, restore it
