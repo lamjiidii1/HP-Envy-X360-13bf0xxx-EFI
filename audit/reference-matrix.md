@@ -63,8 +63,9 @@ Files inspected: `README.md`, `docs/EFI.md`, `docs/FIXES.md`,
   on this machine the identical config and kext produce the 19 MB fallback.
 - **Not used as the config base.** The config was rebuilt from the OpenCore
   1.0.8 schema and the findings, not patched out of the reference file.
-- `AirportItlwm` is not the default; `itlwm` + HeliPort is the stack currently
-  working on this install.
+- `AirportItlwm` is the default because it gives the native Wi-Fi UI and matches
+  the reference; `itlwm` + HeliPort remains the proven fallback for this
+  install.
 - The published empty SMBIOS is not usable; the identity comes from
   `private/identity.plist`.
 - The ACPI brightness patch is scoped to `DSDT`, `Count 2`; the old EFI had it
@@ -206,7 +207,7 @@ contradicts the upstream WhateverXe rule and would break this machine.
 | GPU driver | WEX 0.6.0 + adlp-edp | WEX 0.6.1 | WEX 0.6.1 | NootedGreen | WEX 0.6.1 | WEX | **0.6.1 default, 0.6.0 fallback** |
 | Graphics package | 0.3.1 | — | 0.3.2 | user-space patches | 0.3.x | — | **0.3.2** |
 | WhateverGreen | absent/disabled | forbidden | absent | replaced | forbidden | absent | **absent** |
-| Wi-Fi | AirportItlwm | — | — | — | itlwm | — | **itlwm default, AirportItlwm variant** |
+| Wi-Fi | AirportItlwm | — | — | — | itlwm | — | **AirportItlwm default, itlwm fallback** |
 | SMBIOS | empty (published) | — | MacBookPro16,x | MacBookPro16,x | MacBookPro16,x | MacBookPro16,x | **MacBookPro16,2 (existing identity)** |
 | `csr-active-config` | `03080000` | `03080000` | `03080000` | `03080000` | `03080000` | `03080000` | **`03080000`** |
 | Sleep | disabled (firmware) | — | `_S3`→S5 workaround | — | working | — | **disabled, no patch** |

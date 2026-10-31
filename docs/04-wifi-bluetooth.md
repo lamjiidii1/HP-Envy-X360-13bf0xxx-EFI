@@ -6,7 +6,36 @@ Intel AX211 CNVi (`8086:51F0`), Wi-Fi 6E + Bluetooth 5.3 on the same module.
 macOS has no native driver. Both Wi-Fi stacks below are known to work on this
 generation; they are mutually exclusive and selected at build time.
 
-## Variant A — `itlwm` + HeliPort (default)
+## Variant A — `AirportItlwm` (default, native)
+
+- Kext: `AirportItlwm.kext` 2.4.1 (downstream Tahoe/VTD build; see
+  [10-provenance.md](10-provenance.md))
+- Mechanism: implements Apple's `AirPort` interface, so the native Wi-Fi menu
+  and System Settings pane work.
+- Needs AppleVTD: VT-d enabled in firmware and `DisableIoMapper=false`. Both
+  are already true in this config.
+
+Why it is the default:
+
+- It gives the native macOS Wi-Fi UI, which is what you asked for.
+- The exact-model reference EFI ships the identical binary (same SHA-256) and
+  boots it on Tahoe 26.7.1.
+
+Caveats:
+
+- It is tied to the macOS networking stack, so a point update can require a new
+  build. 2.4.1 is not an official OpenIntelWireless release; it is a Tahoe/VTD
+  build and is not yet validated on 26.7.2.
+- If no interface appears, switch to `itlwm` instead of debugging two variables
+  at once.
+
+Build:
+
+```sh
+./scripts/build_efi.py --wifi airportitlwm   # default
+```
+
+## Variant B — `itlwm` + HeliPort (fallback)
 
 - Kext: `itlwm.kext` 2.3.0
 - App: [HeliPort](https://github.com/OpenIntelWireless/HeliPort) (already
@@ -14,13 +43,11 @@ generation; they are mutually exclusive and selected at build time.
 - Mechanism: `itlwm` is an Ethernet-style driver. macOS sees a wired
   interface; HeliPort is the user-space UI that scans and joins networks.
 
-Why it is the default:
+Why it is the fallback:
 
-- It is the stack currently working on this exact install.
 - It is independent of the macOS build, so a point update (26.7.1 → 26.7.2)
   does not invalidate the driver.
-- Changing Wi-Fi at the same time as the graphics driver would make A/B tests
-  ambiguous.
+- It is the stack that was working on this exact install before the rebuild.
 
 Costs:
 
@@ -31,31 +58,12 @@ Costs:
 Build:
 
 ```sh
-./scripts/build_efi.py --wifi itlwm          # default
+./scripts/build_efi.py --wifi itlwm --out build/EFI-itlwm
 ```
 
 The build script places `itlwm.kext` in `OC/Kexts` and points the single
 Wi-Fi entry at `Contents/MacOS/itlwm`. It also prints a reminder to copy
 `HeliPort.app` to `/Applications`.
-
-## Variant B — `AirportItlwm` (native)
-
-- Kext: `AirportItlwm.kext` 2.4.1 (Tahoe build)
-- Mechanism: implements Apple's `AirPort` interface, so the native Wi-Fi menu
-  and System Settings pane work.
-
-Why it is not the default:
-
-- It is tied to the macOS networking stack; a point update can require a new
-  build.
-- The working reference uses it, but this machine's current install uses
-  `itlwm` successfully.
-
-Build:
-
-```sh
-./scripts/build_efi.py --wifi airportitlwm
-```
 
 Only one of the two kext folders is copied into the EFI, and the config has a
 single Wi-Fi entry. Do not merge the two variants by hand: two drivers

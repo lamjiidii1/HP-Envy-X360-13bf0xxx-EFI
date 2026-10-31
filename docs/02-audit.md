@@ -155,7 +155,7 @@ copied. Commits are the ones actually inspected.
 |---|---|
 | Default GPU variant = WhateverXe 0.6.1 | Upstream now has generic ADL-P/U eDP detection; the old 0.6.0 patch set was built for another BIOS/macOS pair |
 | Keep 0.6.0 `adlp-edp` as a variant | It is the only stack proven to produce Metal on this exact model, on 26.7.1 |
-| Two Wi-Fi variants | `itlwm` + HeliPort currently works; `AirportItlwm` matches the reference and gives native Wi-Fi. Build-time choice avoids two kexts fighting |
+| Two Wi-Fi variants | `AirportItlwm` is the default (native Wi-Fi, matches the reference); `itlwm` + HeliPort stays as the proven fallback if the Tahoe build does not attach. Build-time choice avoids two kexts fighting |
 | Keep `-igfxdvmt` + `framebuffer-stolenmem 0000c003` | BIOS leaves 60 MB DVMT; both the reference and this unit need the pair |
 | Drop `-vi2c-force-polling` | Only affects VoodooI2C; the touchpad is dead in hardware, and the reference does not use it |
 | Drop `rps-control` | Extra property relative to the working reference; not needed and can alter RPS behaviour |

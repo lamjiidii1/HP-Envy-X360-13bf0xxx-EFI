@@ -39,8 +39,8 @@ scratch with every payload pinned and hashed.
 efi/base/                 OpenCore 1.0.8, 12 ACPI tables, common kexts, resources
 efi/variants/gpu-wex061/          WhateverXe 0.6.1 (default)
 efi/variants/gpu-hp-adlp-edp/     WhateverXe 0.6.0 + retropineaple adlp-edp patches (fallback)
-efi/variants/wifi-itlwm/          itlwm 2.3.0 + HeliPort (default, currently working)
-efi/variants/wifi-airportitlwm/   AirportItlwm 2.4.1 (native Wi-Fi menu)
+efi/variants/wifi-airportitlwm/   AirportItlwm 2.4.1 (native Wi-Fi menu, default)
+efi/variants/wifi-itlwm/          itlwm 2.3.0 + HeliPort (fallback)
 scripts/build_efi.py      assembles an EFI, injects private identity
 scripts/verify_efi.py     structural and payload checks for a built EFI
 scripts/payload_inventory.py      regenerates audit/payloads.tsv
@@ -56,7 +56,7 @@ private/                  identity.example.plist (committed), identity.plist (ig
 cp private/identity.example.plist private/identity.plist
 $EDITOR private/identity.plist
 
-# 2. Build the default EFI (WhateverXe 0.6.1 + itlwm).
+# 2. Build the default EFI (WhateverXe 0.6.1 + AirportItlwm).
 make build
 make verify
 
@@ -67,16 +67,18 @@ make verify
 Other combinations:
 
 ```sh
-./scripts/build_efi.py --gpu hp-adlp-edp --wifi airportitlwm --out build/EFI-hp
+./scripts/build_efi.py --gpu hp-adlp-edp --out build/EFI-hp
+./scripts/build_efi.py --wifi itlwm --out build/EFI-itlwm
 ./scripts/build_efi.py --debug --out build/EFI-debug     # -v, debug=0x100
 ```
 
-| Variant | GPU driver | Wi-Fi | When to use |
+| Build | GPU driver | Wi-Fi | When to use |
 |---|---|---|---|
-| `wex061` (default) | WhateverXe 0.6.1 | itlwm + HeliPort | First try; upstream generic ADL-P/U eDP support |
-| `hp-adlp-edp` | WhateverXe 0.6.0 + adlp-edp | itlwm | Fallback: exactly what the same-model reference repo ships |
-| `wifi-airportitlwm` | any | AirportItlwm 2.4.1 | Only if you want native Wi-Fi and accept losing the working stack |
-| `--debug` | any | any | Verbose boot and kernel logging while debugging |
+| `build/EFI` (default) | WhateverXe 0.6.1 | AirportItlwm 2.4.1 | First try; native Wi-Fi plus upstream generic ADL-P/U eDP support |
+| `build/EFI-itlwm` | WhateverXe 0.6.1 | itlwm + HeliPort | Fallback if AirportItlwm does not attach to 26.7.2 |
+| `build/EFI-hp` | WhateverXe 0.6.0 + adlp-edp | AirportItlwm 2.4.1 | Graphics fallback: exactly what the same-model reference ships |
+| `build/EFI-hp-itlwm` | WhateverXe 0.6.0 + adlp-edp | itlwm + HeliPort | Both fallbacks at once |
+| `build/EFI-debug` | WhateverXe 0.6.1 | AirportItlwm 2.4.1 | Verbose boot and kernel logging while debugging |
 
 ## What changed compared with the previous EFI
 

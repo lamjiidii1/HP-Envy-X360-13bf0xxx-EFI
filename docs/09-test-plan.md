@@ -17,7 +17,7 @@ step once and capture the evidence described in
 | T00.2 | `python3 scripts/verify_efi.py --allow-blank-identity build/EFI` on a checkout without the private identity | `result : OK` (CI mode) |
 | T00.3 | `make inventory` and `git diff --exit-code audit/payloads.tsv` | no diff: pinned payloads are unchanged |
 | T00.4 | `shasum -a 256 efi/variants/gpu-wex061/WhateverXe.kext/Contents/MacOS/WhateverXe` | `e92b65b0…d1c39b` (see [10-provenance.md](10-provenance.md)) |
-| T00.5 | Inspect `build/EFI/BUILD-INFO.plist` | `gpu = wex061`, `wifi = itlwm`, `debug = false`, `identity_injected = true` |
+| T00.5 | Inspect `build/EFI/BUILD-INFO.plist` | `gpu = wex061`, `wifi = airportitlwm`, `debug = false`, `identity_injected = true` |
 | T00.6 | Open `build/EFI/OC/config.plist` | `boot-args` has no `-wex-adlp-edp`; SMBIOS fields are filled |
 | T00.7 | Back up the current ESP and keep a bootable USB | both exist and boot (test the USB before relying on it) |
 
@@ -96,13 +96,13 @@ makes both reports unusable.
 
 | ID | Step | Pass criterion |
 |---|---|---|
-| T05.1 | `kmutil showloaded \| grep -i itlwm` | exactly one Wi-Fi driver |
-| T05.2 | Open HeliPort | interface appears; scan returns networks |
+| T05.1 | `kmutil showloaded \| grep -i itlwm` | exactly one Wi-Fi driver (`com.zxystd.AirportItlwm` by default) |
+| T05.2 | Open the Wi-Fi menu / System Settings → Network | native Airport interface appears; scan returns networks |
 | T05.3 | Join a WPA2/WPA3 network | DHCP address; `ping 1.1.1.1` succeeds |
 | T05.4 | `system_profiler SPBluetoothDataType` | controller present, firmware version shown |
 | T05.5 | Pair a Bluetooth mouse or headphones | connects and works |
 | T05.6 | Reboot and reconnect | both survive a reboot |
-| T05.7 | Optional: build `--wifi airportitlwm` and repeat T05.1–T05.3 | native Wi-Fi menu works; record whether it is better than HeliPort on this install |
+| T05.7 | Only if AirportItlwm fails: build `--wifi itlwm --out build/EFI-itlwm` and repeat with HeliPort | interface appears; record whether it is better on this install |
 
 Do not run T05.7 during the graphics A/B; it adds a second variable.
 
@@ -185,7 +185,7 @@ Keep a simple log next to the evidence bundle:
 date:
 BIOS:            F.35 (2025-11-17)
 macOS:           26.7.2 (25G332)
-EFI variant:     wex061 / itlwm / debug=no
+EFI variant:     wex061 / airportitlwm / debug=no
 WhateverXe:      0.6.1  e92b65b0…
 Compat:          0.6.1
 Graphics pkg:    0.3.2

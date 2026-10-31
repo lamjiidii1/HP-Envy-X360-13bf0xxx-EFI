@@ -6,9 +6,9 @@ injects it from a private plist at build time, selects one GPU driver variant
 and one Wi-Fi stack, then writes a ready-to-copy EFI folder.
 
 Usage:
-    ./scripts/build_efi.py                         # wex061 + itlwm, release
+    ./scripts/build_efi.py                         # wex061 + airportitlwm, release
     ./scripts/build_efi.py --gpu hp-adlp-edp       # HP 0.6.0 fallback
-    ./scripts/build_efi.py --wifi airportitlwm
+    ./scripts/build_efi.py --wifi itlwm            # itlwm + HeliPort fallback
     ./scripts/build_efi.py --debug                 # verbose boot
     ./scripts/build_efi.py --out /run/media/.../EFI
 """
@@ -44,13 +44,13 @@ WIFI_VARIANTS = {
         "path": VARIANTS / "wifi-itlwm" / "itlwm.kext",
         "bundle": "itlwm.kext",
         "exec": "Contents/MacOS/itlwm",
-        "description": "itlwm 2.3.0 + HeliPort",
+        "description": "itlwm 2.3.0 + HeliPort (fallback)",
     },
     "airportitlwm": {
         "path": VARIANTS / "wifi-airportitlwm" / "AirportItlwm.kext",
         "bundle": "AirportItlwm.kext",
         "exec": "Contents/MacOS/AirportItlwm",
-        "description": "AirportItlwm 2.4.1 (native Wi-Fi menu)",
+        "description": "AirportItlwm 2.4.1 (native Wi-Fi menu, default)",
     },
 }
 
@@ -104,7 +104,7 @@ def copy_tree(src: Path, dst: Path) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--gpu", choices=sorted(GPU_VARIANTS), default="wex061")
-    parser.add_argument("--wifi", choices=sorted(WIFI_VARIANTS), default="itlwm")
+    parser.add_argument("--wifi", choices=sorted(WIFI_VARIANTS), default="airportitlwm")
     parser.add_argument("--identity", type=Path, default=DEFAULT_IDENTITY)
     parser.add_argument("--out", type=Path, default=REPO / "build" / "EFI")
     parser.add_argument("--debug", action="store_true", help="verbose boot and debug logging")
