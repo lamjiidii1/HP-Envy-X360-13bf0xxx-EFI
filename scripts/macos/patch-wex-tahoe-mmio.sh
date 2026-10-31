@@ -108,10 +108,14 @@ if [[ -z "$VMADDR_HEX" || -z "$FILEOFF_HEX" ]]; then
   exit 2
 fi
 
-# bc keeps the 64-bit kernel addresses unsigned.
-SYM_OFF="$(print "ibase=16; ${SYM_HEX#0x} - ${VMADDR_HEX#0x} + ${FILEOFF_HEX#0x}" | bc)"
-if [[ -z "$SYM_OFF" || "$SYM_OFF" == "0" ]]; then
+# The kernel is linked near the top of the canonical 48-bit address space.
+# zsh arithmetic is signed 64-bit; subtracting two addresses in the same range
+# yields the small, correct difference, and adding the small file offset keeps
+# it in range.
+SYM_OFF=$(( 0x${SYM_HEX#0x} - 0x${VMADDR_HEX#0x} + 0x${FILEOFF_HEX#0x} ))
+if (( SYM_OFF <= 0 )); then
   print -u2 "error: could not compute the file offset of _IOProtectCacheMode"
+  print -u2 "       symbol=$SYM_HEX vmaddr=$VMADDR_HEX fileoff=$FILEOFF_HEX"
   exit 2
 fi
 
@@ -146,6 +150,15 @@ if [[ "$NEW_CONST" == "$OLD_CONST" ]]; then
 fi
 
 COUNT="$(perl -0777 -ne 'my $c = () = /\xE8\x2F\xF3\x02\x00/g; print $c' "$BIN")"
+if [[ "$COUNT" == "0" ]]; then
+  NEW_COUNT="$(NEW_HEX="$NEW_CONST" perl -0777 -ne '
+    my $new = pack("H*", $ENV{NEW_HEX});
+    my $c = () = /\Q$new\E/g; print $c' "$BIN")"
+  if [[ "$NEW_COUNT" == "1" ]]; then
+    print "already patched: $BIN contains the current signature."
+    exit 0
+  fi
+fi
 if [[ "$COUNT" != "1" ]]; then
   print -u2 "error: expected exactly one old signature in the binary, found $COUNT"
   exit 4
