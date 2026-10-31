@@ -114,6 +114,29 @@ The constant in the shipped kext is the 26.7.1 value
 `E8 2F F3 02 00`. On 26.7.2 the call target moved, so the check fails even
 though the function is the same.
 
+Measured from the 25G332 KDK (`_IOProtectCacheMode` at file offset `0x19b410`,
+`__TEXT` at `0xffffff8000200000`), the real bytes on this build are:
+
+```
+E8 5F F3 02 00
+```
+
+`E8` is `call rel32`; the displacement is `+0x2F35F` from the next
+instruction, so the call goes to `0xffffff80003ca840`, which the KDK symbol
+table names `_pmap_enter_options` — exactly the function WhateverXe resolves as
+`fn` and patches at `+0x10C1`/`+0x1197`. The check therefore keeps its original
+meaning; only the link-time displacement changed (26.7.1 used `+0x2F32F`, a
+difference of `0x30`).
+
+For this build, the default `WhateverXe.kext` binary goes from SHA-256
+`c090b9dd35398c72e9567b38b9bb9b61415ab7fcfe22ffc78cbafc93ee67e49b`
+to `7fab9aa31133155c299a89d59de57d0936568185eccd4f64c155f5081e2a1db0`
+when patched for 25G332. The kernel file extracted from
+`Kernel_Debug_Kit_26.7.2_build_25G332.dmg` reports the same version string as
+the running kernel (`root:xnu-12377.161.15.701.48~2/RELEASE_X86_64`) and has
+SHA-256 `a91aad0da9d0a2f545c06859524bb048f4e2e392e46aa12da9fabe652081be53`,
+so the bytes read from it apply to the booted kernel.
+
 ## The fix
 
 `scripts/macos/patch-wex-tahoe-mmio.sh` reads the real five bytes from the

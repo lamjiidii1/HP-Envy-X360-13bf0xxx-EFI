@@ -184,9 +184,15 @@ framebuffer (`IONDRVFramebuffer`) stays attached, the accelerator
 1. **The difference from the reference is the macOS build.** The reference runs
    26.7.1 (25G241); this unit runs 26.7.2 (25G332). Eight of the nine
    `_IOProtectCacheMode` patterns still match; only the `+0xCC` call moved.
+   On 25G332 those bytes are `E8 5F F3 02 00`, and the displacement resolves to
+   `_pmap_enter_options` — the same function WhateverXe resolves as `fn` and
+   patches at `+0x10C1`/`+0x1197`. The 26.7.1 constant (`+0x2F32F`) and the
+   25G332 one (`+0x2F35F`) differ by `0x30`, a link-time layout change.
 2. **The fix is one five-byte constant.** `scripts/macos/patch-wex-tahoe-mmio.sh`
    reads the real call from the kernel on the machine and rewrites the stale
-   `E8 2F F3 02 00` in the injected kext.
+   `E8 2F F3 02 00` in the injected kext. The 25G332 KDK kernel was checked
+   against the running build: both report
+   `root:xnu-12377.161.15.701.48~2/RELEASE_X86_64`.
 3. **A downgrade to 26.7.1 is the guaranteed fallback.** The same kext, same
    Graphics 0.3.1 and same VBT are proven there.
 
@@ -204,7 +210,8 @@ Run the signature patch, reboot, and capture the same bundle plus:
 
 ```sh
 sudo scripts/macos/patch-wex-tahoe-mmio.sh \
-  --kext /Volumes/EFI/EFI/OC/Kexts/WhateverXe.kext
+  --kext /Volumes/EFI/EFI/OC/Kexts/WhateverXe.kext \
+  --kernel /Library/Developer/KDKs/KDK_26.7.2_25G332.kdk/System/Library/Kernels/kernel
 sudo reboot
 
 ioreg -l | grep -E 'TGLMMIOStrongUC|TGLTahoeMMIOGuard|TGLMMIOMappingEvidence'
