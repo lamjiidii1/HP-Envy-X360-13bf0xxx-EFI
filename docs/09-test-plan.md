@@ -55,25 +55,34 @@ later is honest.
 
 ## Phase 3 — Graphics: the primary experiment
 
-Prerequisite: `WhateverXe Graphics 0.3.2` is installed, then the machine has
-rebooted, then the `wex061` EFI is on the ESP.
+Prerequisite: `WhateverXe Graphics 0.3.1` (Compat 0.6.0) is installed, the
+`hp-adlp-edp` EFI is on the ESP, and the 26.7.2 MMIO signature patch has been
+applied and the machine rebooted.
+
+```sh
+sudo scripts/macos/patch-wex-tahoe-mmio.sh \
+  --kext /Volumes/EFI/EFI/OC/Kexts/WhateverXe.kext
+sudo reboot
+```
 
 | ID | Step | Pass criterion |
 |---|---|---|
-| T03.1 | `kextstat \| grep -Ei 'whateverxe\|tgl'` | `WhateverXe (0.6.1)` and `AppleIntelTGLCompat (0.6.1)` |
-| T03.2 | `ioreg -rc AppleIntelFramebuffer` | count ≥ 1 |
-| T03.3 | `ioreg -rc IntelAccelerator` | count ≥ 1 |
-| T03.4 | `system_profiler SPDisplaysDataType` | VRAM in the GB range (not 19 MB); Metal listed |
-| T03.5 | `ioreg -l \| grep N97NativeStartAllowed` | `Yes` |
-| T03.6 | `ioreg -l \| grep WhateverXeFirmwarePanel` | non-zero panel record |
-| T03.7 | `ioreg -l \| grep WEXDisplay13TCBootPorts` | either non-zero (if a port is wired) or all zero with `WEXDisplay13BootReady = Yes`; record which |
-| T03.8 | Open a Metal app (Maps, Photos, a game) | renders without software fallback |
-| T03.9 | Check the internal panel at native 2880×1800 | no flicker, no half-screen, brightness keys work |
-| T03.10 | Attach an external display over USB-C/HDMI (if available) | second display appears; record the connection path |
+| T03.1 | `kmutil showloaded \| grep -Ei 'whateverxe\|tgl'` | `WhateverXe (0.6.0)` and `AppleIntelTGLCompat (0.6.0)` |
+| T03.2 | `ioreg -l \| grep TGLMMIOStrongUCRouted` | `Yes` |
+| T03.3 | `ioreg -l \| grep TGLMMIOStrongUCPreflight` | `Yes` |
+| T03.4 | `ioreg -l \| grep N97NativeStartAllowed` | `Yes` |
+| T03.5 | `ioreg -rc AppleIntelFramebuffer` | count ≥ 1 |
+| T03.6 | `ioreg -rc IntelAccelerator` | count ≥ 1 |
+| T03.7 | `system_profiler SPDisplaysDataType` | VRAM in the GB range (not 19 MB); Metal listed |
+| T03.8 | Check the internal panel at native 2880×1800 | no flicker, no half-screen, brightness keys work |
+| T03.9 | Attach an external display over USB-C/HDMI (if available) | second display appears; record the connection path |
+| T03.10 | Open a Metal app (Maps, Photos, a game) | renders without software fallback |
 
-If T03.2–T03.5 fail, the experiment continues in phase 4. Do not change
-`-igfxdvmt`, `framebuffer-stolenmem` or the SMBIOS at this point: admission
-already passed in the baseline logs.
+If T03.2 stays `No`, save `TGLTahoeMMIOGuard` and `TGLMMIOMappingEvidence` and
+stop: the kernel layout is different from the one the script expects. If
+T03.2 is `Yes` but T03.3 is `No`, the pmap mapping check failed; record the new
+evidence blob. Do not change `-igfxdvmt`, `framebuffer-stolenmem` or the
+SMBIOS: memory admission already passed.
 
 ## Phase 4 — Graphics fallbacks (only if phase 3 fails)
 
@@ -81,11 +90,11 @@ Each step changes exactly one thing and records the same evidence bundle.
 
 | ID | Step | Pass criterion / decision |
 |---|---|---|
-| T04.1 | Install Graphics 0.3.1, boot `hp-adlp-edp` EFI | if Metal works, the regression is 0.6.1 eDP detection; keep this as the working state |
-| T04.2 | Boot `hp-adlp-edp` with Graphics 0.3.2 | records whether 0.6.0 tolerates Compat 0.6.1 (unsupported, informational) |
-| T04.3 | Boot `wex061` with `--debug` (`-v debug=0x100`) | capture the OpenCore log and the last verbose screen |
-| T04.4 | Capture `WhateverXeVBTRaw` + panel/port records | complete report for upstream |
-| T04.5 | Report upstream with BIOS F.35, macOS 25G332 and the panel EDID | issue contains the evidence listed in [08](08-troubleshooting.md#10-reporting-a-graphics-bug-upstream) |
+| T04.1 | Restore the kext backup (`patch-wex-tahoe-mmio.sh --restore`) and confirm the 19 MB state returns | isolates the patch as the only variable |
+| T04.2 | Boot `wex061` with `--debug` (`-v debug=0x100`) | capture the OpenCore log and `WhateverXeFirmwarePorts`; expect a VBT conflict, proves the parser limit |
+| T04.3 | Capture `WhateverXeVBTRaw` + panel/port records + `TGLTahoeMMIOGuard` | complete report for upstream |
+| T04.4 | If the patch cannot work, install macOS 26.7.1 (25G241) and boot `hp-adlp-edp` without it | known-good reference combination; Metal expected |
+| T04.5 | Report upstream with BIOS F.35, macOS 25G332, the VBT and the guard | issue contains the evidence listed in [08](08-troubleshooting.md#10-reporting-a-graphics-bug-upstream) |
 | T04.6 | Revert to the last working combination | machine boots and is usable |
 
 If neither variant accelerates, do not try NootedGreen as a quick fix. It is a
@@ -186,9 +195,9 @@ date:
 BIOS:            F.35 (2025-11-17)
 macOS:           26.7.2 (25G332)
 EFI variant:     wex061 / airportitlwm / debug=no
-WhateverXe:      0.6.1  e92b65b0…
-Compat:          0.6.1
-Graphics pkg:    0.3.2
+WhateverXe:      0.6.0  c090b9dd…
+Compat:          0.6.0
+Graphics pkg:    0.3.1
 T03.2 AIFB:      0
 T03.5 StartAllowed: No
 T03.6 Panel:     0000…0900…

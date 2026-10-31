@@ -120,8 +120,8 @@ Checks, in order:
 
    | EFI variant | WhateverXe | Graphics package | Compat |
    |---|---|---|---|
-   | `wex061` | 0.6.1 | 0.3.2 | 0.6.1 |
-   | `hp-adlp-edp` | 0.6.0 | 0.3.1 | 0.6.0 |
+   | `hp-adlp-edp` (default) | 0.6.0 | 0.3.1 | 0.6.0 |
+   | `wex061` (diagnostic) | 0.6.1 | 0.3.2 | 0.6.1 |
 
    ```sh
    kextstat | grep -Ei 'whateverxe|tgl'
@@ -130,6 +130,7 @@ Checks, in order:
    ```
 
    A 0.6.1 kext with Compat 0.6.0 (or the reverse) will load but not start.
+   The 0.6.1 variant is only a control; it cannot parse this unit's VBT.
 
 2. **Boot arguments match the kext.** `-wex-adlp-edp`,
    `-wex-reset-restore` and `-wex-no-multicontext` exist only in the 0.6.0
@@ -141,17 +142,30 @@ Checks, in order:
    next to WhateverXe, and NootedGreen/NootedRed must not be present. The
    verifier fails the build if they are.
 
-4. **The panel record.** In IORegistry, `WhateverXeFirmwarePanel` should
-   contain a non-zero panel descriptor. In the failed state it is
-   `00…00 09 00…00` and `WhateverXeFirmwareChecksum` is `0`. The captured
-   `WhateverXeVBTRaw` also contains the literal placeholder string
-   `LFP_PanelName` repeated instead of a panel model. That is firmware data,
-   not something the EFI can change.
-
-5. **Try the other driver variant**, with the same config otherwise:
+4. **The 26.7.2 MMIO gate.** This is the known failure on 25G332:
 
    ```sh
-   ./scripts/build_efi.py --gpu hp-adlp-edp --out build/EFI-hp --force
+   ioreg -l | grep -E 'TGLMMIOStrongUCRouted|TGLMMIOStrongUCPreflight'
+   ioreg -l | grep -E 'N97NativeStartAllowed|N97NativeProbeBlocked'
+   ioreg -l | grep TGLTahoeMMIOGuard
+   ```
+
+   In the broken state `TGLMMIOStrongUCRouted = No`,
+   `TGLMMIOStrongUCPreflight = No`, `N97NativeStartAllowed = No` and
+   `N97NativeProbeBlocked = Yes`. Run
+   `sudo scripts/macos/patch-wex-tahoe-mmio.sh --kext /Volumes/EFI/EFI/OC/Kexts/WhateverXe.kext`
+   and reboot. See [docs/03-graphics.md](03-graphics.md).
+
+5. **The panel record is not the problem.** `WhateverXeFirmwarePanel` is
+   `[0, 0, 9, 0, 0]` on this unit because the VBT sets `panel_type = 0xFF`
+   (panel chosen by PnP ID). That is expected and patch 0004 admits the Combo A
+   DP route without it. Do not chase the placeholder `LFP_PanelName` strings;
+   WhateverXe does not read them.
+
+6. **Try the other driver variant**, with the same config otherwise:
+
+   ```sh
+   ./scripts/build_efi.py --gpu wex061 --out build/EFI-wex061 --force
    ```
 
    Install Graphics 0.3.1 before booting it. If the fallback works and 0.6.1

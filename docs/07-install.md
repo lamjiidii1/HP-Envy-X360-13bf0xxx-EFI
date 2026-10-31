@@ -40,10 +40,10 @@ make verify
 `make build` writes `build/EFI` and refuses to continue if a payload is missing
 or the SMBIOS is blank.
 
-For the fallback or debug variants:
+For the other variants:
 
 ```sh
-./scripts/build_efi.py --gpu hp-adlp-edp --out build/EFI-hp --force
+./scripts/build_efi.py --gpu wex061 --out build/EFI-wex061 --force   # diagnostic
 ./scripts/build_efi.py --debug --out build/EFI-debug --force
 ```
 
@@ -78,40 +78,40 @@ Keep the folder structure exactly `EFI/BOOT/BOOTx64.efi` and
 
 ## 4. Boot the new EFI, then install the matching graphics package
 
-Upstream order: **boot the target macOS with the latest WhateverXe first, then
-install the latest graphics package.** The EFI provides the WEX binary; the
-package updates Compat and AuxKC.
+Order matters: **boot the target macOS with the WEX 0.6.0 EFI first, then make
+sure Graphics 0.3.1 is installed, then apply the 26.7.2 signature patch.** The
+EFI provides the WEX binary; the package provides Compat 0.6.0 and the patched
+Apple kexts.
 
 1. Copy `build/EFI` to the ESP/USB and boot macOS from it (§3 and §5). The
-   internal panel may stay on the software fallback at this point; that is
-   expected. Confirm the driver:
+   internal panel stays on the software fallback for now; that is expected.
+   Confirm the injected driver:
    ```sh
-   kmutil showloaded | grep -i whateverxe    # expect 0.6.1
+   kmutil showloaded | grep -i whateverxe    # expect 0.6.0
+   kmutil showloaded | grep -i tglcompat     # expect 0.6.0
    ```
-2. Install the package that matches the EFI variant:
-
-| EFI variant | Required package |
-|---|---|
-| `wex061` (default) | `WhateverXe-Graphics-0.3.2.pkg` |
-| `hp-adlp-edp` | `WhateverXe-Graphics-0.3.1.pkg` (or 0.3.2 if it still loads; see below) |
-
-Download from the
-[WhateverXe Graphics releases](https://github.com/b00t0x/WhateverXe-Graphics/releases)
-and verify:
+2. If `AppleIntelTGLCompat` is not **0.6.0**, install **WhateverXe Graphics
+   0.3.1** (the package tested with the `adlp-edp` fork). Do **not** install
+   0.3.2: it ships Compat 0.6.1 and pairs with upstream 0.6.1, which cannot
+   parse this unit's VBT.
 
 ```sh
-shasum -a 256 WhateverXe-Graphics-0.3.2.pkg
-# 7ac6c7149248c483efbd93555294d587a93d81392421f3af8a4f5b1b5fcc0101
-sudo installer -pkg WhateverXe-Graphics-0.3.2.pkg -target /
+shasum -a 256 WhateverXe-Graphics-0.3.1.pkg
+sudo installer -pkg WhateverXe-Graphics-0.3.1.pkg -target /
 ```
 
 3. The package rebuilds the Auxiliary Kernel Collection. **Restart** after it
-   succeeds, then check acceleration (§5).
+   succeeds.
+4. On the next boot, apply the 26.7.2 MMIO signature fix and restart again:
+   ```sh
+   sudo ./scripts/macos/patch-wex-tahoe-mmio.sh \
+     --kext /Volumes/EFI/EFI/OC/Kexts/WhateverXe.kext
+   sudo reboot
+   ```
 
-Do not reverse this order. Installing 0.3.2 while the old 0.6.0 EFI is still
-on the ESP leaves WEX 0.6.0 running against Compat 0.6.1; installing 0.3.1
-while booting the new 0.6.1 EFI is the opposite mismatch. The supported pair is
-WEX 0.6.1 with Graphics 0.3.2, and the EFI must boot first.
+Do not install Graphics 0.3.2 with this EFI, and do not boot the 0.6.1
+variant expecting acceleration. The supported pair on this machine is WEX
+0.6.0 + Graphics 0.3.1.
 
 ## 5. First boot
 
@@ -121,9 +121,12 @@ WEX 0.6.1 with Graphics 0.3.2, and the EFI must boot first.
 3. Check the result:
    ```sh
    system_profiler SPDisplaysDataType
+   ioreg -l | grep -E 'TGLMMIOStrongUC|N97NativeStartAllowed'
    ioreg -rc AppleIntelFramebuffer | head
    ioreg -rc IntelAccelerator | head
    ```
+   `TGLMMIOStrongUCRouted` and `N97NativeStartAllowed` must both be `Yes`
+   before expecting Metal; see [docs/03-graphics.md](03-graphics.md).
 4. If the screen is black but the machine is alive, boot the `--debug` build
    with `-v` and capture the last screen; see
    [docs/08-troubleshooting.md](08-troubleshooting.md).
@@ -158,9 +161,9 @@ by the config on every boot, so a reset is safe.
 
 1. Boot the backup EFI from the USB stick (or restore `EFI.backup-*` from
    Linux/macOS).
-2. Reinstall WhateverXe Graphics 0.3.1 if you had upgraded to 0.3.2. If you
-   cannot boot macOS, the package can be reinstalled from Recovery with
-   `installer -pkg … -target /Volumes/…`.
+2. Restore the WhateverXe backup (`patch-wex-tahoe-mmio.sh --restore`) or
+   reinstall WhateverXe Graphics 0.3.1. If you cannot boot macOS, the package
+   can be reinstalled from Recovery with `installer -pkg … -target /Volumes/…`.
 3. The old EFI in `mine/EFI` is the exact previous state; it is not in Git.
 
 ## 9. Notes for a clean reinstall

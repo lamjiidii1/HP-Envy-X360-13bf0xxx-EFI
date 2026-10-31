@@ -10,11 +10,14 @@ scratch with every payload pinned and hashed.
 
 > **Status:** macOS Tahoe 26.7.2 boots and is usable, Wi-Fi/Bluetooth/audio/
 > battery/keyboard/USB work, but the iGPU currently falls back to
-> `IONDRVFramebuffer` (19 MB VRAM, no Metal). The repository's primary variant
-> moves from the reference laptop's patched WhateverXe 0.6.0 to upstream
-> WhateverXe **0.6.1** + WhateverXe Graphics **0.3.2**, which added generic
-> Alder Lake-P/U eDP panel detection. That is the next thing to test on
-> hardware. See [docs/03-graphics.md](docs/03-graphics.md).
+> `IONDRVFramebuffer` (19 MB VRAM, no Metal). The cause is now identified: on
+> 26.7.2 (25G332) WhateverXe's Tahoe MMIO-UC check finds one changed kernel
+> signature, leaves `tglActive` false and rejects the accelerator probe.
+> Upstream 0.6.1 cannot be used on this unit: its VBT parser rejects the
+> firmware's duplicate DDI entry (`Status::Conflict`). The same-model
+> reference stack (0.6.0 + `adlp-edp`) is proven on 26.7.1 and is the default
+> here; `scripts/macos/patch-wex-tahoe-mmio.sh` applies the one-constant fix
+> for 26.7.2. See [docs/03-graphics.md](docs/03-graphics.md).
 
 ## Hardware
 
@@ -37,13 +40,14 @@ scratch with every payload pinned and hashed.
 
 ```
 efi/base/                 OpenCore 1.0.8, 12 ACPI tables, common kexts, resources
-efi/variants/gpu-wex061/          WhateverXe 0.6.1 (default)
-efi/variants/gpu-hp-adlp-edp/     WhateverXe 0.6.0 + retropineaple adlp-edp patches (fallback)
+efi/variants/gpu-hp-adlp-edp/     WhateverXe 0.6.0 + retropineaple adlp-edp patches (default)
+efi/variants/gpu-wex061/          WhateverXe 0.6.1 upstream (rejects this unit's VBT)
 efi/variants/wifi-airportitlwm/   AirportItlwm 2.4.1 (native Wi-Fi menu, default)
 efi/variants/wifi-itlwm/          itlwm 2.3.0 + HeliPort (fallback)
 scripts/build_efi.py      assembles an EFI, injects private identity
 scripts/verify_efi.py     structural and payload checks for a built EFI
 scripts/payload_inventory.py      regenerates audit/payloads.tsv
+scripts/macos/patch-wex-tahoe-mmio.sh   repairs the 26.7.2 MMIO-UC signature
 docs/                     hardware, audit, graphics, Wi-Fi, audio, install, test plan
 audit/                    reference matrix, config diff, log analysis, payload hashes
 private/                  identity.example.plist (committed), identity.plist (ignored)
@@ -56,7 +60,7 @@ private/                  identity.example.plist (committed), identity.plist (ig
 cp private/identity.example.plist private/identity.plist
 $EDITOR private/identity.plist
 
-# 2. Build the default EFI (WhateverXe 0.6.1 + AirportItlwm).
+# 2. Build the default EFI (WhateverXe 0.6.0 + adlp-edp, AirportItlwm).
 make build
 make verify
 
@@ -67,18 +71,18 @@ make verify
 Other combinations:
 
 ```sh
-./scripts/build_efi.py --gpu hp-adlp-edp --out build/EFI-hp
+./scripts/build_efi.py --gpu wex061 --out build/EFI-wex061   # upstream test only
 ./scripts/build_efi.py --wifi itlwm --out build/EFI-itlwm
 ./scripts/build_efi.py --debug --out build/EFI-debug     # -v, debug=0x100
 ```
 
 | Build | GPU driver | Wi-Fi | When to use |
 |---|---|---|---|
-| `build/EFI` (default) | WhateverXe 0.6.1 | AirportItlwm 2.4.1 | First try; native Wi-Fi plus upstream generic ADL-P/U eDP support |
-| `build/EFI-itlwm` | WhateverXe 0.6.1 | itlwm + HeliPort | Fallback if AirportItlwm does not attach to 26.7.2 |
-| `build/EFI-hp` | WhateverXe 0.6.0 + adlp-edp | AirportItlwm 2.4.1 | Graphics fallback: exactly what the same-model reference ships |
-| `build/EFI-hp-itlwm` | WhateverXe 0.6.0 + adlp-edp | itlwm + HeliPort | Both fallbacks at once |
-| `build/EFI-debug` | WhateverXe 0.6.1 | AirportItlwm 2.4.1 | Verbose boot and kernel logging while debugging |
+| `build/EFI` (default) | WhateverXe 0.6.0 + adlp-edp | AirportItlwm 2.4.1 | Same binary as the working same-model reference; required for this VBT |
+| `build/EFI-itlwm` | WhateverXe 0.6.0 + adlp-edp | itlwm + HeliPort | Fallback if AirportItlwm does not attach |
+| `build/EFI-wex061` | WhateverXe 0.6.1 | AirportItlwm 2.4.1 | Diagnostic only: 0.6.1 rejects this VBT (`Status::Conflict`) |
+| `build/EFI-wex061-itlwm` | WhateverXe 0.6.1 | itlwm + HeliPort | Diagnostic only, both fallbacks |
+| `build/EFI-debug` | WhateverXe 0.6.0 + adlp-edp | AirportItlwm 2.4.1 | Verbose boot and kernel logging while debugging |
 
 ## What changed compared with the previous EFI
 

@@ -35,6 +35,6 @@ they have.
 
 Apple's graphics drivers are **not** included in this repository. They come
 from the separately installed WhateverXe Graphics package
-(`WhateverXe-Graphics-0.3.2.pkg`). The package and its payloads remain
+(`WhateverXe-Graphics-0.3.1.pkg`). The package and its payloads remain
 Apple/Intel-derived material distributed under the terms described in the
 [WhateverXe-Graphics THIRD_PARTY.md](https://github.com/b00t0x/WhateverXe-Graphics/blob/main/THIRD_PARTY.md).

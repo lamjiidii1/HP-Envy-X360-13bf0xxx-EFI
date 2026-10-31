@@ -17,10 +17,10 @@ Apple's **Tiger Lake** driver accept it:
 | `AppleIntelTGLGraphicsVADriver.bundle` | `/Library/GPUBundles` | Hardware video decode (optional) |
 | `AMFIPass.kext` (Mod) | EFI | Lets the signed Xe bundles load without disabling AMFI globally |
 
-The two halves must match: a WhateverXe build and a Graphics package built for
-the same Compat ABI. The old install is **0.6.0 + Graphics 0.3.1 (Compat
-0.6.0)**. This repository's default is **0.6.1 + Graphics 0.3.2 (Compat
-0.6.1)**.
+The two halves must match. **This machine uses WhateverXe 0.6.0 (the
+`adlp-edp` fork) with WhateverXe Graphics 0.3.1 (`AppleIntelTGLCompat` 0.6.0).**
+That is the pair in the working same-model reference. Upstream WhatheverXe
+0.6.1 + Graphics 0.3.2 is a different pair and is not usable here; see below.
 
 ## What the logs show
 
@@ -29,82 +29,137 @@ From `LOGS/macOS_Logs_20261030_180840` (macOS 26.7.2, build 25G332):
 ```
 kextstat: org.b00t0x.WhateverXe (0.6.0)
 kextstat: org.b00t0x.AppleIntelTGLCompat (0.6.0)
-log     : AppleIntelTGLCompat: revision 0.5.0 started, physical-owner/binding selection
-log     : AppleIntelTGLGraphicsFramebuffer [IGFB][WARN][BRINGUP] ...
-log     : Boot args: ... -wex-adlp-edp ... -wex-reset-restore -wex-no-multicontext ...
+kextstat: com.apple.driver.AppleIntelTGLGraphicsFramebuffer (16.0.0)  0 references
+kextstat: com.apple.driver.AppleIntelTGLGraphics (16.0.0)             0 references
+Boot args: ... -wex-adlp-edp ... -wex-reset-restore -wex-no-multicontext ...
 ```
 
-So all three pieces load. But the IORegistry shows a fallback framebuffer:
+All three pieces load, but no Apple framebuffer ever attaches to the GPU:
 
 | Property | Value | Meaning |
 |---|---|---|
 | `WhateverXeDeviceSelection` | `01000000 8680aa46 ...` | WhateverXe matched the iGPU (`8086:46AA`) |
 | `WEXDisplay13BootReady` | `Yes` | Display 13 bootstrap ran |
-| `WhateverXeFirmwarePanel` | 20 bytes, only field `0x09` non-zero | **no usable panel record** |
-| `WhateverXeFirmwarePortRecords` | non-zero | the VBT port table **was** parsed |
-| `WEXDisplay13TCBootPorts` | all zeros | **no Type-C/port routing detected** |
-| `N97Admission` | `Yes` | memory/topology checks admitted the GPU |
-| `N97NativePreflight` | `Yes` | preflight passed |
-| `N97GTTopologyReady` | `Yes` | GGTT/stolen memory layout accepted |
-| `N97NativeStartAllowed` | `No` | **the native framebuffer/accelerator start was blocked** |
-| class counts | `IONDRVFramebuffer=1`, `AppleIntelFramebuffer=0`, `IntelAccelerator=0` | macOS attached the generic boot framebuffer |
-| `system_profiler SPDisplaysDataType` | `VRAM (Total): 19 MB`, `Kernel Extension Info: No Kext Loaded` | consequence of the above |
+| `WEXDisplay13ComboDPReady` | `Yes` | the fixed Combo A panel route was admitted |
+| `WEXDisplay13TrainingReady` | `Yes` | link-training hooks installed |
+| `N97Admission` / `N97NativePreflight` | `Yes` | memory/topology checks passed |
+| `N97GTTopologyReady` | `Yes` | GGTT/stolen-memory layout accepted |
+| **`TGLMMIOStrongUCRouted`** | **`No`** | **the MMIO user-copy hook was not installed** |
+| **`TGLMMIOStrongUCPreflight`** | **`No`** | **the MMIO mapping was never made UC** |
+| `N97NativeKernelReady` | `No` | `tglActive` is false |
+| `N97NativeStartAllowed` | `No` | native framebuffer/accelerator start blocked |
+| `N97NativeProbeBlocked` | `Yes` | WhateverXe installed its reject-probe guard |
+| class counts | `IONDRVFramebuffer=1`, `AppleIntelFramebuffer=0`, `IntelAccelerator=0` | generic boot framebuffer only |
+| `SPDisplaysDataType` | 19 MB VRAM, "No Kext Loaded" | consequence of the above |
 
-`N97NativeStartAllowed` is set to `false` in WhateverXe's ADL-N/ADL-P
-bootstrap (`kern_xe.cpp`, `adlnBootstrap`) and only flipped to `true` inside
-the accelerator start path after every qualification succeeds. Seeing it
-`No` while `N97Admission`/`N97NativePreflight` are `Yes` means the failure is
-**after** memory admission and **before** the accelerator takes ownership —
-consistent with display/panel qualification, not with a broken PCI device or a
-wrong stolen-memory size.
+The chain is explicit in the source: `tglActive = tglVM.enabled &&
+tglMMIOUCRouted && tglMMIOUCReady`. With the MMIO hook missing, `tglActive`
+stays false, so `processKext()` installs
+`processAlderLakeNRejectedAccelerator()` and the donor driver never starts.
+The panel work (`-wex-adlp-edp`, Combo A, training) already succeeded; this is
+the last gate, not a display or VBT problem.
 
-The zeroed `WhateverXeFirmwarePanel` record is the strongest clue: the driver
-could not find the internal panel description in the firmware VBT. With no
-panel it refuses to hand the framebuffer over natively, and the boot
-framebuffer stays in place.
+## The VBT is valid
 
-The full `WhateverXeVBTRaw` dump shows why. The header is `$VBT
-ALDERLAKE-P`, and the port table (`WhateverXeFirmwarePortRecords`) contains
-real entries, so the VBT is readable and broadly parsed. But the panel-name
-region is the literal placeholder string `LFP_PanelName` repeated, and the
-20-byte panel record has no timings or EDID-like data. The firmware simply
-does not describe the attached OLED in the form the 0.6.0 patch expects. See
-[../audit/log-analysis.md](../audit/log-analysis.md) for the decoded values.
+The root collector captured the real firmware table from Linux
+(`LOGS/linux-evidence-2026-10-31-133508/debugfs/1-i915_vbt`):
 
-## Hypotheses, ranked
+- `$VBT ALDERLAKE-P`, version 100, BDB version **247**, 8701 bytes;
+- internal DP child `0x1806` on **DDI A** (`aux 0x40`) and on **DDI B**
+  (`aux 0x10`);
+- a third child `0x60d2` on DVO1 that also maps to **DDI 1** — a duplicate;
+- panel block 40 has `panel_type = 0xFF`, i.e. the panel is selected by PnP ID,
+  so `WhateverXeFirmwarePanel.valid = false` is **expected**, not a fault.
 
-1. **The 0.6.0 `adlp-edp` patch does not recognise this unit's VBT.**
-   The reference kext was built for a 13-bf0059TU on BIOS F.?? and macOS
-   26.7.1. This machine runs BIOS **F.35 (2025-11-17)** and macOS **26.7.2**.
-   A VBT revision change moves the panel/port records; the patch then finds
-   nothing, which is exactly what the zeroed `WhateverXeFirmwarePanel` shows.
-2. **Kernel ABI drift in 26.7.2.** A kext built against 26.7.1 headers can load
-   but be rejected at start on 25G332. Upstream 0.6.1 was released after
-   26.7.2 and explicitly targets current Tahoe.
-3. **Panel batch difference.** Same resolution does not guarantee the same
-   EDID/VBT entry (Samsung vs BOE). If the panel descriptor differs, a
-   hard-coded patch cannot work.
-4. **Configuration.** Ruled out: the graphics-relevant config sections are
-   identical to the known-working reference (see
-   [docs/02-audit.md](02-audit.md)).
-5. **Stolen memory / DVMT.** Ruled out: `N97GTTopologyReady=Yes`,
-   `N97StolenReservation` is populated, and the reference uses the same
-   `0000c003` + `-igfxdvmt` pair.
+The file is **byte-identical** to the reference fork's own fixture
+`tests/fixtures/hp-envy-x360-13-bf-vbt.bin` (SHA-256
+`4d790a72…fa30c`). BIOS F.35, the VBT and the panel are therefore not the
+difference between this machine and the working one.
 
-## Why 0.6.1 is the next step
+## Why 0.6.1 is not the answer
 
-Upstream 0.6.1 (2026-10-27) added:
+Upstream 0.6.1 (2026-10-27) added generic eDP support, but it cannot be used
+on this unit:
 
-> experimental internal display (eDP) and brightness support for Alder Lake-N /
-> Twin Lake and Alder Lake-H/P/U / Raptor Lake-H/P/U GPUs
+1. **It rejects this VBT.** 0.6.1's `kern_vbt.hpp` returns `Status::Conflict`
+   on the second child for DDI 1. Only the `adlp-edp` fork keeps the first
+   child per DDI (Linux semantics) and prefers DDI A. With no ports, there is
+   no panel.
+2. **It has no `-wex-adlp-edp`.** The option was a 0.6.0-fork feature and was
+   never merged upstream.
+3. **It has the same MMIO constant.** The Tahoe `protectCall` check is
+   identical in 0.6.0 and 0.6.1, so it would fail on 25G332 even if the VBT
+   parsed.
 
-and the matching Graphics 0.3.2 ships `AppleIntelTGLCompat 0.6.1`. The 0.6.1
-binary contains no `-wex-adlp-edp` string at all; the feature is now automatic
-and firmware-driven instead of a per-machine patch. That is precisely the
-failure mode observed here.
+The 0.6.1 binary in `efi/variants/gpu-wex061` is kept only as a diagnostic
+control.
 
-0.6.1 also contains the 0.6.1 fix for DEBUG boot stack overflows, which matters
-if we need to debug the bring-up.
+## The 26.7.2 MMIO signature
+
+`tglPrepareTahoeMMIOUC()` validates `_IOProtectCacheMode` by comparing nine
+kernel byte patterns. On 25G332, eight match and only the call at
+`_IOProtectCacheMode + 0xCC` differs. The published guard proves it:
+
+```
+TGLTahoeMMIOGuard = [1, 1, 0x4011000000, 0x1000000, 0x1040600070406,
+                     1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, …, 0]
+                                                              ^ guard[16]
+```
+
+`guard[16]` is the ninth byte match (`protect + 0xCC`); `guard[19]` is the
+overall `ok`, which is zero. Everything else — the prologue, the pmap entry
+sites, `kernel_map`, the PAT and the 16 MB BAR — passes.
+
+The constant in the shipped kext is the 26.7.1 value
+`E8 2F F3 02 00`. On 26.7.2 the call target moved, so the check fails even
+though the function is the same.
+
+## The fix
+
+`scripts/macos/patch-wex-tahoe-mmio.sh` reads the real five bytes from the
+kernel Mach-O on the Mac and replaces the stale constant in the injected
+WhateverXe binary. It keeps a `.orig` backup, refuses ambiguous matches, and
+does not touch the kernel or the installed graphics package.
+
+```sh
+# On macOS, with the ESP mounted at /Volumes/EFI:
+sudo ./scripts/macos/patch-wex-tahoe-mmio.sh \
+  --kext /Volumes/EFI/EFI/OC/Kexts/WhateverXe.kext
+sudo reboot
+```
+
+The script needs the kernel file (usually `/System/Library/Kernels/kernel`) or
+the matching Kernel Debug Kit. It prints the old and new signatures, then
+verifies the patch. `--dry-run` only reports; `--restore` puts the backup
+back.
+
+This is a local binary change to an OpenCore-injected kext, not to a signed
+system extension. Keep the backup; if the machine behaves worse, restore it
+and boot the old EFI.
+
+### Verify after the reboot
+
+```sh
+ioreg -l | grep -E 'TGLMMIOStrongUC|TGLTahoeMMIOGuard'
+ioreg -l | grep -E 'N97Native(StartAllowed|KernelReady|ProbeBlocked)'
+ioreg -rc AppleIntelFramebuffer        # count 1
+ioreg -rc IntelAccelerator             # count 1
+system_profiler SPDisplaysDataType     # GB-range VRAM, Metal support
+```
+
+Success looks like `TGLMMIOStrongUCRouted = Yes`,
+`TGLMMIOStrongUCPreflight = Yes`, `N97NativeStartAllowed = Yes`,
+`N97NativeKernelReady = Yes`, `N97NativeProbeBlocked` absent or `No`.
+
+If `UCRouted` becomes `Yes` but `UCPreflight` stays `No`, the pmap check found
+a different mapping; collect the new `TGLMMIOMappingEvidence` blob and stop.
+
+## Fallback: stay on 26.7.1
+
+The same kext, same Graphics 0.3.1 and same VBT are proven to give Metal on
+macOS 26.7.1 (25G241). If the signature patch does not unlock the accelerator,
+the reliable path is a 26.7.1 install (back up first; macOS does not install
+an older build over a newer one). Do not combine 26.7.1 with a 0.6.1 EFI.
 
 ## Boot arguments
 
@@ -112,84 +167,39 @@ if we need to debug the bring-up.
 |---|---|
 | `-allow3d` | Allows the accelerator path to be considered |
 | `-disablegfxfirmware` | Skips GuC firmware loading, which Apple's driver cannot do here |
-| `-igfxdvmt` | Compensates for the BIOS's 60 MB DVMT pre-allocation |
+| `-igfxdvmt` | Compensates for the BIOS's 64 MB DVMT pre-allocation |
 | `keepsyms=1` | Keeps symbols in panics |
 | `msgbuf=4194304` | Larger kernel log buffer for bring-up diagnostics |
 | `shda-lang=en` | SimpleHDA language |
 | `alcid=11` | AppleALC layout 11 (ALC245) |
-| `-wex-adlp-edp` | **0.6.0 variant only** — force the ADL-P eDP path |
-| `-wex-reset-restore` | **0.6.0 variant only** — restore display state after reset |
-| `-wex-no-multicontext` | **0.6.0 variant only** — avoid multi-context submission on this GPU |
+| `-wex-adlp-edp` | Force the ADL-P eDP path (0.6.0 fork only) |
+| `-wex-reset-restore` | Restore display/render state after a GPU reset |
+| `-wex-no-multicontext` | Avoid the second compute ring that deadlocks on recovery |
 | `-v`, `debug=0x100` | `--debug` builds only |
 
 Do not add `-wex-noaccel`: it deliberately disables the accelerator and would
-guarantee the current 19 MB fallback.
+guarantee the 19 MB fallback.
 
-## How to test the new variant
+## Install order
 
-Upstream order matters: **boot the target macOS with the latest WhateverXe
-before installing the latest graphics package.** The package updates Compat
-and AuxKC; the EFI provides the matching WEX binary.
-
-1. Copy `build/EFI` (default variant) to the ESP, replacing the old EFI. Keep
-   the old EFI on a USB stick. Do **not** install the graphics package yet.
-2. Boot macOS with the new EFI. The internal panel may remain on the
-   software-rendered fallback at this stage; that is expected. Confirm the
-   driver loaded:
+1. Boot the target macOS with this EFI **before** changing the graphics
+   package. The panel may stay on the software fallback; that is expected.
+2. Confirm the injected kext:
    ```sh
-   kmutil showloaded | grep -i whateverxe   # expect 0.6.1
+   kmutil showloaded | grep -i whateverxe    # expect 0.6.0
    ```
-3. On macOS, install **WhateverXe Graphics 0.3.2** (it replaces Compat 0.6.0
-   with 0.6.1 and updates the patched Apple kexts in AuxKC):
-   `WhateverXe-Graphics-0.3.2.pkg`, SHA-256
-   `7ac6c7149248c483efbd93555294d587a93d81392421f3af8a4f5b1b5fcc0101`
-   (see [docs/10-provenance.md](10-provenance.md)). Restart when it finishes.
-4. After the restart, check acceleration. If it works, stop. If it does not:
-5. Reboot the `--debug` build, let it reach the desktop, and collect:
-   ```sh
-   ioreg -l -p IODeviceTree > ioreg.txt
-   ioreg -rc IONDRVFramebuffer -d1 > iondrv.txt
-   kmutil showloaded | grep -Ei 'whateverxe|tgl' > kexts.txt
-   log show --last 5m --predicate 'process == "kernel"' > kernel.log
-   system_profiler SPDisplaysDataType
-   ```
-6. Try the fallback variant (`--gpu hp-adlp-edp`) with the same EFI otherwise.
-
-### Success criteria
-
-```
-ioreg -rc AppleIntelFramebuffer        # count 1
-ioreg -rc IntelAccelerator             # count 1
-system_profiler SPDisplaysDataType     # VRAM (Total) in GB range, Metal support listed
-```
-
-and in IORegistry, `N97NativeStartAllowed = Yes`, `WhateverXeFirmwarePanel`
-non-zero, `WEXDisplay13BootReady = Yes`.
-
-### If 0.6.1 still refuses
-
-The next diagnostic is the firmware panel record itself. Capture the VBT
-(`ioreg -l | grep TGLVBT`) and the full `WhateverXeFirmwarePanel` value, then
-report them to the WhateverXe issue tracker with the exact BIOS version and
-panel EDID. A patch cannot be written reliably without that record.
-
-If macOS will not boot far enough to collect that, run the read-only Linux
-collector as root and attach its output:
-```sh
-sudo ./scripts/collect-linux-evidence.sh
-```
-It copies ACPI tables, connector EDID, i915 debugfs (including the VBT when the
-kernel exposes it), DMI and PCI data into a timestamped `LOGS/` folder.
-
-Do **not** fall back to NootedGreen as a first move: it is a different driver
-with a different GPU support matrix, and this machine's 0x46AA is not its
-validated target.
+3. If `AppleIntelTGLCompat` is not 0.6.0, install **WhateverXe Graphics
+   0.3.1** (not 0.3.2) and restart. 0.3.1 is the package tested with the
+   `adlp-edp` fork.
+4. Apply the 26.7.2 signature patch (above) and restart.
+5. Check acceleration with the commands in *Verify after the reboot*.
 
 ## Rollback
 
-The old working EFI is preserved at `mine/EFI` (local, not in Git). Copying it
-back to the ESP and reinstalling Graphics 0.3.1 restores the exact previous
-state. The display works in both states; only acceleration differs.
+The previous EFI is preserved at `mine/EFI` (local, not in Git). Copying it
+back to the ESP restores the exact previous state. The display works in both
+states; only acceleration differs. Reinstalling Graphics 0.3.1 restores the
+matching Compat/patched Apple kexts.
 
 ## Optional: disable the VA bundle
 

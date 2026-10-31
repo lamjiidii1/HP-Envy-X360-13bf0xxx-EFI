@@ -14,8 +14,8 @@ repository.
 | Repository | Commit | Hardware | macOS target | Graphics stack | Wi-Fi | Role here |
 |---|---|---|---|---|---|---|
 | [retropineaple/whateverxe-hp-envy-x360](https://github.com/retropineaple/whateverxe-hp-envy-x360) | `9809987` | **HP Envy x360 13-bf0059TU**, i7-1250U, `0x46AA`, 2880×1800 OLED | 26.7.1 (25G241) | WhateverXe 0.6.0 + 47 `adlp-edp` patches, Graphics 0.3.1 | AirportItlwm | Primary same-model reference |
-| [b00t0x/WhateverXe](https://github.com/b00t0x/WhateverXe) | 0.6.1 tag | TGL, ADL-N, ADL/RPL-H/P/U | current Tahoe | upstream driver | — | Default GPU driver; boot-arg and pairing rules |
-| [b00t0x/WhateverXe-Graphics](https://github.com/b00t0x/WhateverXe-Graphics) | `b4d3889` (0.3.2) | same | current Tahoe | Apple payloads + `AppleIntelTGLCompat` | — | Pinned Graphics package; AMFIPass Mod |
+| [b00t0x/WhateverXe](https://github.com/b00t0x/WhateverXe) | 0.6.1 tag | TGL, ADL-N, ADL/RPL-H/P/U | current Tahoe | upstream driver | — | Diagnostic control; boot-arg and pairing rules |
+| [b00t0x/WhateverXe-Graphics](https://github.com/b00t0x/WhateverXe-Graphics) | `v0.3.1` | same | current Tahoe | Apple payloads + `AppleIntelTGLCompat` 0.6.0 | — | Pinned Graphics package; AMFIPass Mod |
 | [JulioNectar/Hackintosh-XPS13Plus-IrisXe-Tahoe](https://github.com/JulioNectar/Hackintosh-XPS13Plus-IrisXe-Tahoe) | `6f03560` | Dell XPS 13 Plus 9320, i7-1360P, `0xA7A0` | Tahoe | NootedGreen + user-space Metal patches | — | Debug methodology; VA-driver caveat |
 | [labrouss/EliteBook840G8](https://github.com/labrouss/EliteBook840G8) | `8610a1a` | HP EliteBook 840 G8, i7-1165G7 | Tahoe | WhateverXe 0.6.1 + Graphics 0.3.2 | — | Proof the 0.6.1 pair runs on Tahoe; HP sleep findings |
 | [danyyok/Dell-Latitude-7420-EFI](https://github.com/danyyok/Dell-Latitude-7420-EFI) | `aff2051` | Dell Latitude 7420, i7-1165G7 | Tahoe | WhateverXe | — | Recovery-profile idea; 11-SSDT layout |
@@ -44,6 +44,11 @@ Files inspected: `README.md`, `docs/EFI.md`, `docs/FIXES.md`,
   `SSDT-USB-Reset.aml` and `SSDT-USBW.aml`).
 - Its Graphics package is 0.3.1 (Compat 0.6.0).
 - Its AppleALC is patched with the same layout-11 DSP removal used here.
+- Its WhateverXe binary is **byte-identical** (`c090b9dd…`) to the kext in the
+  old EFI on this machine and to `efi/variants/gpu-hp-adlp-edp`.
+- Its own test fixture `tests/fixtures/hp-envy-x360-13-bf-vbt.bin` is
+  byte-identical (`4d790a72…`) to the VBT captured from this machine under
+  Linux. The firmware is identical.
 
 ### Adopted
 
@@ -55,12 +60,11 @@ Files inspected: `README.md`, `docs/EFI.md`, `docs/FIXES.md`,
 - The AppleALC layout-11 patch (reproduced, hashed).
 - The USB port map for `8A28`.
 - The general EFI shape and kext order (Lilu → AMFIPass → WhateverXe → …).
-- The 0.6.0 `adlp-edp` kext as a **fallback variant**.
+- The 0.6.0 `adlp-edp` kext as the **default** GPU driver, with the same
+  `-wex-adlp-edp`, `-wex-reset-restore`, `-wex-no-multicontext` arguments.
 
 ### Rejected or changed
 
-- **Not used as the default GPU driver.** It only proves 0.6.0 on 26.7.1;
-  on this machine the identical config and kext produce the 19 MB fallback.
 - **Not used as the config base.** The config was rebuilt from the OpenCore
   1.0.8 schema and the findings, not patched out of the reference file.
 - `AirportItlwm` is the default because it gives the native Wi-Fi UI and matches
@@ -71,13 +75,16 @@ Files inspected: `README.md`, `docs/EFI.md`, `docs/FIXES.md`,
 - The ACPI brightness patch is scoped to `DSDT`, `Count 2`; the old EFI had it
   global with `Count 0`.
 
-### Open question inherited from it
+### Open question inherited from it, now answered
 
-Why does the same kext/config work on the reference's 26.7.1/F.?? unit and
-fail on this 26.7.2/F.35 unit? The two candidate explanations are the macOS
-point update (kernel ABI) and a BIOS/VBT change (panel record). The logs
-support the second: the VBT panel record is a placeholder, not a panel
-descriptor. See [../audit/log-analysis.md](log-analysis.md).
+Why does the same kext/config work on the reference's 26.7.1 unit and fail on
+this 26.7.2 unit? The VBT is identical, so the firmware is not the difference.
+On 25G332, eight of the nine `_IOProtectCacheMode` byte patterns still match and
+only the call at `+0xCC` moved; `tglMMIOUCRouted` therefore stays false and
+`tglActive` is never set. That is one five-byte constant, repaired by
+`scripts/macos/patch-wex-tahoe-mmio.sh`. See
+[log-analysis.md](log-analysis.md) and
+[../docs/03-graphics.md](../docs/03-graphics.md).
 
 ## 3. Upstream: b00t0x/WhateverXe (0.6.1)
 
@@ -92,23 +99,37 @@ descriptor. See [../audit/log-analysis.md](log-analysis.md).
 - Requires `-allow3d`, `-disablegfxfirmware`, `-igfxdvmt`; never combine with
   WhateverGreen.
 
-Adopted: the 0.6.1 kext as the default variant, the boot-argument vocabulary,
-and the version-pairing rule with Graphics 0.3.2.
+Adopted: the boot-argument vocabulary and the version-pairing rule with
+Graphics 0.3.2, as a diagnostic control only.
+
+Not adopted as the default:
+
+- **The 0.6.1 kext itself.** Its `kern_vbt.hpp` returns `Status::Conflict` on
+  the second child for DDI 1, which this unit's VBT contains. With no ports,
+  there is no panel.
+- **`-wex-adlp-edp` is absent** from the 0.6.1 binary; the option was never
+  merged upstream.
+- **The Tahoe MMIO constant is identical** in 0.6.0 and 0.6.1, so 0.6.1 would
+  fail on 25G332 even if the VBT parsed.
 
 Not adopted: experimental flags unrelated to this GPU. The repository does not
 speculate with `-wex-noaccel` (it would guarantee the current fallback) or with
-`-wex-*` flags that 0.6.1 does not define.
+`-wex-*` flags that the 0.6.0 fork does not define.
 
-## 4. Upstream: b00t0x/WhateverXe-Graphics (0.3.2)
+## 4. Upstream: b00t0x/WhateverXe-Graphics (0.3.1)
 
 - Ships the patched Apple Tiger Lake framebuffer/accelerator, the VA bundle,
   `AppleIntelTGLCompat`, and the `AMFIPass` Mod.
 - 0.3.2 pairs with WhateverXe 0.6.1 / Compat 0.6.1; 0.3.1 pairs with 0.6.0 /
   Compat 0.6.0.
+- 0.3.1 contains no inline panel code, only the Compat 0.6.0 provider; that is
+  the pair the same-model reference ships.
 - Installed inside macOS, rebuilds AuxKC; not an EFI payload.
 
-Adopted: the 0.3.2 package (pinned hash) and the AMFIPass Mod build.
-Rejected: vendoring Apple-derived payloads into this repository.
+Adopted: the 0.3.1 package (SHA-256
+`bd8b449431b1bf3815f9011ad3e13c7038012d17aed54dfb2aecfce6b9089623`) and the
+AMFIPass Mod build. Rejected: vendoring Apple-derived payloads into this
+repository.
 
 ## 5. EliteBook840G8 — labrouss/EliteBook840G8
 
@@ -118,7 +139,8 @@ Files inspected: `README.md`, `docs/SLEEP.md`, `ACPI-src/*.dsl`,
 Adopted as evidence:
 
 - WhateverXe **0.6.1 + Graphics 0.3.2** runs on Tahoe on a Tiger Lake HP.
-  This is the strongest argument that the 0.6.1 pair is viable on 26.7.x.
+  That proves the upstream pair on TGL, not on Alder Lake-P; it is not
+  evidence for this unit's duplicate-DDI VBT.
 - HP firmware sleep does not resume; the project patches `_S3` to soft-off and
   adds `RTCMemoryFixup` + `rtcfx_exclude=80-AB`.
 - The VA bundle can crash the camera/video path; moving
@@ -204,8 +226,8 @@ contradicts the upstream WhateverXe rule and would break this machine.
 
 | Decision | Same-model HP | WhateverXe upstream | EliteBook | XPS13+ | Honor | Dell 7420 | This repo |
 |---|---|---|---|---|---|---|---|
-| GPU driver | WEX 0.6.0 + adlp-edp | WEX 0.6.1 | WEX 0.6.1 | NootedGreen | WEX 0.6.1 | WEX | **0.6.1 default, 0.6.0 fallback** |
-| Graphics package | 0.3.1 | — | 0.3.2 | user-space patches | 0.3.x | — | **0.3.2** |
+| GPU driver | WEX 0.6.0 + adlp-edp | WEX 0.6.1 | WEX 0.6.1 | NootedGreen | WEX 0.6.1 | WEX | **0.6.0 + adlp-edp default; 0.6.1 control** |
+| Graphics package | 0.3.1 | — | 0.3.2 | user-space patches | 0.3.x | — | **0.3.1** |
 | WhateverGreen | absent/disabled | forbidden | absent | replaced | forbidden | absent | **absent** |
 | Wi-Fi | AirportItlwm | — | — | — | itlwm | — | **AirportItlwm default, itlwm fallback** |
 | SMBIOS | empty (published) | — | MacBookPro16,x | MacBookPro16,x | MacBookPro16,x | MacBookPro16,x | **MacBookPro16,2 (existing identity)** |
@@ -235,7 +257,8 @@ reference except:
 - the USB port map (generated for `8A28`),
 - the AppleALC patch script (used with attribution; the output is reproduced
   and hashed),
-- the 0.6.0 `adlp-edp` kext (fallback variant only).
+- the 0.6.0 `adlp-edp` kext (default variant),
+- its VBT and kext hashes as verification fixtures (recorded, not copied).
 
 Everything else was rebuilt and is explained in
 [../docs/02-audit.md](../docs/02-audit.md),

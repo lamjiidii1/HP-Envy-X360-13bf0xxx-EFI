@@ -207,8 +207,8 @@ OpenCore 1.0.8 schema and keeps only what is justified.
 | Kext order | VirtualSMC before AMFIPass/WEX | Lilu → AMFIPass → WhateverXe → … | Reference order; Lilu plugins load after Lilu |
 | `Arch` | `x86_64` | `Any` | No reason to restrict |
 | Wi-Fi | `itlwm` hard-coded | build-time choice, default AirportItlwm | Native UI by default; both stacks pinned; never both |
-| GPU driver | 0.6.0 + adlp-edp | 0.6.1 default; 0.6.0 variant | 0.6.1 has generic ADL-P/U eDP support |
-| Boot args | hard-coded | template placeholder + variant args | Prevents 0.6.1 build carrying 0.6.0 flags |
+| GPU driver | 0.6.0 + adlp-edp | 0.6.0 + adlp-edp (default); 0.6.1 control | 0.6.1 rejects this unit's VBT (`Status::Conflict`); the 0.6.0 fork is proven on this model |
+| Boot args | hard-coded | template placeholder + variant args | Prevents the 0.6.1 build carrying 0.6.0 flags |
 | `Misc/Boot` | Builtin, UIScale 0 | OpenCanopy, Max, UIScale 2 | Reference-proven on this panel |
 | `Misc/Debug` | debug on every boot | release quiet; `--debug` sets 67 | Logs only when investigating |
 | `Misc/Security/DmgLoading` | `Any` | `Signed` | Stricter, matches reference |

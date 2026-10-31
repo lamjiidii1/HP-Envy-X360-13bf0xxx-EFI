@@ -76,8 +76,8 @@ executable. `-` means the bundle has no executable (a pure plist injector).
 |---|---|---|---|---|
 | `Lilu.kext` | 1.7.2 | [acidanthera/Lilu](https://github.com/acidanthera/Lilu) | `ff98508b40a1eb5fb477029db8886412520f8e39965279ea331c99e3d2e3b274` | none |
 | `AMFIPass.kext` | 1.4.1 | [dhinakg/AMFIPass](https://github.com/dhinakg/AMFIPass) | `2d36aeca1740b258e6bb0b66844b5bfb59a0edb7cdd9ef78206689e5d223d8dc` | "Mod" build from WhateverXe Graphics: trust anchor changed for Xe bundles |
-| `WhateverXe.kext` | 0.6.1 | [b00t0x/WhateverXe](https://github.com/b00t0x/WhateverXe) | `e92b65b0cce5964aacb0e7674a762fb8bd85dee5a931d15bd80b0edcafd1c39b` | none (variant `gpu-wex061`) |
-| `WhateverXe.kext` | 0.6.0 | b00t0x + [retropineaple adlp-edp](https://github.com/retropineaple/WhateverXe/tree/adlp-edp) | `c090b9dd35398c72e9567b38b9bb9b61415ab7fcfe22ffc78cbafc93ee67e49b` | 47 `adlp-edp` patches (variant `gpu-hp-adlp-edp`) |
+| `WhateverXe.kext` | 0.6.0 | b00t0x + [retropineaple adlp-edp](https://github.com/retropineaple/WhateverXe/tree/adlp-edp) | `c090b9dd35398c72e9567b38b9bb9b61415ab7fcfe22ffc78cbafc93ee67e49b` | 47 `adlp-edp` patches; **default** (variant `gpu-hp-adlp-edp`) |
+| `WhateverXe.kext` | 0.6.1 | [b00t0x/WhateverXe](https://github.com/b00t0x/WhateverXe) | `e92b65b0cce5964aacb0e7674a762fb8bd85dee5a931d15bd80b0edcafd1c39b` | none; diagnostic only, rejects this VBT (variant `gpu-wex061`) |
 | `VirtualSMC.kext` | 1.3.9 | [acidanthera/VirtualSMC](https://github.com/acidanthera/VirtualSMC) | `bf91e9542b86c20acaf210353a93742291c49328e2d14b03fa0fa4fc52b3b5ce` | none |
 | `SMCProcessor.kext` | 1.3.9 | acidanthera/VirtualSMC | `dcf738671431721692f752e3df43acaaa02c93788ae7b21153504b07db01be32` | none |
 | `SMCBatteryManager.kext` | 1.3.9 | acidanthera/VirtualSMC | `791d81018a5374ddc63b8d97ba976e03bab6d241fec08ec3487e4c4e74fc24e4` | none |
@@ -147,18 +147,27 @@ They are Apple/Intel-derived and are deliberately not vendored here.
 
 | Item | Value |
 |---|---|
-| Package | `WhateverXe-Graphics-0.3.2.pkg` |
-| Upstream | [b00t0x/WhateverXe-Graphics](https://github.com/b00t0x/WhateverXe-Graphics) release 0.3.2 |
-| SHA-256 | `7ac6c7149248c483efbd93555294d587a93d81392421f3af8a4f5b1b5fcc0101` |
-| Pairs with | WhateverXe 0.6.1, `AppleIntelTGLCompat` 0.6.1 |
+| Package | `WhateverXe-Graphics-0.3.1.pkg` |
+| Upstream | [b00t0x/WhateverXe-Graphics](https://github.com/b00t0x/WhateverXe-Graphics) release 0.3.1 |
+| SHA-256 | `bd8b449431b1bf3815f9011ad3e13c7038012d17aed54dfb2aecfce6b9089623` |
+| Pairs with | WhateverXe 0.6.0 (`adlp-edp` fork), `AppleIntelTGLCompat` 0.6.0 |
 | Installs to | `/Library/Extensions` and `/Library/GPUBundles`, then AuxKC |
 
-The matching package for the `hp-adlp-edp` variant is 0.3.1 (Compat 0.6.0).
-Booting 0.6.1 against Compat 0.6.0 is a version mismatch.
+The same-model reference was tested with 0.3.1, and its installed
+`AppleIntelTGLCompat` is 0.6.0 (the identifier this machine's logs show).
+Graphics 0.3.2 ships Compat 0.6.1 and pairs with upstream 0.6.1; it is not
+used here. Do not mix the two pairs.
+
+One local change is applied on top of the injected 0.6.0 kext after
+installation: `scripts/macos/patch-wex-tahoe-mmio.sh` updates the five-byte
+`_IOProtectCacheMode+0xCC` signature for macOS 26.7.2 (25G332). It changes only
+that constant in `WhateverXe.kext` and keeps a backup; see
+[docs/03-graphics.md](03-graphics.md).
 
 Citation: the 0.6.1 release notes add "experimental internal display (eDP) and
 brightness support for Alder Lake-N / Twin Lake and Alder Lake-H/P/U / Raptor
-Lake-H/P/U GPUs"; Graphics 0.3.2's changelog pairs it with 0.6.1.
+Lake-H/P/U GPUs"; Graphics 0.3.2's changelog pairs it with 0.6.1. The same
+release notes do not change the VBT parser's duplicate-DDI behaviour.
 
 ## 6. AppleALC patch
 
@@ -186,8 +195,8 @@ The release archives used to populate the repository:
 | Archive | SHA-256 | Used for |
 |---|---|---|
 | `OpenCore-1.0.8-RELEASE.zip` | `2011e8b7216ecb2645d97ea710df965947edd406846e92050b9bc4190be6d27b` | OpenCore, drivers, resources |
-| WhateverXe 0.6.1 RELEASE zip | `46c8cd684461db7f84a971e7479770c423f73d52d45addfb48242176b9eb04fc` | `efi/variants/gpu-wex061` |
-| `WhateverXe-Graphics-0.3.2.pkg` | `7ac6c7149248c483efbd93555294d587a93d81392421f3af8a4f5b1b5fcc0101` | installed separately, not in Git |
+| WhateverXe 0.6.1 RELEASE zip | `46c8cd684461db7f84a971e7479770c423f73d52d45addfb48242176b9eb04fc` | `efi/variants/gpu-wex061` (diagnostic) |
+| `WhateverXe-Graphics-0.3.1.pkg` | `bd8b449431b1bf3815f9011ad3e13c7038012d17aed54dfb2aecfce6b9089623` | installed separately, not in Git |
 
 The other kexts were taken from their named upstream releases; their
 individual hashes in `payloads.tsv` are the authority.

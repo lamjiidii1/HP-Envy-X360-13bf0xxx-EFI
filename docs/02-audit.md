@@ -118,8 +118,8 @@ copied. Commits are the ones actually inspected.
 | Repository | Hardware | Graphics approach | What was taken | What was rejected |
 |---|---|---|---|---|
 | [retropineaple/whateverxe-hp-envy-x360](https://github.com/retropineaple/whateverxe-hp-envy-x360) `9809987` | **Exact model**: HP Envy x360 13-bf0059TU, i7-1250U, 0x46AA, 2880×1800 OLED | WhateverXe 0.6.0 + 47 `adlp-edp` patches; Graphics 0.3.1 | ACPI set, iGPU properties, `-wex-*` args, AppleALC DSP patch, USB map, overall EFI shape | Its kext (0.6.0) as default, because it fails on this unit; its published SMBIOS is blank |
-| [b00t0x/WhateverXe](https://github.com/b00t0x/WhateverXe) `68a2427` (0.6.1) | TGL, ADL-N, ADL/RPL-H/P/U | Upstream driver + 0.6.1 generic ADL-P/U eDP support | 0.6.1 kext as the default variant; boot-arg vocabulary; compatibility rules | Experimental/untested flags not needed here |
-| [b00t0x/WhateverXe-Graphics](https://github.com/b00t0x/WhateverXe-Graphics) `b4d3889` (0.3.2) | Same | Signed Apple payloads + `AppleIntelTGLCompat` | Pinned install package (0.3.2) and AMFIPass 1.4.1 Mod | Bundling Apple payloads in Git |
+| [b00t0x/WhateverXe](https://github.com/b00t0x/WhateverXe) `68a2427` (0.6.1) | TGL, ADL-N, ADL/RPL-H/P/U | Upstream driver + 0.6.1 generic ADL-P/U eDP support | Boot-arg vocabulary, compatibility rules, diagnostic variant | Rejects this unit's VBT (`Status::Conflict`) and has no `-wex-adlp-edp` |
+| [b00t0x/WhateverXe-Graphics](https://github.com/b00t0x/WhateverXe-Graphics) `v0.3.1` (0.3.1) | Same | Signed Apple payloads + `AppleIntelTGLCompat` 0.6.0 | Pinned install package (0.3.1) and AMFIPass 1.4.1 Mod | Bundling Apple payloads in Git |
 | [JulioNectar/Hackintosh-XPS13Plus-IrisXe-Tahoe](https://github.com/JulioNectar/Hackintosh-XPS13Plus-IrisXe-Tahoe) `6f03560` | Dell XPS 13 Plus 9320, i7-1360P, 0xA7A0 | NootedGreen + user-space Metal patches | Debugging methodology, Raptor Lake notes, VA-driver caveats | The NootedGreen stack — different driver, higher risk, not validated for 0x46AA |
 | [labrouss/EliteBook840G8](https://github.com/labrouss/EliteBook840G8) `8610a1a` | HP EliteBook 840 G8, TGL i7-1165G7 | WhateverXe 0.6.1 + Graphics 0.3.2 | Confirmation that 0.6.1 works on Tahoe; BT power-cycle notes; HP S3/CMOS findings; VA-bundle workaround | Its SMCDellSensors/Thunderbolt ACPI (Dell/HP-specific, not this board) |
 | [danyyok/Dell-Latitude-7420-EFI](https://github.com/danyyok/Dell-Latitude-7420-EFI) `aff2051` | Dell Latitude 7420, TGL i7-1165G7 | WhateverXe | Recovery-profile idea, 11-SSDT layout, `-ibtcompatbeta` note | Dell sensors, `SMCDellSensors`, its ACPI tables |
@@ -130,13 +130,17 @@ copied. Commits are the ones actually inspected.
 
 - The HP reference's own documentation states that without `-wex-adlp-edp` the
   OLED has no driver, and that the patch is required because 0.6.0 does not
-  support ADL-P internal panels. Upstream 0.6.1 changes that.
+  support ADL-P internal panels. Upstream 0.6.1's generic path exists, but it
+  returns `Status::Conflict` on this unit's duplicate DDI child, so it is not a
+  drop-in replacement here.
 - The HP reference was tested on **macOS 26.7.1 (25G241)**. This machine runs
-  **26.7.2 (25G332)**. A driver built against the 26.7.1 kernel ABI can fail to
-  attach after a point update.
-- EliteBook840G8 runs WhateverXe 0.6.1 + Graphics 0.3.2 on Tahoe, so the
-  upstream pair is viable on 26.7.x for Tiger Lake. ADL-P eDP in 0.6.1 is new
-  and explicitly "not yet tested on hardware" upstream.
+  **26.7.2 (25G332)**. The captured VBT is byte-identical to the reference's
+  fixture, so the difference is the kernel, not the firmware: on 25G332 one
+  `_IOProtectCacheMode` call signature changed and WhateverXe's MMIO-UC gate
+  fails (see `docs/03-graphics.md`).
+- EliteBook840G8 runs WhateverXe 0.6.1 + Graphics 0.3.2 on Tahoe, so that pair
+  is viable for Tiger Lake. It is not evidence for ADL-P eDP on this VBT, and
+  this repository does not use it.
 - EliteBook840G8 documents that on HP firmware, real S3 resume hangs and that
   AppleRTC can corrupt BIOS settings; its workaround is a `_S3`-to-`_S5` ACPI
   patch plus `RTCMemoryFixup` + `rtcfx_exclude=80-AB`. **Not applied here**
@@ -153,8 +157,8 @@ copied. Commits are the ones actually inspected.
 
 | Decision | Reason |
 |---|---|
-| Default GPU variant = WhateverXe 0.6.1 | Upstream now has generic ADL-P/U eDP detection; the old 0.6.0 patch set was built for another BIOS/macOS pair |
-| Keep 0.6.0 `adlp-edp` as a variant | It is the only stack proven to produce Metal on this exact model, on 26.7.1 |
+| Default GPU variant = WhateverXe 0.6.0 + `adlp-edp` | The firmware VBT has two internal DP children plus a duplicate DDI entry; upstream 0.6.1 returns `Status::Conflict` for it and cannot drive the panel. The 0.6.0 fork keeps the first child per DDI and is the only stack proven on this exact model |
+| Keep 0.6.1 as a diagnostic variant | It is the control for upstream behaviour and the source of the boot-arg vocabulary; it is not expected to accelerate this unit |
 | Two Wi-Fi variants | `AirportItlwm` is the default (native Wi-Fi, matches the reference); `itlwm` + HeliPort stays as the proven fallback if the Tahoe build does not attach. Build-time choice avoids two kexts fighting |
 | Keep `-igfxdvmt` + `framebuffer-stolenmem 0000c003` | BIOS leaves 60 MB DVMT; both the reference and this unit need the pair |
 | Drop `-vi2c-force-polling` | Only affects VoodooI2C; the touchpad is dead in hardware, and the reference does not use it |

@@ -1,9 +1,9 @@
 # Log analysis
 
-The machine's macOS logs show a complete, loaded driver stack that stops at
-panel qualification. This document extracts the evidence, separates what it
-proves from what it only suggests, and lists the data needed for the next
-experiment.
+The machine's macOS logs show a complete, loaded driver stack that stops at a
+single kernel-signature check in WhateverXe's Tahoe MMIO-UC path. This document
+extracts the evidence, separates what it proves from what it only suggests, and
+lists the data needed for the next experiment.
 
 The logs are local (`LOGS/`, gitignored). They contain the SMBIOS identity, so
 they are not committed. The extracts below keep only graphics properties.
@@ -87,8 +87,11 @@ From `ioreg_full.txt`, iGPU node:
 | `WEXDisplay13ComboDPReady` | `Yes` | combo-PHY path prepared |
 | `WEXDisplay13TrainingReady` | `Yes` | training hooks prepared |
 | `WEXADLPPanelDP` | `01000000 01000000 01000000 …` | panel-DP flags present, not a full descriptor |
-| `WhateverXeFirmwarePanel` | `00000000 00000000 09000000 00000000 00000000` | **no usable panel record** |
-| `WhateverXeFirmwareChecksum` | `0` | no checksum value reported |
+| `TGLMMIOStrongUCRouted` | **`No`** | **the MMIO user-copy hook was not installed** |
+| `TGLMMIOStrongUCPreflight` | **`No`** | **the MMIO mapping was never made UC** |
+| `TGLTahoeMMIOGuard` | `01 01 0x4011000000 0x1000000 0x1040600070406 1… 0 … 0` | index 16 (the `_IOProtectCacheMode+0xCC` byte match) is the only failure; index 19 (`ok`) is 0 |
+| `WhateverXeFirmwarePanel` | `00000000 00000000 09000000 00000000 00000000` | `panel_type = 0xFF`: the panel is selected by PnP ID, so no inline panel record is **expected** |
+| `WhateverXeFirmwareChecksum` | `0` | firmware does not publish a matching table checksum; WhateverXe admits by structure, like i915 |
 | `WhateverXeFirmwarePortRecords` | long, non-zero | port table **was** parsed |
 | `WhateverXeVBTRaw` | starts `24564254 20414c44 45524c41 4b452d50` | `$VBT ALDERLAKE-P` |
 | `WhateverXeBacklightProfileReady` | `Yes` | backlight profile available |
@@ -113,24 +116,27 @@ Resolution: 2880 x 1800
 
 ## 4. The VBT
 
-`WhateverXeVBTRaw` is a full VBT dump. Two features matter:
+The logs contain the raw table (`WhateverXeVBTRaw`). The same table was later
+captured from Linux at `/sys/kernel/debug/dri/*/i915_vbt`; all three captures
+are byte-identical (`4d790a72…fa30c`, 8704 bytes).
 
-1. The header is `$VBT ALDERLAKE-P`, i.e. the firmware VBT is present and the
-   driver can read it.
-2. In the panel-name region the dump contains the literal ASCII string
-   `LFP_PanelName` repeated for hundreds of bytes, instead of a panel model
-   string. The `WhateverXeFirmwarePanel` record itself is 20 bytes with a
-   single non-zero 32-bit field (`0x09`) at offset 8 — no timings, no EDID-like
-   payload, no port mapping.
+It parses as:
 
-The port table is different: `WhateverXeFirmwarePortRecords` contains entries
-for several ports (including the `0x0D`–`0x11` range). So the driver parsed the
-VBT's general structure; it is specifically the **internal panel descriptor**
-that is empty/placeholder.
+- `$VBT ALDERLAKE-P`, version 100, BDB version **247**, size 8701 bytes;
+- internal DP child `0x1806` on **DDI A** (`aux 0x40`) and on **DDI B**
+  (`aux 0x10`);
+- a third child `0x60d2` on DVO1 that also resolves to **DDI 1** — a duplicate
+  DDI, which Linux resolves by keeping the first entry;
+- panel block 40 with `panel_type = 0xFF` (panel chosen by PnP ID). That is
+  why `WhateverXeFirmwarePanel.valid` is false and why the record is
+  `00…00 09 00…00`: the placeholder is **expected**, not a missing panel.
 
-This is consistent with a BIOS VBT that does not describe the attached OLED
-panel in the way the 0.6.0 `adlp-edp` patch expects. It is not consistent with
-"the VBT is unreadable" or "the driver never ran".
+The file is byte-identical to the reference fork's own fixture
+`tests/fixtures/hp-envy-x360-13-bf-vbt.bin`. BIOS F.35, the VBT and the panel
+are therefore not the difference between this machine and the working one.
+
+The `LFP_PanelName` strings in the raw dump are firmware placeholders, not data
+WhateverXe reads. Do not chase them.
 
 ## 5. Interpretation
 
@@ -140,17 +146,25 @@ The sequence the properties describe is:
 PCI match                         OK  (DeviceSelection)
 memory / GGTT admission           OK  (Admission, Preflight, GTTopologyReady)
 stolen reservation                OK  (StolenReservation, NativeReservedGGTT)
+VBT parse and panel qualification OK  (VBT valid; panel_type 0xFF expected)
 display-13 bootstrap              OK  (BootReady, ComboDPReady, TrainingReady)
-firmware panel record             EMPTY / PLACEHOLDER
+Tahoe MMIO-UC signature check     FAIL (guard[16]=0, TGLMMIOStrongUCRouted=No)
 native start                      BLOCKED (NativeStartAllowed=No,
                                            NativeKernelReady=No,
                                            NativeProbeBlocked=Yes)
 ```
 
-That is a **display/panel qualification failure**, not a PCI, memory or kext
-loading failure. The boot framebuffer (`IONDRVFramebuffer`) stays attached
-because the native framebuffer never takes ownership, which in turn is why the
-accelerator (`IntelAccelerator`) is never created and VRAM reports 19 MB.
+That is a **kernel-signature failure on macOS 26.7.2**, not a display, VBT,
+PCI, memory or kext-loading failure. The source chain is explicit:
+
+```
+tglActive = tglVM.enabled && tglMMIOUCRouted && tglMMIOUCReady
+```
+
+With `tglMMIOUCRouted = No`, `tglActive` stays false, so the driver installs
+`processAlderLakeNRejectedAccelerator()` and blocks the native probe. The boot
+framebuffer (`IONDRVFramebuffer`) stays attached, the accelerator
+(`IntelAccelerator`) is never created, and VRAM reports 19 MB.
 
 ### What this rules out
 
@@ -161,40 +175,40 @@ accelerator (`IntelAccelerator`) is never created and VRAM reports 19 MB.
 | WhateverXe did not load | `kextstat` shows 0.6.0; bring-up properties exist |
 | AMFI blocked the patched drivers | Compat is loaded and marked loadable |
 | The config is wrong | Graphics-relevant config is identical to the working reference; see [config-diff.md](config-diff.md) |
-| The panel is simply not connected | `WEXDisplay13BootReady=Yes`; the boot framebuffer drives 2880×1800 |
+| The panel is not connected | `WEXDisplay13BootReady=Yes`; the boot framebuffer drives 2880×1800 |
+| The VBT is malformed or panel-less | It is byte-identical to the reference fixture; `panel_type=0xFF` explains the empty panel record |
+| 0.6.1 would fix it | 0.6.1 returns `Status::Conflict` on the duplicate DDI and carries the same MMIO constant |
 
 ### What it supports
 
-1. **The 0.6.0 `adlp-edp` patch does not recognise this unit's VBT.** The
-   panel record is a placeholder, and the patch is a per-machine hard-coded
-   set of panel/port assumptions built for the reference unit.
-2. **The BIOS/macOS pair is different from the reference.** Reference:
-   26.7.1/F.??; this unit: 26.7.2/F.35. Either the VBT changed (panel record)
-   or the kernel ABI shifted, or both. The VBT evidence points at the former;
-   the macOS point release remains a secondary suspect.
-3. **0.6.1 is the right next experiment.** Its release notes add generic
-   ADL-P/U eDP panel detection and brightness support, and the
-   `-wex-adlp-edp` string no longer exists in the binary — the logic is
-   firmware-driven instead of a per-machine patch.
+1. **The difference from the reference is the macOS build.** The reference runs
+   26.7.1 (25G241); this unit runs 26.7.2 (25G332). Eight of the nine
+   `_IOProtectCacheMode` patterns still match; only the `+0xCC` call moved.
+2. **The fix is one five-byte constant.** `scripts/macos/patch-wex-tahoe-mmio.sh`
+   reads the real call from the kernel on the machine and rewrites the stale
+   `E8 2F F3 02 00` in the injected kext.
+3. **A downgrade to 26.7.1 is the guaranteed fallback.** The same kext, same
+   Graphics 0.3.1 and same VBT are proven there.
 
 ### What it does not prove
 
-- That 0.6.1 will succeed. ADL-P eDP support in 0.6.1 is described upstream as
-  experimental/not yet hardware-tested on every panel.
-- That the panel is a specific model. The logs contain no usable EDID from the
-  internal panel; the 2880×1800 resolution comes from the boot framebuffer.
-- That the Type-C port table being zero is a fault. On this laptop no external
-  display is wired through the iGPU's Type-C path; all-zero can be normal.
+- That patching the signature is sufficient. `tglMMIOUCReady` also depends on
+  the pmap mapping check; the old capture shows the mapping probes at
+  `0x2510/0x190030/0xFFF000` never ran because routing failed first.
+- That the panel will then light at native resolution on 26.7.2. That needs a
+  boot and an ioreg capture after the patch.
 
-## 6. Next capture (0.6.1 + Graphics 0.3.2)
+## 6. Next capture (patched 0.6.0 + Graphics 0.3.1)
 
-After installing Graphics 0.3.2 and booting the `wex061` variant, capture the
-same bundle plus:
+Run the signature patch, reboot, and capture the same bundle plus:
 
 ```sh
-ioreg -l | grep -E 'WhateverXe(VBTRaw|FirmwarePanel|FirmwareChecksum|FirmwarePortRecords)'
-ioreg -l | grep -E 'N97(NativeStartAllowed|NativeKernelReady|NativeProbeBlocked|Admission|NativePreflight|GTTopologyReady)'
-ioreg -l | grep -E 'WEXDisplay13(TCBootPorts|TCHooksReady|BootReady)'
+sudo scripts/macos/patch-wex-tahoe-mmio.sh \
+  --kext /Volumes/EFI/EFI/OC/Kexts/WhateverXe.kext
+sudo reboot
+
+ioreg -l | grep -E 'TGLMMIOStrongUC|TGLTahoeMMIOGuard|TGLMMIOMappingEvidence'
+ioreg -l | grep -E 'N97(NativeStartAllowed|NativeKernelReady|NativeProbeBlocked)'
 ioreg -rc AppleIntelFramebuffer
 ioreg -rc IntelAccelerator
 system_profiler SPDisplaysDataType
@@ -204,14 +218,14 @@ Decision table:
 
 | Observation | Meaning | Next step |
 |---|---|---|
-| `NativeStartAllowed=Yes`, AIFB/Accelerator ≥ 1 | fixed | record success, keep 0.6.1 |
-| Panel record still placeholder, start still `No` | 0.6.1 did not solve panel detection | try `hp-adlp-edp` + Graphics 0.3.1 to confirm the machine can still accelerate at all |
-| Panel record non-zero but start `No` | later stage fails (framebuffer/accelerator) | capture `N97NativeKernelReady` and the last `[IGFB]` lines |
-| Both variants fail identically | firmware/panel or macOS ABI | report upstream with VBT + EDID; do not keep swapping kexts |
+| `UCRouted=Yes`, `UCPreflight=Yes`, `StartAllowed=Yes`, AIFB/Accelerator ≥ 1 | fixed | record success; fold the corrected constant into the default variant |
+| `UCRouted` stays `No`, `TGLTahoeMMIOGuard` still shows another zero | the kernel differs from what the script expects | stop; collect the guard and the build number |
+| `UCRouted=Yes` but `UCPreflight=No` | pmap mapping check failed | collect the new `TGLMMIOMappingEvidence`; do not change DVMT/SMBIOS |
+| `UCRouted=Yes`, `Preflight=Yes`, `StartAllowed` still `No` | a later gate blocks the probe | capture `N97NativeKernelReady`, `N97DisplayStep`, the last `[IGFB]` lines |
+| Patch cannot be applied (no `_IOProtectCacheMode` in the kernel) | no KDK/kernel symbols on the machine | install the matching Kernel Debug Kit or downgrade to 26.7.1 |
 
-If the `hp-adlp-edp` variant works, the regression is isolated to 0.6.1's eDP
-path and the machine has a usable fallback. If neither works, the problem is
-below the driver variant and the VBT/EDID report is the only productive route.
+Do not re-test 0.6.1 on this unit: the VBT conflict is deterministic and the
+MMIO constant is the same.
 
 ## 7. Reproducing this analysis
 
@@ -243,7 +257,7 @@ grep -oE '"WhateverXe(VBTRaw|FirmwarePanel|FirmwarePortRecords|FirmwareChecksum)
 
 Both captures are the same EFI and the same installed package. The second one
 was taken after the Graphics package was reinstalled (the kernel log shows
-`kmutil` rebuilding the AuxKC several times), and it still reports an empty
-panel record. That rules out "the package installed incorrectly" as the cause
-of the fallback and reinforces that the difference is in the driver version
-and the firmware/macOS pair, not in the installation procedure.
+`kmutil` rebuilding the AuxKC several times), and it still reports the same
+MMIO failure and the same expected empty panel record. That rules out "the
+package installed incorrectly" as the cause of the fallback: the difference is
+the macOS build, not the installation procedure.
