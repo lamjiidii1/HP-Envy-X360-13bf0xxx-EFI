@@ -6,8 +6,8 @@ injects it from a private plist at build time, selects one GPU driver variant
 and one Wi-Fi stack, then writes a ready-to-copy EFI folder.
 
 Usage:
-    ./scripts/build_efi.py                         # wex061 + airportitlwm, release
-    ./scripts/build_efi.py --gpu hp-adlp-edp       # HP 0.6.0 fallback
+    ./scripts/build_efi.py                         # hp-adlp-edp + airportitlwm, release
+    ./scripts/build_efi.py --gpu wex061            # upstream 0.6.1 (does not parse this VBT)
     ./scripts/build_efi.py --wifi itlwm            # itlwm + HeliPort fallback
     ./scripts/build_efi.py --debug                 # verbose boot
     ./scripts/build_efi.py --out /run/media/.../EFI
@@ -27,15 +27,15 @@ VARIANTS = REPO / "efi" / "variants"
 DEFAULT_IDENTITY = REPO / "private" / "identity.plist"
 
 GPU_VARIANTS = {
-    "wex061": {
-        "path": VARIANTS / "gpu-wex061" / "WhateverXe.kext",
-        "args": [],
-        "description": "WhateverXe 0.6.1 (upstream eDP panel detection)",
-    },
     "hp-adlp-edp": {
         "path": VARIANTS / "gpu-hp-adlp-edp" / "WhateverXe.kext",
         "args": ["-wex-adlp-edp", "-wex-reset-restore", "-wex-no-multicontext"],
-        "description": "WhateverXe 0.6.0 + retropineaple adlp-edp patches",
+        "description": "WhateverXe 0.6.0 + retropineaple adlp-edp patches (default)",
+    },
+    "wex061": {
+        "path": VARIANTS / "gpu-wex061" / "WhateverXe.kext",
+        "args": [],
+        "description": "WhateverXe 0.6.1 upstream (rejects this unit's VBT: duplicate DDI)",
     },
 }
 
@@ -103,7 +103,7 @@ def copy_tree(src: Path, dst: Path) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--gpu", choices=sorted(GPU_VARIANTS), default="wex061")
+    parser.add_argument("--gpu", choices=sorted(GPU_VARIANTS), default="hp-adlp-edp")
     parser.add_argument("--wifi", choices=sorted(WIFI_VARIANTS), default="airportitlwm")
     parser.add_argument("--identity", type=Path, default=DEFAULT_IDENTITY)
     parser.add_argument("--out", type=Path, default=REPO / "build" / "EFI")
