@@ -104,13 +104,40 @@ the table is a summary of that file, not a second source.
 
 ## 4. Wi-Fi variants
 
-| Kext | Version | Upstream | SHA-256 | Notes |
+| Kext | Version | Source | SHA-256 | Notes |
 |---|---|---|---|---|
-| `itlwm.kext` | 2.3.0 | [OpenIntelWireless/itlwm](https://github.com/OpenIntelWireless/itlwm) | `63952b0b7373e6a7e75a9a4f8ab0789a52a48ceb99bb0c8d0f387004d487690b` | default; needs HeliPort |
-| `AirportItlwm.kext` | 2.4.1 | same | `cf11f2da43a7a98513417e059dcbd6e1800bb28bf5e821ff950794901e0c65dc` | native menu; Tahoe build |
+| `AirportItlwm.kext` | 2.4.1 | downstream Tahoe/VTD build, byte-identical to the copy in the same-model reference | `cf11f2da43a7a98513417e059dcbd6e1800bb28bf5e821ff950794901e0c65dc` | default; native menu; **not** an official OpenIntelWireless release |
+| `itlwm.kext` | 2.3.0 | [OpenIntelWireless/itlwm](https://github.com/OpenIntelWireless/itlwm) release `v2.3.0` | `63952b0b7373e6a7e75a9a4f8ab0789a52a48ceb99bb0c8d0f387004d487690b` | fallback; needs HeliPort |
 
 Only one is copied into a built EFI. The config template contains a single
 placeholder entry (`WIFI_BUNDLE.kext`) that the build script rewrites.
+
+### AirportItlwm 2.4.1 provenance
+
+This needs to be stated precisely, because the version number suggests an
+upstream release that does not exist:
+
+- OpenIntelWireless's newest official release is **2.3.0**, published
+  2024-06-09. It predates Tahoe and has no Tahoe asset; `master` and `pending`
+  are source branches, not released binaries. There is no official 2.4.1.
+- The bundled executable reports `2.4.1` and embeds
+  `AirportItlwm-Tahoe.build` and `tahoe-vtd-1`. It declares
+  `com.apple.iokit.IOSkywalkFamily 1.0` and AirPort personalities, which is
+  consistent with a Tahoe/VTD fork build made with GitHub Actions.
+- It is **byte-identical** to the `AirportItlwm.kext` shipped by
+  [retropineaple/whateverxe-hp-envy-x360](https://github.com/retropineaple/whateverxe-hp-envy-x360)
+  commit `9809987`. That repository is the same laptop model and reports it
+  working on Tahoe 26.7.1.
+- The binary alone does not identify the fork or commit it was built from, so
+  this repository pins it by SHA-256 and treats it as a third-party payload.
+  Do not silently replace it; if a newer build is used, record its source and
+  hash here first.
+- Validation status: proven by the reference on 26.7.1; **not yet validated on
+  26.7.2**. If it does not attach, use the `itlwm` variant rather than mixing
+  drivers.
+
+`itlwm` 2.3.0 is the official release and is independent of the macOS
+networking stack, which is why it remains the fallback.
 
 ## 5. WhateverXe Graphics (not in this repository)
 

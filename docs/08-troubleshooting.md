@@ -211,8 +211,9 @@ it works.
 | Symptom | Check |
 |---|---|
 | No Wi-Fi interface | Exactly one of `itlwm.kext` / `AirportItlwm.kext` in `OC/Kexts` and in `Kernel/Add` |
+| `AirportItlwm` loaded, no networks | Check `kmutil showloaded \| grep -i airport`; if absent on 26.7.2, rebuild with `--wifi itlwm` |
 | `itlwm` loaded, no networks | HeliPort installed and running; `ifconfig` shows the `en` interface |
-| Native menu missing with AirportItlwm | AirportItlwm build does not match this macOS; it is tied to the networking stack |
+| Native menu missing with AirportItlwm | AirportItlwm build does not match this macOS; it is tied to the networking stack. Switch to the `itlwm` fallback |
 | Both drivers present | Rebuild with one `--wifi` choice; never merge the variants |
 | Bluetooth greyed out | `kmutil showloaded \| grep -i bluetooth`; confirm the two NVRAM variables are cleared on boot; power-cycle the module |
 | Wi-Fi dies after sleep | Known Intel limitation on this generation; reboot is the reliable recovery |
