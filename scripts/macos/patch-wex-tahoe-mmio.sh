@@ -93,6 +93,24 @@ if [[ ! -f "$KERNEL" ]]; then
   exit 2
 fi
 
+for tool in nm otool perl; do
+  if ! command -v "$tool" >/dev/null 2>&1; then
+    print -u2 "error: $tool is not available in PATH."
+    print -u2 "       nm and otool come with the Xcode Command Line Tools:"
+    print -u2 "       xcode-select --install"
+    exit 2
+  fi
+done
+
+hexdump_at() {
+  local off="$1" len="$2" file="$3"
+  if command -v xxd >/dev/null 2>&1; then
+    xxd -s "$off" -l "$len" -p "$file" | tr -d '\n'
+  else
+    od -An -v -tx1 -j "$off" -N "$len" "$file" | tr -d ' \n'
+  fi
+}
+
 SYM_HEX="$(nm -n "$KERNEL" 2>/dev/null | awk '$3=="_IOProtectCacheMode"{print $1; exit}')"
 if [[ -z "$SYM_HEX" ]]; then
   print -u2 "error: _IOProtectCacheMode is not in the symbol table of:"
@@ -122,7 +140,7 @@ fi
 PROLOGUE_OFF=$(( SYM_OFF ))
 CALL_OFF=$(( SYM_OFF + REL_OFFSET ))
 
-ACTUAL_PROLOGUE="$(xxd -s "$PROLOGUE_OFF" -l 17 -p "$KERNEL" | tr -d '\n')"
+ACTUAL_PROLOGUE="$(hexdump_at "$PROLOGUE_OFF" 17 "$KERNEL")"
 if [[ "$ACTUAL_PROLOGUE" != "$PROLOGUE" ]]; then
   print -u2 "error: _IOProtectCacheMode does not have the expected prologue."
   print -u2 "       found:    $ACTUAL_PROLOGUE"
@@ -131,7 +149,7 @@ if [[ "$ACTUAL_PROLOGUE" != "$PROLOGUE" ]]; then
   exit 3
 fi
 
-NEW_CONST="$(xxd -s "$CALL_OFF" -l 5 -p "$KERNEL" | tr -d '\n')"
+NEW_CONST="$(hexdump_at "$CALL_OFF" 5 "$KERNEL")"
 if [[ "${NEW_CONST:0:2}" != "e8" ]]; then
   print -u2 "error: the bytes at _IOProtectCacheMode+0xCC are not a call: $NEW_CONST"
   print -u2 "       Do not guess. Report this value with the macOS build number."
@@ -180,7 +198,7 @@ NEW_CONST="$NEW_CONST" perl -0777 -i -pe '
   s/\xE8\x2F\xF3\x02\x00/$new/;
 ' "$BIN"
 
-AFTER="$(xxd -s "$BIN_OFF" -l 5 -p "$BIN" | tr -d '\n')"
+AFTER="$(hexdump_at "$BIN_OFF" 5 "$BIN")"
 if [[ "$AFTER" != "$NEW_CONST" ]]; then
   print -u2 "error: patch verification failed: found $AFTER, expected $NEW_CONST"
   print -u2 "       Restore with --restore and report this."
