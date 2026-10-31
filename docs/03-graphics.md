@@ -117,21 +117,34 @@ though the function is the same.
 ## The fix
 
 `scripts/macos/patch-wex-tahoe-mmio.sh` reads the real five bytes from the
-kernel Mach-O on the Mac and replaces the stale constant in the injected
-WhateverXe binary. It keeps a `.orig` backup, refuses ambiguous matches, and
-does not touch the kernel or the installed graphics package.
+kernel Mach-O and replaces the stale constant in the injected WhateverXe
+binary. It keeps a `.orig` backup, patches by a unique anchor
+(`TGLTahoeMMIOGuard`) instead of scanning for the old bytes, and does not touch
+the kernel or the installed graphics package.
+
+The system kernel on disk is usually stripped, so the script needs the
+**Kernel Debug Kit for this exact macOS build** (25G332 here). The KDK provides
+`_IOProtectCacheMode` with symbols; the script parses that Mach-O with perl,
+so Xcode Command Line Tools, `nm` and `otool` are **not** needed.
 
 ```sh
 # On macOS, with the ESP mounted at /Volumes/EFI:
+ls /Library/Developer/KDKs/          # KDK_26.7.2_25G332.kdk expected
+
 sudo ./scripts/macos/patch-wex-tahoe-mmio.sh \
-  --kext /Volumes/EFI/EFI/OC/Kexts/WhateverXe.kext
+  --kext /Volumes/EFI/EFI/OC/Kexts/WhateverXe.kext \
+  --kernel /Library/Developer/KDKs/KDK_26.7.2_25G332.kdk/System/Library/Kernels/kernel
 sudo reboot
 ```
 
-The script needs the kernel file (usually `/System/Library/Kernels/kernel`) or
-the matching Kernel Debug Kit. It prints the old and new signatures, then
-verifies the patch. `--dry-run` only reports; `--restore` puts the backup
-back.
+Without `--kernel` the script searches the KDK directories and the system
+kernel paths and prints the candidate paths it tried. It prints the old and new
+signatures, the kext SHA-256 before and after, then verifies the patched bytes.
+`--dry-run` only reports; `--restore` puts the backup back.
+
+If the script prints nothing at all, it exited before patching: update to this
+version, because the older one depended on `nm` from the Command Line Tools and
+could stop silently when that prompt was cancelled.
 
 This is a local binary change to an OpenCore-injected kext, not to a signed
 system extension. Keep the backup; if the machine behaves worse, restore it
@@ -149,7 +162,10 @@ system_profiler SPDisplaysDataType     # GB-range VRAM, Metal support
 
 Success looks like `TGLMMIOStrongUCRouted = Yes`,
 `TGLMMIOStrongUCPreflight = Yes`, `N97NativeStartAllowed = Yes`,
-`N97NativeKernelReady = Yes`, `N97NativeProbeBlocked` absent or `No`.
+`N97NativeKernelReady = Yes`, `N97NativeProbeBlocked` absent or `No`. In
+`TGLTahoeMMIOGuard`, the ninth byte pattern (index 16) must now be `1`; if it
+is still `0`, the firmware loaded an unpatched kext — check that you patched
+the ESP OpenCore actually booted.
 
 If `UCRouted` becomes `Yes` but `UCPreflight` stays `No`, the pmap check found
 a different mapping; collect the new `TGLMMIOMappingEvidence` blob and stop.

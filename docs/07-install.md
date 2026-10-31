@@ -104,10 +104,15 @@ sudo installer -pkg WhateverXe-Graphics-0.3.1.pkg -target /
    succeeds.
 4. On the next boot, apply the 26.7.2 MMIO signature fix and restart again:
    ```sh
+   ls /Library/Developer/KDKs/    # the KDK must match 25G332
    sudo ./scripts/macos/patch-wex-tahoe-mmio.sh \
-     --kext /Volumes/EFI/EFI/OC/Kexts/WhateverXe.kext
+     --kext /Volumes/EFI/EFI/OC/Kexts/WhateverXe.kext \
+     --kernel /Library/Developer/KDKs/KDK_26.7.2_25G332.kdk/System/Library/Kernels/kernel
    sudo reboot
    ```
+   The script needs the KDK kernel for symbol addresses; it parses the Mach-O
+   itself and does not use `nm`/`otool`. Patch the ESP that OpenCore actually
+   boots (if you have more than one copy of this EFI, patch the booted one).
 
 Do not install Graphics 0.3.2 with this EFI, and do not boot the 0.6.1
 variant expecting acceleration. The supported pair on this machine is WEX

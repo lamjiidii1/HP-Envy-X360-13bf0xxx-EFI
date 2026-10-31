@@ -153,8 +153,20 @@ Checks, in order:
    In the broken state `TGLMMIOStrongUCRouted = No`,
    `TGLMMIOStrongUCPreflight = No`, `N97NativeStartAllowed = No` and
    `N97NativeProbeBlocked = Yes`. Run
-   `sudo scripts/macos/patch-wex-tahoe-mmio.sh --kext /Volumes/EFI/EFI/OC/Kexts/WhateverXe.kext`
-   and reboot. See [docs/03-graphics.md](03-graphics.md).
+
+   ```sh
+   sudo scripts/macos/patch-wex-tahoe-mmio.sh \
+     --kext /Volumes/EFI/EFI/OC/Kexts/WhateverXe.kext \
+     --kernel /Library/Developer/KDKs/KDK_26.7.2_25G332.kdk/System/Library/Kernels/kernel
+   ```
+
+   and reboot. The script needs the KDK that matches the running build; it
+   parses the kernel Mach-O with perl, so no Command Line Tools are required.
+   It must print `old const`, `real call`, `patched` and `verify`. **No output
+   means it never reached the patch**: update the script and check the kernel
+   candidates it prints. After the reboot `TGLTahoeMMIOGuard` must show the
+   ninth byte check (index 16) as `1`; a remaining `0` means the ESP you
+   patched is not the ESP that booted. See [docs/03-graphics.md](03-graphics.md).
 
 5. **The panel record is not the problem.** `WhateverXeFirmwarePanel` is
    `[0, 0, 9, 0, 0]` on this unit because the VBT sets `panel_type = 0xFF`
