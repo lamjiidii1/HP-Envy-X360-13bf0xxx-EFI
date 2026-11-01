@@ -29,8 +29,14 @@ DEFAULT_IDENTITY = REPO / "private" / "identity.plist"
 GPU_VARIANTS = {
     "hp-adlp-edp": {
         "path": VARIANTS / "gpu-hp-adlp-edp" / "WhateverXe.kext",
-        "args": ["-wex-adlp-edp", "-wex-reset-restore", "-wex-no-multicontext"],
-        "description": "WhateverXe 0.6.0 + retropineaple adlp-edp patches (default)",
+        "args": [
+            "-wex-adlp-edp",
+            "-wex-reset-restore",
+            "-wex-no-multicontext",
+            "-wex-scanout-coherent",
+            "-wex-pm",
+        ],
+        "description": "WhateverXe 0.6.0 + adlp-edp patch series 54 (default)",
     },
     "wex061": {
         "path": VARIANTS / "gpu-wex061" / "WhateverXe.kext",
