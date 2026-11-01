@@ -379,30 +379,44 @@ The installer writes `/usr/local/bin/openmac-wex-capture.sh` and a root
 LaunchDaemon `org.openmac.wex-capture`. It does not touch the EFI, the kernel
 or any kext. Remove it later with `--uninstall`.
 
-Reboot normally. The daemon runs before login, waits for `/Volumes/MACUSB`,
-writes a heartbeat every 5 s and captures the state three times:
+Reboot normally. The daemon runs at load, before login, waits for
+`/Volumes/MACUSB`, and then:
 
-| Time after boot | Content |
+1. takes the **first snapshot immediately** (`t000/`) — the previous version
+   waited 25 s and the machine died first;
+2. runs a 1 Hz heartbeat next to it, written to the stick and synced every ten
+   beats;
+3. repeats a cheap snapshot at 3 s, 8 s, 15 s, 30 s and 60 s, and a full one at
+   120 s;
+4. writes `status.txt`, `DONE` and only then the one-shot sentinel.
+
+Every capture command is bracketed in `run.log` by `begin <name>` / `end
+<name>`. If a line has a `begin` without its `end`, that command is what hung.
+
+| Time after daemon start | Content |
 |---|---|
-| 25 s | `ioreg -l`, WEX `N97*`/`TGL*` keys, framebuffer, accelerator, kextstat, dmesg |
-| 65 s | the same, after the first modeset |
-| 110 s | the same plus `kmutil`, `log show` for kernel/WindowServer, `nvram` (identity redacted) and new `DiagnosticReports` |
+| 0 s | `t000/`: framebuffer, accelerator and display ioreg, boot args |
+| 3-60 s | `t003/` … `t060/`: the same three ioreg dumps |
+| 120 s | `t120/`: the same plus `ioreg -l`, kextstat, `kmutil`, dmesg, `system_profiler`, `ps` |
+| after 120 s | `t120/`: plus `log show` for kernel/WindowServer, `nvram` (identity redacted), new `DiagnosticReports` |
 
-It then writes `DONE` and reboots the machine, so no power-button hold is
-needed (`--no-reboot` keeps it off). The capture is one-shot: a sentinel at
-`/var/db/openmac-wex-capture.done` stops the daemon from rebooting again on the
-next boot. Delete that file (or rerun the installer) to re-arm it. If the
-kernel dies before the final dump, the machine stays on; hold the power button,
-then read the `first/` and `second/` folders. Read
-`/Volumes/MACUSB/wex-capture-YYYYmmdd-HHMMSS/` on another machine.
+It then reboots the machine (`--no-reboot` keeps it off), so no power-button
+hold is needed. The sentinel at `/var/db/openmac-wex-capture.done` is written
+**after** `DONE`: a boot that dies early leaves no sentinel, so the next boot
+captures again instead of leaving you blind. Delete that file (or rerun the
+installer) to re-arm manually. To stop the capture for good, `--uninstall`.
+
+Read `/Volumes/MACUSB/wex-capture-YYYYmmdd-HHMMSS/` on another machine,
+starting with `status.txt`, `run.log` and `heartbeat.txt`.
 
 Interpretation:
 
 | Observation | Meaning | Next step |
 |---|---|---|
-| `heartbeat.txt` stops before `first/summary.txt` | the kernel wedged before 25 s | boot with `-wex-noaccel`, then `-wex-display13-offline`, to isolate the accelerator from the panel path |
-| heartbeat stops between `first` and `second` | the kernel wedged at/after the first modeset | same, plus compare `first/ioreg_wex.txt` with the reference values |
-| heartbeat reaches `DONE` | only the graphics session died; the kernel is alive | focus on FB memory and IOAccel surfaces; the three dumps bracket the event |
+| `heartbeat.txt` stops before `t000/summary.txt` exists | not the display path: the kernel or the disk I/O died during the daemon's first second | boot with `-wex-noaccel`, then with `-wex-display13-offline` |
+| `t000/` exists, heartbeat stops before `t003/` | the material hangs on the first framebuffer/accelerator read, i.e. inside the FB path | `run.log` names the hung command; boot `-wex-noaccel` next |
+| heartbeat stops between two snapshots | the kernel wedged at/after the first modeset | same, plus compare `t000/ioreg_wex.txt` with the reference values |
+| heartbeat reaches `DONE` | only the graphics session died; the kernel is alive | focus on FB memory and IOAccel surfaces; the snapshots bracket the event |
 | `N97FBApertureNotReady` present | the aperture path returned "not ready" before allocation | read `N97FBApertureFirstFailure` and `N97FBMemory`; do not change DVMT |
 | `N97FBScanoutAllocate` absent while `N97FBApertureFirstFailure` is non-zero | allocation refused, not deferred | capture the pool layout (`N97GTTopologyReady`, `N97Memory*`) and stop |
 | `TGLMMIOStrongUCPreflight = No` with `UCRouted = Yes` | the pmap check found another mapping | collect `TGLMMIOMappingEvidence` |

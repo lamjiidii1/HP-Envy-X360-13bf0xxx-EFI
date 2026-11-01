@@ -301,12 +301,44 @@ Decision table for the next capture:
 
 | Observation | Meaning | Next step |
 |---|---|---|
-| heartbeat stops before the 25 s dump | kernel deadlock before the FB hand-off | isolate with `-wex-noaccel`, then `-wex-display13-offline` |
-| heartbeat stops between 25 s and 65 s | deadlock at/after the first modeset | compare `first/ioreg_wex.txt`; focus on the display pipe, not the accelerator probe |
+| heartbeat stops before `t000/summary.txt` exists | the kernel or the disk I/O died in the daemon's first second | isolate with `-wex-noaccel`, then `-wex-display13-offline` |
+| `t000/` exists, heartbeat stops before `t003/` | the first framebuffer/accelerator read hangs inside the FB path | `run.log` names the hung command; boot `-wex-noaccel` |
+| heartbeat stops between two snapshots | deadlock at/after the first modeset | compare `t000/ioreg_wex.txt`; focus on the display pipe, not the accelerator probe |
 | heartbeat reaches `DONE` | kernel alive; only WindowServer died | follow FB memory and IOAccel surface creation |
 | `N97FBApertureNotReady` present, `N97FBApertureFirstFailure`=0 | aperture deferred because the range was empty | check `N97FBScanoutAllocate`: if it never appears, allocation never ran |
 | `N97FBApertureFirstFailure` non-zero or `N97FBMemory` faulted | a real validation failure, not deferral | compare the pool layout with `Display13FBMemory::poolLayout` invariants |
 | `TGLMMIOStrongUCPreflight = No` | the pmap check refused the mapping | collect `TGLMMIOMappingEvidence`; the pgtable/NX attributes are the suspect |
+
+### 9.1 The 21:00 capture produced no dump at all
+
+The first real run of the daemon (2026-11-01, `wex-capture-20261101-210027`)
+left only:
+
+```
+2026-11-01 21:00:27 uptime=0 load= 5.58 1.32 0.47
+2026-11-01 21:00:33 uptime=0 load= 5.21 1.31 0.48
+```
+
+and nothing else: no `first/` directory, no `second/`, no `DONE`. The machine
+reset by itself about two minutes later. Two facts follow:
+
+- The daemon definitely started, mounted the stick and wrote to it, so the
+  capture channel works and `/Volumes/MACUSB` appears early in boot. The
+  failed LOGS boot reached AGDP at ~+18 s, so the process survived past the
+  accelerator probe.
+- With `FIRST_DELAY=25` the old script had no dump before the point where the
+  heartbeat stopped (~6 s). That is why the run is empty.
+
+It is not yet known whether the kernel wedged (the second heartbeat line was
+written at +6 s and the third, at +11 s, never was) or whether the process was
+killed while the machine stayed alive until its own reset. The new capture
+answers that by taking `t000/` at second 0 and by writing `begin`/`end` markers
+around every command.
+
+`uptime=0` in both lines is the other bug: `sysctl -n kern.boottime` was parsed
+with `sed 's/.*sec = \([0-9]*\).*/\1/'`, which yields `0` for the
+`{ sec = 1762…, usec = … } 2026-…` form. The heartbeat no longer calls `sysctl`
+at all; it reports `$SECONDS` plus a wall-clock `date` every ten beats.
 
 The capture daemon in
 [docs/08](../docs/08-troubleshooting.md#9-capturing-a-boot-that-dies-with-a-black-screen)
