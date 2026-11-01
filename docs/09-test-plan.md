@@ -94,7 +94,7 @@ Each step changes exactly one thing and records the same evidence bundle.
 | T04.2 | Boot `wex061` with `--debug` (`-v debug=0x100`) | capture the OpenCore log and `WhateverXeFirmwarePorts`; expect a VBT conflict, proves the parser limit |
 | T04.3 | Capture `WhateverXeVBTRaw` + panel/port records + `TGLTahoeMMIOGuard` | complete report for upstream |
 | T04.4 | If the patch cannot work, install macOS 26.7.1 (25G241) and boot `hp-adlp-edp` without it | known-good reference combination; Metal expected |
-| T04.5 | Report upstream with BIOS F.35, macOS 25G332, the VBT and the guard | issue contains the evidence listed in [08](08-troubleshooting.md#10-reporting-a-graphics-bug-upstream) |
+| T04.5 | Report upstream with BIOS F.35, macOS 25G332, the VBT and the guard | issue contains the evidence listed in [08](08-troubleshooting.md#11-reporting-a-graphics-bug-upstream) |
 | T04.6 | Revert to the last working combination | machine boots and is usable |
 
 If neither variant accelerates, do not try NootedGreen as a quick fix. It is a

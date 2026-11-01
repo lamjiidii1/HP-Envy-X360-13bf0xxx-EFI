@@ -361,7 +361,56 @@ it changes sleep into shutdown and needs validation on this BIOS.
 
 Do not debug sleep at the same time as graphics. One variable at a time.
 
-## 9. Emergency recovery
+## 9. Capturing a boot that dies with a black screen
+
+After the 26.7.2 MMIO patch the machine reaches the accelerator but
+WindowServer dies at the first panel modeset (see
+[03-graphics.md](03-graphics.md#where-the-2672-bring-up-stops-now-2026-11-01)).
+Nothing can be typed on that screen, and a safe-mode capture has none of the
+live `N97FB*` properties. Record the boot from inside macOS instead.
+
+On a boot that works (safe mode is fine), from the USB stick:
+
+```sh
+sudo /Volumes/MACUSB/install-boot-capture.sh --volume MACUSB
+```
+
+The installer writes `/usr/local/bin/openmac-wex-capture.sh` and a root
+LaunchDaemon `org.openmac.wex-capture`. It does not touch the EFI, the kernel
+or any kext. Remove it later with `--uninstall`.
+
+Reboot normally. The daemon runs before login, waits for `/Volumes/MACUSB`,
+writes a heartbeat every 5 s and captures the state three times:
+
+| Time after boot | Content |
+|---|---|
+| 25 s | `ioreg -l`, WEX `N97*`/`TGL*` keys, framebuffer, accelerator, kextstat, dmesg |
+| 65 s | the same, after the first modeset |
+| 110 s | the same plus `kmutil`, `log show` for kernel/WindowServer, `nvram` (identity redacted) and new `DiagnosticReports` |
+
+It then writes `DONE` and reboots the machine, so no power-button hold is
+needed (`--no-reboot` keeps it off). The capture is one-shot: a sentinel at
+`/var/db/openmac-wex-capture.done` stops the daemon from rebooting again on the
+next boot. Delete that file (or rerun the installer) to re-arm it. If the
+kernel dies before the final dump, the machine stays on; hold the power button,
+then read the `first/` and `second/` folders. Read
+`/Volumes/MACUSB/wex-capture-YYYYmmdd-HHMMSS/` on another machine.
+
+Interpretation:
+
+| Observation | Meaning | Next step |
+|---|---|---|
+| `heartbeat.txt` stops before `first/summary.txt` | the kernel wedged before 25 s | boot with `-wex-noaccel`, then `-wex-display13-offline`, to isolate the accelerator from the panel path |
+| heartbeat stops between `first` and `second` | the kernel wedged at/after the first modeset | same, plus compare `first/ioreg_wex.txt` with the reference values |
+| heartbeat reaches `DONE` | only the graphics session died; the kernel is alive | focus on FB memory and IOAccel surfaces; the three dumps bracket the event |
+| `N97FBApertureNotReady` present | the aperture path returned "not ready" before allocation | read `N97FBApertureFirstFailure` and `N97FBMemory`; do not change DVMT |
+| `N97FBScanoutAllocate` absent while `N97FBApertureFirstFailure` is non-zero | allocation refused, not deferred | capture the pool layout (`N97GTTopologyReady`, `N97Memory*`) and stop |
+| `TGLMMIOStrongUCPreflight = No` with `UCRouted = Yes` | the pmap check found another mapping | collect `TGLMMIOMappingEvidence` |
+
+Do not add the capture daemon to the EFI: it is a one-shot diagnostic for the
+installed system, not part of the boot payload.
+
+## 10. Emergency recovery
 
 1. Boot the backup EFI from a USB stick. The internal ESP is not required.
 2. If the picker is unreachable, boot Linux and restore the backed-up `EFI`
@@ -374,7 +423,7 @@ Do not debug sleep at the same time as graphics. One variable at a time.
 
 Never delete the only working EFI before the new one has booted at least once.
 
-## 10. Reporting a graphics bug upstream
+## 11. Reporting a graphics bug upstream
 
 A report that can be acted on contains:
 

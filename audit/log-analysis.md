@@ -275,3 +275,47 @@ was taken after the Graphics package was reinstalled (the kernel log shows
 MMIO failure and the same expected empty panel record. That rules out "the
 package installed incorrectly" as the cause of the fallback: the difference is
 the macOS build, not the installation procedure.
+
+## 9. 2026-10-31 patched boot: gate cleared, session dies at the first modeset
+
+`LOGS/macOS_Logs_20261031_191812/kernel_last_20m.log` (lines 7–5944) is the
+first normal boot with the corrected MMIO immediate. It answers the previous
+section and opens a new one:
+
+| Evidence | Reading |
+|---|---|
+| `IntelAccelerator::probe` at 19:13:49.042, HWCAPS and host-preemptive scheduler at 19:13:49.42, `IntelAccelerator` published at 19:13:49.45 | the guard, the UC routing and the preflight passed; the accelerator starts |
+| AGDP validates 2880 x 1800 at 329.63 MHz at 19:14:01.18 (8 bpc accepted) | the panel mode is described and accepted |
+| 19:14:02–38: `FB0: This fb does not have FB memory`, `FB has no memory allocated, err = 0xe00002bc`, `Surface mode contains bad bits`, `Flip called without enabling VBL` | FB0 has no scanout memory; IOAccel surfaces are rejected, so every flip fails |
+| WindowServer deallocates its virtual display at 19:14:38.49; loginwindow/SecurityAgent exit | the graphics session dies at the first modeset |
+| `kAGDCRegisterLinkModesetCallback` 2880 x 1800 at 19:14:38.68 | last kernel message; no panic, no WEX log |
+| `LOGS/macOS_Logs_20261031_184517` has zero FB-memory errors | this failure mode appears only after the accelerator starts, not before the patch |
+
+The messages are not new to this fork: patches 18, 21 and 22 exist precisely
+for them. Hence the binary is not obviously missing the fix; the question is
+which live check refuses the scanout memory. A safe-mode `ioreg` cannot answer
+that (WEX stays passive and publishes no `TGL*`/`N97FB*` keys). The capture must
+come from a normal boot, before WindowServer dies.
+
+Decision table for the next capture:
+
+| Observation | Meaning | Next step |
+|---|---|---|
+| heartbeat stops before the 25 s dump | kernel deadlock before the FB hand-off | isolate with `-wex-noaccel`, then `-wex-display13-offline` |
+| heartbeat stops between 25 s and 65 s | deadlock at/after the first modeset | compare `first/ioreg_wex.txt`; focus on the display pipe, not the accelerator probe |
+| heartbeat reaches `DONE` | kernel alive; only WindowServer died | follow FB memory and IOAccel surface creation |
+| `N97FBApertureNotReady` present, `N97FBApertureFirstFailure`=0 | aperture deferred because the range was empty | check `N97FBScanoutAllocate`: if it never appears, allocation never ran |
+| `N97FBApertureFirstFailure` non-zero or `N97FBMemory` faulted | a real validation failure, not deferral | compare the pool layout with `Display13FBMemory::poolLayout` invariants |
+| `TGLMMIOStrongUCPreflight = No` | the pmap check refused the mapping | collect `TGLMMIOMappingEvidence`; the pgtable/NX attributes are the suspect |
+
+The capture daemon in
+[docs/08](../docs/08-troubleshooting.md#9-capturing-a-boot-that-dies-with-a-black-screen)
+produces these dumps without a working screen.
+
+Two side findings:
+
+- `MTLCompilerService` is denied read/map of
+  `XeCompilerAdapter.bundle/.../adapter.dylib` and `libigc-tgl.dylib`. Metal
+  shader compilation is a separate failure from the framebuffer one.
+- `AppleIntelTGLCompat` prints `revision 0.5.0` while the package is 0.6.0;
+  this is the internal ABI string, not a mixed installation.

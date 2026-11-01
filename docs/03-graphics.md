@@ -59,6 +59,10 @@ stays false, so `processKext()` installs
 The panel work (`-wex-adlp-edp`, Combo A, training) already succeeded; this is
 the last gate, not a display or VBT problem.
 
+> This table is the state **before** the MMIO patch. It is kept as the record
+> of the guard failure. The patched boot now passes this gate; see
+> *Where the 26.7.2 bring-up stops now* below for the current failure.
+
 ## The VBT is valid
 
 The root collector captured the real firmware table from Linux
@@ -216,6 +220,55 @@ the ESP OpenCore actually booted.
 
 If `UCRouted` becomes `Yes` but `UCPreflight` stays `No`, the pmap check found
 a different mapping; collect the new `TGLMMIOMappingEvidence` blob and stop.
+
+## Where the 26.7.2 bring-up stops now (2026-11-01)
+
+The corrected MMIO patch works, and the boot captured in
+`LOGS/macOS_Logs_20261031_191812` runs further than the table at the top of
+this document. The chain, in order:
+
+| Time | Event |
+|---|---|
+| 19:13:49.042 | `IntelAccelerator::probe`: device `0x46aa8086`, revision `0xc` |
+| 19:13:49.419 | TGL HWCAPS, host-preemptive scheduler, multi-context disabled |
+| 19:13:49.450 | `IntelAccelerator` published |
+| 19:13:50.44 | framebuffer `start`; Combo A AUX reads OK; AGDP `Framebuffer` events |
+| 19:14:01.18 | AGDP validates 2880 x 1800 at 329.63 MHz (8 bpc accepted) |
+| 19:14:02–38 | `FB0: This fb does not have FB memory`, `FB has no memory allocated, err = 0xe00002bc`, `Surface mode contains bad bits`, `Flip called without enabling VBL` |
+| 19:14:38.49 | WindowServer tears down its virtual display; loginwindow and SecurityAgent exit |
+| 19:14:38.68 | `kAGDCRegisterLinkModesetCallback`: FB0 -> 2880 x 1800, 329630000 Hz |
+| 19:15:47 | next boot (safe mode) |
+
+The old `guard[16]`/`UCPreflight` gate and the accelerator probe are resolved.
+The failure is now in the framebuffer/WindowServer hand-off: FB0 has no scanout
+memory, accelerated surfaces are rejected, the VBL enable is lost, and the
+session dies at the first modeset. There is no panic and no WhateverXe message:
+the last kernel line is the AGDP modeset callback itself.
+
+WhateverXe 0.6.0 already contains the fork's fixes for these exact messages
+(patches 18, 21 and 22 replay the dropped VBL request and treat an empty
+aperture as "not ready"). Their presence does not prove the path ran. The live
+properties are the only way to see which check refused the mapping:
+
+```
+N97FBApertureNotReady, N97FBApertureFirstFailure, N97FBMemory,
+N97FBScanoutAllocate, N97FBBinding, N97FBBacking
+```
+
+The 2026-10-31 capture was taken in safe mode, so it contains none of them. A
+black-screen boot cannot be typed into, so use the boot-capture daemon in
+[docs/08-troubleshooting.md](08-troubleshooting.md#9-capturing-a-boot-that-dies-with-a-black-screen)
+to record them at 25 s, 65 s and 110 s after boot.
+
+Two separate findings in the same boot:
+
+- `MTLCompilerService` is sandbox-denied `file-read-data` and
+  `file-map-executable` for
+  `/Library/GPUBundles/XeCompilerAdapter.bundle/Contents/MacOS/adapter.dylib`
+  and `libigc-tgl.dylib`. Metal shader compilation cannot work until that
+  bundle is visible to the service. Fix it after the display is up.
+- `AppleIntelTGLCompat` logs `revision 0.5.0 started` while `kextstat` reports
+  package 0.6.0. That is the internal ABI string, not a package mismatch.
 
 ## Fallback: stay on 26.7.1
 
