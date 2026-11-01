@@ -292,6 +292,7 @@ for t in $SCHEDULE; do
 done
 
 # --- status summary --------------------------------------------------------
+cp "$LOG" "$OUT/daemon.log" 2>/dev/null || true
 mark "writing status summary"
 {
   echo "capture: $OUT"
