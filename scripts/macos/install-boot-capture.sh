@@ -126,26 +126,32 @@ mkdir -p /usr/local/bin
 
 # ---------------------------------------------------------------------------
 # The capture program. It runs as root from launchd, before anyone logs in.
+#
+# The configuration block is generated with printf %q rather than substituted
+# into a heredoc: an earlier version used perl's \Q...\E, which turned the
+# schedule "0 3 8 15 30 60 120" into "0\ 3\ 8\ ..." and broke every arithmetic
+# expression in the installed script.
 # ---------------------------------------------------------------------------
-cat > "$CAPTURE_BIN" <<'CAPTURE'
-#!/bin/bash
+{
+  printf '%s\n' '#!/bin/bash'
+  cat <<'HEADER'
 # Installed by install-boot-capture.sh. One-shot boot capture for the
 # WhateverXe black-screen diagnosis. Safe to delete.
 #
-# Design notes (learned from the 21:00 run, which died after two heartbeats):
-#   * the first snapshot is taken immediately, before any delay, because the
-#     kernel can die within seconds of the daemon starting;
+# Design notes (learned from the 21:00 and 21:22 runs):
+#   * the first snapshot is taken immediately, before any delay;
 #   * the heartbeat is 1 Hz and forks nothing but `date` once every ten beats;
 #   * `run.log` gets a line before and after every capture command, with a
 #     `sync`, so the last line identifies the command that hung;
 #   * the one-shot sentinel is written only after DONE, so an early death
 #     re-arms the capture for the next boot instead of leaving us blind.
-
-VOLUME="__VOLUME__"
-REBOOT="__REBOOT__"
-SCHEDULE="__SCHEDULE__"
-LOG="/var/log/openmac-wex-capture.log"
-SENTINEL="/var/db/openmac-wex-capture.done"
+HEADER
+  printf 'VOLUME=%q\n'   "$VOLUME"
+  printf 'REBOOT=%q\n'   "$REBOOT"
+  printf 'SCHEDULE=%q\n' "$SCHEDULE"
+  printf 'LOG=%q\n'      "$LOG_FILE"
+  printf 'SENTINEL=%q\n' "$SENTINEL_FILE"
+  cat <<'CAPTURE'
 
 exec >>"$LOG" 2>&1
 echo "=== openmac capture start $(date '+%F %T') ==="
@@ -332,23 +338,20 @@ if [[ "$REBOOT" == "1" ]]; then
   shutdown -r now
 fi
 CAPTURE
+} >"$CAPTURE_BIN"
 
-for pair in "VOLUME:$VOLUME" "REBOOT:$REBOOT" "SCHEDULE:$SCHEDULE"; do
-  key="${pair%%:*}"
-  value="${pair#*:}"
-  case "$key" in
-    VOLUME)   perl -pi -e "s/__VOLUME__/\Q${value}\E/" "$CAPTURE_BIN" ;;
-    REBOOT)   perl -pi -e "s/__REBOOT__/${value}/" "$CAPTURE_BIN" ;;
-    SCHEDULE) perl -pi -e "s/__SCHEDULE__/\Q${value}\E/" "$CAPTURE_BIN" ;;
-  esac
-done
-
-for placeholder in __VOLUME__ __REBOOT__ __SCHEDULE__; do
-  if grep -q "$placeholder" "$CAPTURE_BIN"; then
-    echo "error: could not substitute $placeholder" >&2
+# Sanity-check the generated header: every assignment must be there and no
+# placeholder may be left over from an older install.
+for key in VOLUME REBOOT SCHEDULE LOG SENTINEL; do
+  if ! grep -q "^${key}=" "$CAPTURE_BIN"; then
+    echo "error: generated capture script has no ${key} assignment" >&2
     exit 1
   fi
 done
+if grep -q '__[A-Z]*__' "$CAPTURE_BIN"; then
+  echo "error: generated capture script still contains a placeholder" >&2
+  exit 1
+fi
 
 chmod 755 "$CAPTURE_BIN"
 chown root:wheel "$CAPTURE_BIN"
