@@ -13,7 +13,7 @@ repository.
 
 | Repository | Commit | Hardware | macOS target | Graphics stack | Wi-Fi | Role here |
 |---|---|---|---|---|---|---|
-| [retropineaple/whateverxe-hp-envy-x360](https://github.com/retropineaple/whateverxe-hp-envy-x360) | `9809987` | **HP Envy x360 13-bf0059TU**, i7-1250U, `0x46AA`, 2880×1800 OLED | 26.7.1 (25G241) | WhateverXe 0.6.0 + 47 `adlp-edp` patches, Graphics 0.3.1 | AirportItlwm | Primary same-model reference |
+| [retropineaple/whateverxe-hp-envy-x360](https://github.com/retropineaple/whateverxe-hp-envy-x360) | `9809987` | **HP Envy x360 13-bf0059TU**, i7-1250U, `0x46AA`, 2880×1800 OLED | 26.7.1 (25G241) | WhateverXe 0.6.0 + 54 `adlp-edp` patches, Graphics 0.3.1 | AirportItlwm | Primary same-model reference |
 | [b00t0x/WhateverXe](https://github.com/b00t0x/WhateverXe) | 0.6.1 tag | TGL, ADL-N, ADL/RPL-H/P/U | current Tahoe | upstream driver | — | Diagnostic control; boot-arg and pairing rules |
 | [b00t0x/WhateverXe-Graphics](https://github.com/b00t0x/WhateverXe-Graphics) | `v0.3.1` | same | current Tahoe | Apple payloads + `AppleIntelTGLCompat` 0.6.0 | — | Pinned Graphics package; AMFIPass Mod |
 | [JulioNectar/Hackintosh-XPS13Plus-IrisXe-Tahoe](https://github.com/JulioNectar/Hackintosh-XPS13Plus-IrisXe-Tahoe) | `6f03560` | Dell XPS 13 Plus 9320, i7-1360P, `0xA7A0` | Tahoe | NootedGreen + user-space Metal patches | — | Debug methodology; VA-driver caveat |
@@ -34,7 +34,7 @@ Files inspected: `README.md`, `docs/EFI.md`, `docs/FIXES.md`,
 - Same board family (`8A28`), same CPU (i7-1250U), same iGPU (`0x46AA`), same
   2880×1800 OLED. This is the only reference that is hardware-identical.
 - Its own documentation says the OLED has no driver without `-wex-adlp-edp`
-  and that the 47-patch kext is required because 0.6.0 does not support ADL-P
+  and that the patched kext is required because 0.6.0 does not support ADL-P
   internal panels.
 - Tested on **26.7.1 (25G241)**, one point release older than this machine
   (26.7.2 / 25G332).

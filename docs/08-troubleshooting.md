@@ -401,7 +401,9 @@ Every capture command is bracketed in `run.log` by `begin <name>` / `end
 | after 120 s | `t120/`: plus `log show` for kernel/WindowServer, `nvram` (identity redacted), new `DiagnosticReports` |
 
 It then reboots the machine (`--no-reboot` keeps it off), so no power-button
-hold is needed. The sentinel at `/var/db/openmac-wex-capture.done` is written
+hold is needed. **A boot that ends in a self-reboot about two to three minutes
+after power-on has not crashed: that is this `shutdown -r now`.** Check
+`run.log` and `DONE` before treating it as a firmware reset. The sentinel at `/var/db/openmac-wex-capture.done` is written
 **after** `DONE`: a boot that dies early leaves no sentinel, so the next boot
 captures again instead of leaving you blind. Delete that file (or rerun the
 installer) to re-arm manually. To stop the capture for good, `--uninstall`.

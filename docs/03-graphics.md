@@ -257,10 +257,66 @@ N97FBScanoutAllocate, N97FBBinding, N97FBBacking
 
 The 2026-10-31 capture was taken in safe mode, so it contains none of them. A
 black-screen boot cannot be typed into, so use the boot-capture daemon in
-[docs/08-troubleshooting.md](08-troubleshooting.md#9-capturing-a-boot-that-dies-with-a-black-screen)
-to record them at 25 s, 65 s and 110 s after boot.
+[docs/08-troubleshooting.md](08-troubleshooting.md#9-capturing-a-boot-that-dies-with-a-black-screen).
 
-Two separate findings in the same boot:
+### What the live capture showed (2026-11-01 21:22)
+
+`wex-capture-20261101-212217` is the first normal boot recorded from inside
+macOS. It changes the picture in two ways.
+
+First, the machine was **not** resetting by itself. The kernel lived for the
+whole 136 s run and the reboot at the end was the capture daemon's own
+`shutdown -r now`. The earlier "two minute reboot" was the same thing.
+
+Second, the failure is a sequence, not a single rejection:
+
+| Time | Event |
+|---|---|
+| 21:22:17.162 | `IntelAccelerator::probe`, then HWCAPS, host-preemptive scheduler |
+| 21:22:17.553 | `IntelAccelerator` published (`N97NativeStartAllowed = Yes`) |
+| 21:22:27.992 | AGDP `kAGDCRegisterLinkModesetCallback` 2880 x 1800, 329.63 MHz |
+| 21:22:28.711 | `FB0: Partial modeset by updating plane` — succeeds |
+| 21:22:29.762 | `FB0: Partial modeset by updating scaler` — succeeds |
+| 21:22:28.95 | `IOAccelLegacySurface::set_id_mode`: `Surface mode contains bad bits` (x4) |
+| 21:22:30.834 | first `FB0: Flip called without enabling VBL` |
+| 21:22:30.232 | WindowServer gives up on the panel and activates a `VirtualDisplay` |
+| 21:22:33.714 | `FB0: This fb does not have FB memory`, `FB has no memory allocated, err = 0xe00002bc` |
+| 21:24:21.03 | WindowServer's second session exits; loginwindow restarts |
+
+So the panel is detected (`AppleBacklightDisplay`, EDID `4c83:4166`, brightness
+17497), the mode is accepted, and plane/scaler updates work. What is missing is
+the **vertical-blank enable**: the first flip is refused, WindowServer cannot
+present a frame, falls back to a virtual display, and from then on the
+framebuffer has no memory at all.
+
+`N97FBApertureNotReady` holds a two-entry record, `N97FBMemory` reports
+configured/enabled, and `N97FBScanoutAllocate`/`ScanoutMemoryOwner` carry live
+pointers — the aperture path did run. Nothing in the capture points at DVMT,
+the MMIO gate or the accelerator probe. Everything points at the display
+hand-off, which is exactly the class of fix the reference lists as *"Frame
+flips failing, picture stuck — a vertical-blank enable was dropped during the
+modeset; replay it once the display path exists"*.
+
+### Decision: use the reference build of the same fork
+
+The installed WhateverXe was a pre-patch-49 snapshot of the `adlp-edp` branch:
+it lacks `-wex-scanout-coherent` and `-wex-pm`, and it predates the VBL replay.
+The hardware-identical reference ships a later build of the same branch.
+
+| | Installed before | Now |
+|---|---|---|
+| Build | `c090b9dd…`, 1,456,256 bytes, pre-patch-49 | `44ce24dd…`, 1,466,816 bytes, patch series 54 |
+| Upstream SHA-256 | — | `197da23b…` (retropineaple/whateverxe-hp-envy-x360, `EFI/OC/Kexts/WhateverXe.kext`) |
+| MMIO constant | patched `e85ff302` at `0x17907` | patched `e85ff302` at `0x17893` |
+| Boot args | `-wex-adlp-edp -wex-reset-restore -wex-no-multicontext` | plus `-wex-scanout-coherent -wex-pm` |
+
+The 25G332 MMIO patch is applied at build time with the same four-byte
+immediate (`e8 2f f3 02` → `e8 5f f3 02`) in the live `movl $imm32,-0x58(%rbp)`
+initialiser; the unreferenced copy before the `TGLTahoeMMIOGuard` anchor is
+left at the original constant. Both kexts report `CFBundleVersion 0.6.0`, so
+the Graphics 0.3.1 package (Compat 0.6.0) still matches.
+
+Two separate findings remain from the same boot:
 
 - `MTLCompilerService` is sandbox-denied `file-read-data` and
   `file-map-executable` for
@@ -269,6 +325,7 @@ Two separate findings in the same boot:
   bundle is visible to the service. Fix it after the display is up.
 - `AppleIntelTGLCompat` logs `revision 0.5.0 started` while `kextstat` reports
   package 0.6.0. That is the internal ABI string, not a package mismatch.
+
 
 ## Fallback: stay on 26.7.1
 
@@ -291,6 +348,8 @@ an older build over a newer one). Do not combine 26.7.1 with a 0.6.1 EFI.
 | `-wex-adlp-edp` | Force the ADL-P eDP path (0.6.0 fork only) |
 | `-wex-reset-restore` | Restore display/render state after a GPU reset |
 | `-wex-no-multicontext` | Avoid the second compute ring that deadlocks on recovery |
+| `-wex-scanout-coherent` | Mark every flipped surface displayable (HiDPI above 1440x900) |
+| `-wex-pm` | XE-PM CPU profile: HWP units and the idle table on hybrid Alder Lake |
 | `-v`, `debug=0x100` | `--debug` builds only |
 
 Do not add `-wex-noaccel`: it deliberately disables the accelerator and would

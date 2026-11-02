@@ -319,8 +319,8 @@ left only:
 2026-11-01 21:00:33 uptime=0 load= 5.21 1.31 0.48
 ```
 
-and nothing else: no `first/` directory, no `second/`, no `DONE`. The machine
-reset by itself about two minutes later. Two facts follow:
+and nothing else: no `first/` directory, no `second/`, no `DONE`. Two facts
+follow:
 
 - The daemon definitely started, mounted the stick and wrote to it, so the
   capture channel works and `/Volumes/MACUSB` appears early in boot. The
@@ -329,11 +329,11 @@ reset by itself about two minutes later. Two facts follow:
 - With `FIRST_DELAY=25` the old script had no dump before the point where the
   heartbeat stopped (~6 s). That is why the run is empty.
 
-It is not yet known whether the kernel wedged (the second heartbeat line was
-written at +6 s and the third, at +11 s, never was) or whether the process was
-killed while the machine stayed alive until its own reset. The new capture
-answers that by taking `t000/` at second 0 and by writing `begin`/`end` markers
-around every command.
+At the time it was not known whether the kernel wedged (the second heartbeat
+line was written at +6 s and the third, at +11 s, never was) or whether the
+process was killed while the machine stayed alive until its own reset. §9.2
+answers it: neither. The dumps did run, the heartbeat writes failed, and the
+reset was the daemon's own.
 
 `uptime=0` in both lines is the other bug: `sysctl -n kern.boottime` was parsed
 with `sed 's/.*sec = \([0-9]*\).*/\1/'`, which yields `0` for the
@@ -343,6 +343,46 @@ at all; it reports `$SECONDS` plus a wall-clock `date` every ten beats.
 The capture daemon in
 [docs/08](../docs/08-troubleshooting.md#9-capturing-a-boot-that-dies-with-a-black-screen)
 produces these dumps without a working screen.
+
+### 9.2 The 21:22 capture: the kernel is fine, the display hand-off is not
+
+`wex-capture-20261101-212217` is the first normal boot recorded from inside
+macOS. Its `run.log` shows 136 s of healthy operation: 135 heartbeats, `t000`
+at 14 s, `t120` complete, `DONE` at 136 s. The reboot that ended the run was
+the daemon's `shutdown -r now`, not a firmware reset. **The kernel does not
+wedge and the machine never resets by itself.**
+
+The daemon's own `daemon.log`, copied to the stick, also explains §9.1: the
+21:00 run *did* finish all three dumps, but every heartbeat write after the
+second line failed with `No such file or directory` on the stick while the
+dumps into the same directory succeeded. The volume was still there; the
+message is a FAT32/macOS `msdos` write failure, not a dead process. A later
+attempt (`--volume MACUSB 1`) never found a volume at all, because the
+installer had written that literal label into the script.
+
+State at 120 s (`t120/ioreg_full.txt`, `t120/kernel.txt`):
+
+| Evidence | Reading |
+|---|---|
+| `IntelAccelerator::probe` 21:22:17.162, published 21:22:17.553 | the accelerator starts on the patched MMIO constant |
+| `N97NativeStartAllowed = Yes`, `N97NativeKernelReady = Yes`, `N97FBManagersBound = Yes`, `TGLMMIOStrongUCPreflight = Yes` | no gate is refusing; the earlier hypotheses are dead |
+| `N97FBApertureNotReady` = 2-entry record, `N97FBMemory` = configured/enabled, `N97FBScanoutAllocate` and `ScanoutMemoryOwner` carry live pointers | the aperture/scanout path ran and produced memory |
+| `AppleBacklightDisplay` present, EDID `4c83:4166`, brightness 17497 | the panel is detected and the backlight is set |
+| 21:22:28.711 plane update, 21:22:29.762 scaler update | partial modesets succeed |
+| 21:22:28.95 `IOAccelLegacySurface::set_id_mode`: `Surface mode contains bad bits` | the accelerated scanout surface is rejected |
+| 21:22:30.834 `FB0: Flip called without enabling VBL` | the first flip has no VBL — the dropped enable the reference documents |
+| 21:22:30.232 WindowServer `com.apple.VirtualDisplay`, "Can't run fallback without surface" | WindowServer stops trying to drive the panel |
+| 21:22:33.714 `This fb does not have FB memory`, `err = 0xe00002bc` | consequence: by the next modeset the FB has lost its memory |
+
+Nothing implicates DVMT, the MMIO gate or the accelerator probe. The missing
+piece is the display hand-off: a dropped vertical-blank enable, which is the
+fix the same-model reference lists as *"Frame flips failing, picture stuck"*,
+and which the later patch series (49-54) of the same `adlp-edp` branch
+carries.
+
+`system_profiler SPDisplaysDataType` in `t120` lists the Iris Xe with 1536 MB
+and Metal 2 but no `Displays:` section — consistent with WindowServer having
+fallen back to a virtual display.
 
 Two side findings:
 
