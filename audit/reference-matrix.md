@@ -9,6 +9,15 @@ Commits are the ones inspected on 2026-10-29/30. If a repository has moved
 since, the commit in the table is still the evidence for the decisions in this
 repository.
 
+> **Update — 2026-11-02, Sequoia retarget.** The machine was downgraded to
+> macOS Sequoia 15.8.2 (24H232). Two things below have changed since the audit:
+> WhateverXe 0.7.0 and Graphics 0.4.0 were released, and the default GPU
+> payload moved to the same-model reference's **current** binary
+> (`197da23b…`, commit `8100282`, patch series 54). 0.7.0 was compiled and run
+> against this machine's real VBT; it still returns `Status::Conflict`, so the
+> 0.6.0 fork remains the default and 0.7.0 ships only as a control. The
+> sections below are kept as the audit trail; §3 and §4 carry the new evidence.
+
 ## 1. Overview
 
 | Repository | Commit | Hardware | macOS target | Graphics stack | Wi-Fi | Role here |
@@ -44,8 +53,10 @@ Files inspected: `README.md`, `docs/EFI.md`, `docs/FIXES.md`,
   `SSDT-USB-Reset.aml` and `SSDT-USBW.aml`).
 - Its Graphics package is 0.3.1 (Compat 0.6.0).
 - Its AppleALC is patched with the same layout-11 DSP removal used here.
-- Its WhateverXe binary is **byte-identical** (`c090b9dd…`) to the kext in the
-  old EFI on this machine and to `efi/variants/gpu-hp-adlp-edp`.
+- Its WhateverXe binary at commit `9809987` is byte-identical (`c090b9dd…`) to
+  the kext in the old EFI on this machine. The reference's later commit
+  `8100282` (2026-11-01) ships `197da23b…`, patch series 54, which is the
+  default payload in this repository now.
 - Its own test fixture `tests/fixtures/hp-envy-x360-13-bf-vbt.bin` is
   byte-identical (`4d790a72…`) to the VBT captured from this machine under
   Linux. The firmware is identical.
@@ -86,50 +97,61 @@ only the call at `+0xCC` moved; `tglMMIOUCRouted` therefore stays false and
 [log-analysis.md](log-analysis.md) and
 [../docs/03-graphics.md](../docs/03-graphics.md).
 
-## 3. Upstream: b00t0x/WhateverXe (0.6.1)
+## 3. Upstream: b00t0x/WhateverXe (0.6.1 → 0.7.0)
 
 - 0.6.1 (2026-10-27) adds experimental internal display (eDP) and brightness
   support for ADL-N/Twin Lake and ADL/RPL-H/P/U.
+- 0.7.0 (2026-11-02) adds USB-C DP-alt output, MIPI DSI, and — relevant here —
+  **no longer requires an exact OS build match** for Sequoia/Tahoe.
 - The string `-wex-adlp-edp` exists in the 0.6.0 binary and **does not exist**
-  in 0.6.1: the feature became automatic/firmware-driven rather than a
+  in 0.6.1/0.7.0: the feature became automatic/firmware-driven rather than a
   per-machine patch.
 - 0.6.1 also fixes DEBUG boot stack overflows.
-- 0.6.1 no longer documents `-wex-reset-restore` / `-wex-no-multicontext`; the
-  build script adds them only for the 0.6.0 variant.
+- Neither 0.6.1 nor 0.7.0 documents `-wex-reset-restore` /
+  `-wex-no-multicontext`; the build script adds the `-wex-*` set only for the
+  0.6.0 fork.
 - Requires `-allow3d`, `-disablegfxfirmware`, `-igfxdvmt`; never combine with
   WhateverGreen.
 
-Adopted: the boot-argument vocabulary and the version-pairing rule with
-Graphics 0.3.2, as a diagnostic control only.
+Adopted: the boot-argument vocabulary and the version-pairing rule, as a
+diagnostic control only.
 
 Not adopted as the default:
 
-- **The 0.6.1 kext itself.** Its `kern_vbt.hpp` returns `Status::Conflict` on
-  the second child for DDI 1, which this unit's VBT contains. With no ports,
-  there is no panel.
-- **`-wex-adlp-edp` is absent** from the 0.6.1 binary; the option was never
-  merged upstream.
-- **The Tahoe MMIO constant is identical** in 0.6.0 and 0.6.1, so 0.6.1 would
-  fail on 25G332 even if the VBT parsed.
+- **The upstream kext itself.** Both 0.6.1 and 0.7.0 `kern_vbt.hpp` return
+  `Status::Conflict` on the second child for DDI 1, which this unit's VBT
+  contains. With no ports, there is no panel. This was re-measured on
+  2026-11-02 by compiling upstream 0.7.0's parser against the real 8704-byte
+  VBT: `Status::Conflict`, `present = 0x03`. The fork returns `Status::Valid`,
+  `present = 0x7b`.
+- **`-wex-adlp-edp` is absent** from upstream; the option was never merged.
+- Even when the table parses, this VBT sets `panel_type = 0xFF` (PnP-selected),
+  so the upstream eDP path has no panel record. The fork's `display13PanelDP()`
+  adds Combo A as a fixed DP output instead.
 
 Not adopted: experimental flags unrelated to this GPU. The repository does not
-speculate with `-wex-noaccel` (it would guarantee the current fallback) or with
+speculate with `-wex-noaccel` (it would guarantee the fallback) or with
 `-wex-*` flags that the 0.6.0 fork does not define.
 
-## 4. Upstream: b00t0x/WhateverXe-Graphics (0.3.1)
+## 4. Upstream: b00t0x/WhateverXe-Graphics (0.3.1 → 0.4.0)
 
 - Ships the patched Apple Tiger Lake framebuffer/accelerator, the VA bundle,
   `AppleIntelTGLCompat`, and the `AMFIPass` Mod.
-- 0.3.2 pairs with WhateverXe 0.6.1 / Compat 0.6.1; 0.3.1 pairs with 0.6.0 /
-  Compat 0.6.0.
+- Version pairing is strict: 0.3.1 ↔ WEX 0.6.0 / Compat 0.6.0,
+  0.3.2 ↔ WEX 0.6.1 / Compat 0.6.1, 0.4.0 ↔ WEX 0.7.0 / Compat 0.7.0.
 - 0.3.1 contains no inline panel code, only the Compat 0.6.0 provider; that is
   the pair the same-model reference ships.
+- 0.4.0 (2026-11-02) extends driver matching and OpenGL/video/OpenCL to the
+  GPU IDs WEX accepts, and fixes Metal dependency loading on first use. Its
+  `Distribution` accepts Sequoia only in 15.8–15.9 and hard-requires Compat
+  0.7.0.
 - Installed inside macOS, rebuilds AuxKC; not an EFI payload.
 
 Adopted: the 0.3.1 package (SHA-256
-`bd8b449431b1bf3815f9011ad3e13c7038012d17aed54dfb2aecfce6b9089623`) and the
-AMFIPass Mod build. Rejected: vendoring Apple-derived payloads into this
-repository.
+`bd8b449431b1bf3815f9011ad3e13c7038012d17aed54dfb2aecfce6b9089623`) with the
+0.6.0 fork, and the AMFIPass Mod build. 0.4.0 is carried on the support stick
+only for the 0.7.0 control. Rejected: vendoring Apple-derived payloads into
+this repository.
 
 ## 5. EliteBook840G8 — labrouss/EliteBook840G8
 

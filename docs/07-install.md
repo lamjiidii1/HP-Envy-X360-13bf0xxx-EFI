@@ -43,7 +43,7 @@ or the SMBIOS is blank.
 For the other variants:
 
 ```sh
-./scripts/build_efi.py --gpu wex061 --out build/EFI-wex061 --force   # diagnostic
+./scripts/build_efi.py --gpu wex070 --out build/EFI-wex070 --force  # upstream 0.7.0 control
 ./scripts/build_efi.py --debug --out build/EFI-debug --force
 ```
 
@@ -76,24 +76,23 @@ diskutil unmount /Volumes/EFI
 Keep the folder structure exactly `EFI/BOOT/BOOTx64.efi` and
 `EFI/OC/OpenCore.efi`.
 
-## 4. Boot the new EFI, then install the matching graphics package
+## 4. Boot the new EFI, then check the matching graphics package
 
 Order matters: **boot the target macOS with the WEX 0.6.0 EFI first, then make
-sure Graphics 0.3.1 is installed, then apply the 26.7.2 signature patch.** The
-EFI provides the WEX binary; the package provides Compat 0.6.0 and the patched
-Apple kexts.
+sure Graphics 0.3.1 is installed.** The EFI provides the WEX binary; the package
+provides Compat 0.6.0 and the patched Apple kexts. There is **no MMIO patch step
+on Sequoia** — that byte patch addressed the Tahoe 26.7.2 kernel only.
 
-1. Copy `build/EFI` to the ESP/USB and boot macOS from it (§3 and §5). The
-   internal panel stays on the software fallback for now; that is expected.
+1. Copy `build/EFI` to the ESP/USB and boot macOS from it (§3 and §5).
    Confirm the injected driver:
    ```sh
    kmutil showloaded | grep -i whateverxe    # expect 0.6.0
    kmutil showloaded | grep -i tglcompat     # expect 0.6.0
    ```
 2. If `AppleIntelTGLCompat` is not **0.6.0**, install **WhateverXe Graphics
-   0.3.1** (the package tested with the `adlp-edp` fork). Do **not** install
-   0.3.2: it ships Compat 0.6.1 and pairs with upstream 0.6.1, which cannot
-   parse this unit's VBT.
+   0.3.1** (the package matching the `adlp-edp` fork). Do **not** install
+   0.3.2 or 0.4.0: 0.3.2 ships Compat 0.6.1 and 0.4.0 ships Compat 0.7.0, and
+   the kext/package versions must match exactly.
 
 ```sh
 shasum -a 256 WhateverXe-Graphics-0.3.1.pkg
@@ -102,29 +101,20 @@ sudo installer -pkg WhateverXe-Graphics-0.3.1.pkg -target /
 
 3. The package rebuilds the Auxiliary Kernel Collection. **Restart** after it
    succeeds.
-4. On the next boot, apply the 26.7.2 MMIO signature fix and restart again:
-   ```sh
-   ls /Library/Developer/KDKs/    # the KDK must match 25G332
-   sudo ./scripts/macos/patch-wex-tahoe-mmio.sh \
-     --kext /Volumes/EFI/EFI/OC/Kexts/WhateverXe.kext \
-     --kernel /Library/Developer/KDKs/KDK_26.7.2_25G332.kdk/System/Library/Kernels/kernel
-   sudo reboot
-   ```
-   The script needs the KDK kernel for symbol addresses; it parses the Mach-O
-   itself and does not use `nm`/`otool`. If the KDK installer is not available,
-   pass a verified copy of the 25G332 kernel instead (the support USB ships one
-   at `OpenC/macos/kernel-25G332`):
-   ```sh
-   sudo ./scripts/macos/patch-wex-tahoe-mmio.sh \
-     --kext /Volumes/EFI/EFI/OC/Kexts/WhateverXe.kext \
-     --kernel /Volumes/MACUSB/OpenC/macos/kernel-25G332
-   ```
-   Patch the ESP that OpenCore actually boots (if you have more than one copy of
-   this EFI, patch the booted one).
+4. On the next boot, check the Sequoia MMIO verdict and acceleration (§5).
+   Nothing needs patching.
 
-Do not install Graphics 0.3.2 with this EFI, and do not boot the 0.6.1
-variant expecting acceleration. The supported pair on this machine is WEX
-0.6.0 + Graphics 0.3.1.
+Do not install Graphics 0.3.2/0.4.0 with this EFI, and do not boot the
+`wex070` variant expecting a picture. The supported pair on this machine is
+WhateverXe 0.6.0 (`adlp-edp`) + Graphics 0.3.1.
+
+### Testing upstream 0.7.0 (optional control)
+
+1. Copy `EFI-wex070` to the ESP and boot it.
+2. Install `WhateverXe-Graphics-0.4.0.pkg` (on the support stick) and restart.
+3. Expect the internal panel to stay dark: upstream discards this VBT. The
+   useful output is IORegistry evidence, not a working display.
+4. To revert, restore the default EFI and reinstall Graphics 0.3.1.
 
 ## 5. First boot
 
@@ -134,20 +124,21 @@ variant expecting acceleration. The supported pair on this machine is WEX
 3. Check the result:
    ```sh
    system_profiler SPDisplaysDataType
-   ioreg -l | grep -E 'TGLMMIOStrongUC|N97NativeStartAllowed'
+   ioreg -l | grep -o '"TGLSequoiaMMIOGuard" = <[^>]*>'
    ioreg -rc AppleIntelFramebuffer | head
    ioreg -rc IntelAccelerator | head
    ```
-   `TGLMMIOStrongUCRouted` and `N97NativeStartAllowed` must both be `Yes`
-   before expecting Metal; see [docs/03-graphics.md](03-graphics.md).
+   On Sequoia, entry 19 of `TGLSequoiaMMIOGuard` must be `01` before expecting
+   Metal; `TGLMMIOStrongUCRouted` is the Tahoe-era property name and may be
+   absent. See [docs/03-graphics.md](03-graphics.md#current-state-sequoia-1582).
 4. If the screen is black but the machine is alive, boot the `--debug` build
    with `-v` and capture the last screen; see
    [docs/08-troubleshooting.md](08-troubleshooting.md).
 
 ## 6. Switching Wi-Fi stack
 
-The default build uses AirportItlwm. If it does not attach on 26.7.2, build the
-`itlwm` fallback and copy only the OC folder:
+The default build uses AirportItlwm 2.4.0 (Sequoia). If it does not attach on
+15.8.2, build the `itlwm` fallback and copy only the OC folder:
 
 ```sh
 ./scripts/build_efi.py --wifi itlwm --out build/EFI-itlwm --force
@@ -174,9 +165,10 @@ by the config on every boot, so a reset is safe.
 
 1. Boot the backup EFI from the USB stick (or restore `EFI.backup-*` from
    Linux/macOS).
-2. Restore the WhateverXe backup (`patch-wex-tahoe-mmio.sh --restore`) or
-   reinstall WhateverXe Graphics 0.3.1. If you cannot boot macOS, the package
+2. Reinstall WhateverXe Graphics 0.3.1. If you cannot boot macOS, the package
    can be reinstalled from Recovery with `installer -pkg … -target /Volumes/…`.
+   (On Sequoia there is no MMIO patch to restore; the default kext is the
+   published binary.)
 3. The old EFI in `mine/EFI` is the exact previous state; it is not in Git.
 
 ## 9. Notes for a clean reinstall

@@ -3,6 +3,82 @@
 This is the open problem. Everything else on the machine works. Read this
 before changing boot arguments.
 
+## Current state: Sequoia 15.8.2
+
+The machine was downgraded from Tahoe 26.7.2 to **macOS Sequoia 15.8.2
+(24H232, Darwin 24.6.0)**. The driver pair did not change:
+
+| Half | Version | Why |
+|---|---|---|
+| EFI kext | WhateverXe 0.6.0, `adlp-edp` branch, patch series 54, **unmodified** (`197da23b…`) | only build that parses this VBT and drives this panel |
+| Installed package | WhateverXe Graphics 0.3.1 (`AppleIntelTGLCompat` 0.6.0) | must match 0.6.0; already installed on the machine |
+
+The Tahoe-only MMIO byte patch is no longer applied. That is not a
+simplification of convenience: WhateverXe picks its MMIO protection routine by
+OS family (`tglPrepareMMIOUC()` dispatches to `…TahoeMMIOUC`,
+`…SequoiaMMIOUC`, `…SonomaMMIOUC`, …), and the patch lived in the Tahoe
+routine's argument. On Sequoia those bytes are never executed, so the patched
+binary behaved exactly like the published one. Shipping the published binary
+again makes the payload reproducible from upstream.
+
+What to check after the first Sequoia boot:
+
+```sh
+ioreg -lw0 | grep -o '"TGLSequoiaMMIOGuard" = <[^>]*>'   # guard[19] should be 01
+ioreg -lw0 | grep -o '"WhateverXeFirmwarePorts" = <[^>]*>'
+ioreg -lw0 | grep -o '"TGLMMIOStrongUCRouted" = [^<]*'
+```
+
+`TGLSequoiaMMIOGuard` is a 20-entry array; entry 19 is the overall verdict, and
+entries 8–16 are the individual byte comparisons. If entry 19 is `0`, the
+Sequoia kernel at 24H232 does not match the constants built into 0.6.0 — the
+same class of problem as Tahoe 26.7.2, but at `_IOProtectCacheMode + 0xCA`
+with the expected call `E8 71 CB 02 00`. The natural follow-ups, in order, are
+(a) 0.7.0 (which dropped the exact-build requirement) if it can be made to see
+the panel, or (b) a Sequoia variant of the same one-constant patch.
+
+## Why the fork is still required on Sequoia
+
+Upstream 0.7.0 (2026-11-02) states Sequoia 15.8.x support, removes the
+exact-build MMIO requirement, and its changelog says internal eDP for Alder
+Lake-H/P/U is implemented. It was still rejected as the default, because of two
+facts about *this* firmware, both checked off-hardware by compiling the parsers
+from `b00t0x/WhateverXe@main` and `retropineaple/WhateverXe@adlp-edp` and
+feeding them this machine's real VBT
+(`LOGS/linux-evidence-2026-10-31-133508/debugfs/1-i915_vbt`, 8704 bytes):
+
+| Parser | Result on this VBT |
+|---|---|
+| upstream `VBT::parse(..., AlderLakeP)` | `Status::Conflict`, `present = 0x03`, no ports used |
+| fork `VBT::parse(..., AlderLakeP, firstWins=true)` | `Status::Valid`, `present = 0x7b`, `duplicates = 1` |
+| either parser, panel facts | `panel.valid = 0` (block 40 holds `panel_type = 0xFF`) |
+
+The VBT describes the internal DP panel on **Combo A** (`aux 0x40`) and again
+on **Combo B** (`aux 0x10`), plus a third child on DVO1 that maps to DDI 1. Two
+digital children claim DDI 1, and upstream treats that as `Conflict` and
+discards the table. Separately, `panel_type = 0xFF` means "the panel is chosen
+by PnP id", so no `panel` record is produced even when the table parses.
+
+The fork addresses both in two small pieces of code that upstream does not
+have:
+
+- `parse(..., firstWins)`: keeps the first child per DDI, counts the rest as
+  duplicates, and prefers DDI A when choosing the internal panel.
+- `display13PanelDP()` behind `-wex-adlp-edp`: adds Combo A as a **fixed DP
+  output** — a panel that has no usable VBT panel record but a valid internal
+  DP port at `aux 0x40`.
+
+That fixed-DP path is what the same-model reference used to reach a working
+panel on Tahoe 26.7.1, and it is why the fork remains the default on Sequoia.
+Upstream 0.7.0 is shipped on the stick as `EFI-wex070` so the claim can be
+tested directly — it pairs with WhateverXe Graphics 0.4.0
+(`AppleIntelTGLCompat` 0.7.0), which is **not** installed.
+
+Making 0.7.0 the default would mean rebasing those two behaviours onto current
+upstream and building the kext from source on macOS, then re-testing the panel
+path. That is a larger project than the downgrade, and is not needed to get a
+usable machine.
+
 ## The stack
 
 macOS has no driver for Alder Lake Iris Xe (`8086:46AA`). WhateverXe makes
@@ -17,10 +93,17 @@ Apple's **Tiger Lake** driver accept it:
 | `AppleIntelTGLGraphicsVADriver.bundle` | `/Library/GPUBundles` | Hardware video decode (optional) |
 | `AMFIPass.kext` (Mod) | EFI | Lets the signed Xe bundles load without disabling AMFI globally |
 
-The two halves must match. **This machine uses WhateverXe 0.6.0 (the
-`adlp-edp` fork) with WhateverXe Graphics 0.3.1 (`AppleIntelTGLCompat` 0.6.0).**
-That is the pair in the working same-model reference. Upstream WhatheverXe
-0.6.1 + Graphics 0.3.2 is a different pair and is not usable here; see below.
+The two halves must match, version for version: the package installs
+`AppleIntelTGLCompat` with the same version number as the WhateverXe release it
+was built for, and the patched Apple bundles link against that ABI.
+
+| EFI kext | Required package | `AppleIntelTGLCompat` |
+|---|---|---|
+| WhateverXe 0.6.0 + `adlp-edp` (default) | WhateverXe Graphics 0.3.1 | 0.6.0 |
+| upstream WhateverXe 0.7.0 (`EFI-wex070`) | WhateverXe Graphics 0.4.0 | 0.7.0 |
+
+Do not mix them. Installing 0.4.0 while the 0.6.0 kext is in the EFI (or the
+reverse) gives a GPU that probes and then refuses every surface.
 
 ## What the logs show
 
@@ -80,7 +163,7 @@ The file is **byte-identical** to the reference fork's own fixture
 `4d790a72…fa30c`). BIOS F.35, the VBT and the panel are therefore not the
 difference between this machine and the working one.
 
-## Why 0.6.1 is not the answer
+## Why upstream 0.6.1 and 0.7.0 are not the answer
 
 Upstream 0.6.1 (2026-10-27) added generic eDP support, but it cannot be used
 on this unit:
@@ -91,14 +174,21 @@ on this unit:
    no panel.
 2. **It has no `-wex-adlp-edp`.** The option was a 0.6.0-fork feature and was
    never merged upstream.
-3. **It has the same MMIO constant.** The Tahoe `protectCall` check is
-   identical in 0.6.0 and 0.6.1, so it would fail on 25G332 even if the VBT
-   parsed.
+3. **It had the same MMIO constant (Tahoe only).** On Tahoe the `protectCall`
+   check was identical in 0.6.0 and 0.6.1, so 0.6.1 would have failed on
+   25G332 even if the VBT parsed. 0.7.0 removed that exact-build requirement,
+   but not the parser problem.
 
-The 0.6.1 binary in `efi/variants/gpu-wex061` is kept only as a diagnostic
-control.
+0.7.0 is in the same position: it fixed the VBT *version* range and the MMIO
+build matching, but the duplicate-DDI rule and the `panel_type = 0xFF` case are
+unchanged (see [above](#why-the-fork-is-still-required-on-sequoia)).
 
-## The 26.7.2 MMIO signature
+## The 26.7.2 MMIO signature (Tahoe history)
+
+Everything in this section applies to **Tahoe 26.7.2 only**. On Sequoia a
+different routine runs and these bytes are never read; the section is kept
+because the same failure mode can reappear on a Sequoia point update, at
+`_IOProtectCacheMode + 0xCA` with the expected call `E8 71 CB 02 00`.
 
 `tglPrepareTahoeMMIOUC()` validates `_IOProtectCacheMode` by comparing nine
 kernel byte patterns. On 25G332, eight match and only the call at
@@ -310,11 +400,15 @@ The hardware-identical reference ships a later build of the same branch.
 | MMIO constant | patched `e85ff302` at `0x17907` | patched `e85ff302` at `0x17893` |
 | Boot args | `-wex-adlp-edp -wex-reset-restore -wex-no-multicontext` | plus `-wex-scanout-coherent -wex-pm` |
 
-The 25G332 MMIO patch is applied at build time with the same four-byte
-immediate (`e8 2f f3 02` → `e8 5f f3 02`) in the live `movl $imm32,-0x58(%rbp)`
-initialiser; the unreferenced copy before the `TGLTahoeMMIOGuard` anchor is
-left at the original constant. Both kexts report `CFBundleVersion 0.6.0`, so
-the Graphics 0.3.1 package (Compat 0.6.0) still matches.
+That comparison was made for the Tahoe 26.7.2 install. The 25G332 patch was
+applied with the four-byte immediate (`e8 2f f3 02` → `e8 5f f3 02`) in the
+live `movl $imm32,-0x58(%rbp)` initialiser, leaving the unreferenced copy
+before the `TGLTahoeMMIOGuard` anchor at the original constant.
+
+**After the downgrade the patch is no longer applied.** The default payload is
+the published `197da23b…` binary again; on Sequoia the Tahoe routine is not
+called at all (see *Current state* above). `scripts/macos/patch-wex-tahoe-mmio.sh`
+stays in the tree for a future Tahoe boot, not as a build step.
 
 Two separate findings remain from the same boot:
 
@@ -327,12 +421,13 @@ Two separate findings remain from the same boot:
   package 0.6.0. That is the internal ABI string, not a package mismatch.
 
 
-## Fallback: stay on 26.7.1
+## Fallback: 26.7.1 (Tahoe history)
 
-The same kext, same Graphics 0.3.1 and same VBT are proven to give Metal on
-macOS 26.7.1 (25G241). If the signature patch does not unlock the accelerator,
-the reliable path is a 26.7.1 install (back up first; macOS does not install
-an older build over a newer one). Do not combine 26.7.1 with a 0.6.1 EFI.
+Before the downgrade this was the documented fallback: the same kext, same
+Graphics 0.3.1 and same VBT are proven to give Metal on macOS 26.7.1 (25G241).
+It is kept here because it is the one Tahoe combination that is known to work;
+macOS does not install an older build over a newer one, so it needs a full
+reinstall.
 
 ## Boot arguments
 
@@ -340,41 +435,58 @@ an older build over a newer one). Do not combine 26.7.1 with a 0.6.1 EFI.
 |---|---|
 | `-allow3d` | Allows the accelerator path to be considered |
 | `-disablegfxfirmware` | Skips GuC firmware loading, which Apple's driver cannot do here |
-| `-igfxdvmt` | Compensates for the BIOS's 64 MB DVMT pre-allocation |
+| `-igfxdvmt` | Compensates for the BIOS's 60 MB DVMT pre-allocation (`framebuffer-stolenmem 0x3c00000`) |
 | `keepsyms=1` | Keeps symbols in panics |
 | `msgbuf=4194304` | Larger kernel log buffer for bring-up diagnostics |
 | `shda-lang=en` | SimpleHDA language |
 | `alcid=11` | AppleALC layout 11 (ALC245) |
-| `-wex-adlp-edp` | Force the ADL-P eDP path (0.6.0 fork only) |
+| `-wex-adlp-edp` | Drive the internal panel as a fixed DP output on Combo A (0.6.0 fork only; this is the argument that makes this panel work) |
 | `-wex-reset-restore` | Restore display/render state after a GPU reset |
 | `-wex-no-multicontext` | Avoid the second compute ring that deadlocks on recovery |
 | `-wex-scanout-coherent` | Mark every flipped surface displayable (HiDPI above 1440x900) |
 | `-wex-pm` | XE-PM CPU profile: HWP units and the idle table on hybrid Alder Lake |
 | `-v`, `debug=0x100` | `--debug` builds only |
 
+All five `-wex-*` arguments belong to the fork and are deliberately **absent**
+from the `EFI-wex070` build, because its parsing is intended to be the upstream
+one. Do not copy them across without knowing which of the two is under test.
+
 Do not add `-wex-noaccel`: it deliberately disables the accelerator and would
 guarantee the 19 MB fallback.
 
-## Install order
+## Install order (Sequoia)
 
-1. Boot the target macOS with this EFI **before** changing the graphics
-   package. The panel may stay on the software fallback; that is expected.
-2. Confirm the injected kext:
+1. Boot Sequoia with this EFI. WhateverXe Graphics 0.3.1 is already installed
+   on this machine, so this should be the usable state.
+2. Confirm the pair:
    ```sh
-   kmutil showloaded | grep -i whateverxe    # expect 0.6.0
+   kmutil showloaded | grep -iE 'whateverxe|AppleIntelTGLCompat'   # 0.6.0 / 0.6.0
    ```
-3. If `AppleIntelTGLCompat` is not 0.6.0, install **WhateverXe Graphics
-   0.3.1** (not 0.3.2) and restart. 0.3.1 is the package tested with the
-   `adlp-edp` fork.
-4. Apply the 26.7.2 signature patch (above) and restart.
-5. Check acceleration with the commands in *Verify after the reboot*.
+   If `AppleIntelTGLCompat` is missing or is not 0.6.0, install **WhateverXe
+   Graphics 0.3.1** and restart. 0.3.1 is the package that matches the fork.
+3. There is no MMIO patch step on Sequoia.
+4. Check the Sequoia MMIO verdict and acceleration with the commands in
+   *Verify after the reboot* and in *Current state* above.
+
+### Testing upstream 0.7.0 instead
+
+This swaps the ABI half of the stack, so both steps are required and the
+machine is not accelerated in between:
+
+1. Copy `EFI-wex070` from the stick over the EFI you boot from.
+2. Boot, then install `WhateverXe-Graphics-0.4.0.pkg` (also on the stick) and
+   restart.
+3. Expect the internal panel to stay dark — upstream discards this VBT. The
+   useful outcome of the experiment is the IORegistry evidence
+   (`WhateverXeFirmwarePorts` status, `TGLSequoiaMMIOGuard`), not a picture.
+4. To go back, restore the default EFI and reinstall Graphics 0.3.1.
 
 ## Rollback
 
 The previous EFI is preserved at `mine/EFI` (local, not in Git). Copying it
-back to the ESP restores the exact previous state. The display works in both
-states; only acceleration differs. Reinstalling Graphics 0.3.1 restores the
-matching Compat/patched Apple kexts.
+back to the ESP restores the exact previous state. Reinstalling Graphics 0.3.1
+restores the matching Compat/patched Apple kexts if 0.4.0 was installed for a
+0.7.0 test.
 
 ## Optional: disable the VA bundle
 

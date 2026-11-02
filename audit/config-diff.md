@@ -206,9 +206,9 @@ OpenCore 1.0.8 schema and keeps only what is justified.
 | `-vi2c-force-polling` | present | removed | Touchpad dead in hardware; not in reference |
 | Kext order | VirtualSMC before AMFIPass/WEX | Lilu → AMFIPass → WhateverXe → … | Reference order; Lilu plugins load after Lilu |
 | `Arch` | `x86_64` | `Any` | No reason to restrict |
-| Wi-Fi | `itlwm` hard-coded | build-time choice, default AirportItlwm | Native UI by default; both stacks pinned; never both |
-| GPU driver | 0.6.0 + adlp-edp | 0.6.0 + adlp-edp (default); 0.6.1 control | 0.6.1 rejects this unit's VBT (`Status::Conflict`); the 0.6.0 fork is proven on this model |
-| Boot args | hard-coded | template placeholder + variant args | Prevents the 0.6.1 build carrying 0.6.0 flags |
+| Wi-Fi | `itlwm` hard-coded | build-time choice, default AirportItlwm (Sequoia build) | Native UI by default; both stacks pinned; never both |
+| GPU driver | 0.6.0 + adlp-edp | 0.6.0 + adlp-edp (default); 0.7.0 control | Neither 0.6.1 nor 0.7.0 parses this unit's VBT (`Status::Conflict`); the 0.6.0 fork is proven on this model |
+| Boot args | hard-coded | template placeholder + variant args | Prevents the `wex070` build carrying the fork's `-wex-*` flags |
 | `Misc/Boot` | Builtin, UIScale 0 | OpenCanopy, Max, UIScale 2 | Reference-proven on this panel |
 | `Misc/Debug` | debug on every boot | release quiet; `--debug` sets 67 | Logs only when investigating |
 | `Misc/Security/DmgLoading` | `Any` | `Signed` | Stricter, matches reference |
@@ -234,8 +234,9 @@ the semantic summary. Every row is also a commit in the Git history.
 
 It does **not** rule out:
 
-- the driver binary (0.6.0 `adlp-edp` vs 0.6.1),
-- the macOS build (26.7.1 vs 26.7.2),
+- the driver binary (0.6.0 `adlp-edp` vs upstream 0.6.1/0.7.0),
+- the macOS build (the 26.7.1/26.7.2 comparison here; the machine has since
+  moved to Sequoia 15.8.2, where the Tahoe MMIO routine does not run at all),
 - the firmware/VBT (BIOS revision, panel batch),
 - the installed Graphics package / Compat ABI.
 

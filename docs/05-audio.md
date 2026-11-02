@@ -13,21 +13,26 @@ work**. Headphone output and the internal microphone do work. This is a
 hardware limitation, not a configuration problem, and the reference laptop
 reports the same.
 
-## Why three components are needed
+## What runs on Sequoia today
 
-Tahoe removed `AppleHDA`. The old config already solved this; the rebuild keeps
-the same arrangement because it is the only one proven on this laptop:
+Sequoia still ships `AppleHDA`, so audio uses the normal AppleALC path. The
+Tahoe-only pieces are present in the config but do not load:
 
-| Component | Setting | Why |
+| Component | Setting | Effect on Sequoia 15.8.2 |
 |---|---|---|
-| `SimpleHDA.kext` 1.0.0 | `MinKernel 25.0.0`, `MaxKernel 25.99.99` | Provides an `AppleHDA` replacement for Tahoe |
-| `AppleALC.kext` 1.9.8 (patched) | `alcid=11` | ALC245 layout 11; best headphone quality of layouts 11/12/13 |
+| `SimpleHDA.kext` 1.0.0 | `MinKernel 25.0.0`, `MaxKernel 25.99.99` | **Not injected.** OpenCore skips it on Darwin 24; it exists only for a future Tahoe boot |
+| `AppleALC.kext` 1.9.8 (patched) | `alcid=11` | ALC245 layout 11 on the native `AppleHDA`; headphone + mic work |
 | `DeviceProperties` `PciRoot(0x0)/Pci(0x1F,0x3)` | `device-id = C8510000` | AppleALC's controller table lacks `0x51CC`; `0x51C8` is the same controller family |
-| boot arg | `shda-lang=en` | English device names in SimpleHDA instead of Chinese |
+| boot arg | `shda-lang=en` | Inert here (it belongs to SimpleHDA); harmless, kept so the same config can still boot Tahoe |
 
-`SimpleHDA` is limited to Tahoe (`MinKernel 25`, `MaxKernel 25.99.99`). If this
-machine is ever downgraded to Sonoma/Sequoia, disable it and use the native
-`AppleHDA` path instead.
+Two consequences of the downgrade:
+
+- There is **no** `SimpleHDA` step to perform on Sequoia, and no `shda-lang`
+  effect to verify. If audio is broken, the fault is in AppleALC, the layout,
+  or the controller `device-id` — not in the missing Tahoe shim.
+- The `SimpleHDA` entry can be disabled in `Kernel/Add` with no effect today. It
+  is left enabled on purpose so one EFI can boot both OS families; OpenCore's
+  `MinKernel`/`MaxKernel` gate is what makes that safe.
 
 ## The AppleALC patch (important)
 
@@ -75,4 +80,6 @@ Play something through the jack, then record a few seconds with QuickTime or
 - **Do not** use the unpatched AppleALC: recording will panic.
 - **Do not** expect speakers. No amount of layout changes fixes missing
   CS35L41 support.
-- `SimpleHDA` and a future native `AppleHDA` must not both be enabled.
+- `SimpleHDA` and a future native `AppleHDA` must not both be enabled. On
+  Sequoia the `MinKernel`/`MaxKernel` gate already prevents that; if the gate is
+  ever removed, disable `SimpleHDA` before booting 15.x.

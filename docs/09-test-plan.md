@@ -16,9 +16,9 @@ step once and capture the evidence described in
 | T00.1 | `make build` | exits 0; `checked build/EFI` ends with `result : OK` |
 | T00.2 | `python3 scripts/verify_efi.py --allow-blank-identity build/EFI` on a checkout without the private identity | `result : OK` (CI mode) |
 | T00.3 | `make inventory` and `git diff --exit-code audit/payloads.tsv` | no diff: pinned payloads are unchanged |
-| T00.4 | `shasum -a 256 efi/variants/gpu-wex061/WhateverXe.kext/Contents/MacOS/WhateverXe` | `e92b65b0…d1c39b` (see [10-provenance.md](10-provenance.md)) |
-| T00.5 | Inspect `build/EFI/BUILD-INFO.plist` | `gpu = wex061`, `wifi = airportitlwm`, `debug = false`, `identity_injected = true` |
-| T00.6 | Open `build/EFI/OC/config.plist` | `boot-args` has no `-wex-adlp-edp`; SMBIOS fields are filled |
+| T00.4 | `shasum -a 256 efi/variants/gpu-hp-adlp-edp/WhateverXe.kext/Contents/MacOS/WhateverXe` | `197da23b…770288c` (see [10-provenance.md](10-provenance.md)) |
+| T00.5 | Inspect `build/EFI/BUILD-INFO.plist` | `gpu = hp-adlp-edp`, `wifi = airportitlwm`, `debug = false`, `identity_injected = true` |
+| T00.6 | Open `build/EFI/OC/config.plist` | `boot-args` contains the five `-wex-*` fork arguments; SMBIOS fields are filled |
 | T00.7 | Back up the current ESP and keep a bootable USB | both exist and boot (test the USB before relying on it) |
 
 Do not skip T00.7. The rest of the plan assumes a working escape hatch.
@@ -29,7 +29,7 @@ Do not skip T00.7. The rest of the plan assumes a working escape hatch.
 |---|---|---|
 | T01.1 | Boot the new EFI from USB first | OpenCore picker appears |
 | T01.2 | Select the macOS volume | reaches the desktop without a panic |
-| T01.3 | `sw_vers` | `26.7.2` / `25G332` (or the build you intend to test) |
+| T01.3 | `sw_vers` | `15.8.2` / `24H232` (`Darwin 24.6.0`) |
 | T01.4 | `ioreg -l \| grep IOPlatformSerialNumber` | matches `private/identity.plist` |
 | T01.5 | `system_profiler SPHardwareDataType` | `MacBookPro16,2`, correct serial, 16 GB |
 | T01.6 | Sign in state of iCloud/iMessage/App Store | unchanged; no re-activation prompt |
@@ -55,21 +55,15 @@ later is honest.
 
 ## Phase 3 — Graphics: the primary experiment
 
-Prerequisite: `WhateverXe Graphics 0.3.1` (Compat 0.6.0) is installed, the
-`hp-adlp-edp` EFI is on the ESP, and the 26.7.2 MMIO signature patch has been
-applied and the machine rebooted.
-
-```sh
-sudo scripts/macos/patch-wex-tahoe-mmio.sh \
-  --kext /Volumes/EFI/EFI/OC/Kexts/WhateverXe.kext
-sudo reboot
-```
+Prerequisite: `WhateverXe Graphics 0.3.1` (Compat 0.6.0) is installed and the
+`hp-adlp-edp` EFI is on the ESP. **There is no MMIO patch step on Sequoia** —
+the byte patch addressed the Tahoe 26.7.2 kernel only.
 
 | ID | Step | Pass criterion |
 |---|---|---|
 | T03.1 | `kmutil showloaded \| grep -Ei 'whateverxe\|tgl'` | `WhateverXe (0.6.0)` and `AppleIntelTGLCompat (0.6.0)` |
-| T03.2 | `ioreg -l \| grep TGLMMIOStrongUCRouted` | `Yes` |
-| T03.3 | `ioreg -l \| grep TGLMMIOStrongUCPreflight` | `Yes` |
+| T03.2 | `ioreg -l \| grep -o '"TGLSequoiaMMIOGuard" = <[^>]*>'` | entry 19 = `01` |
+| T03.3 | `ioreg -l \| grep -o '"TGLSequoiaMMIOInspection" = <[^>]*>'` | present; record the bytes |
 | T03.4 | `ioreg -l \| grep N97NativeStartAllowed` | `Yes` |
 | T03.5 | `ioreg -rc AppleIntelFramebuffer` | count ≥ 1 |
 | T03.6 | `ioreg -rc IntelAccelerator` | count ≥ 1 |
@@ -78,11 +72,12 @@ sudo reboot
 | T03.9 | Attach an external display over USB-C/HDMI (if available) | second display appears; record the connection path |
 | T03.10 | Open a Metal app (Maps, Photos, a game) | renders without software fallback |
 
-If T03.2 stays `No`, save `TGLTahoeMMIOGuard` and `TGLMMIOMappingEvidence` and
-stop: the kernel layout is different from the one the script expects. If
-T03.2 is `Yes` but T03.3 is `No`, the pmap mapping check failed; record the new
-evidence blob. Do not change `-igfxdvmt`, `framebuffer-stolenmem` or the
-SMBIOS: memory admission already passed.
+If T03.2 shows entry 19 = `00`, save `TGLSequoiaMMIOGuard` and
+`TGLSequoiaMMIOInspection` and stop: the Sequoia kernel at 24H232 does not match
+the constants built into 0.6.0. That is the same class of problem as Tahoe
+26.7.2, at a different site. Do not change `-igfxdvmt`,
+`framebuffer-stolenmem` or the SMBIOS: memory admission already passed.
+See [03-graphics.md](03-graphics.md#current-state-sequoia-1582).
 
 ## Phase 4 — Graphics fallbacks (only if phase 3 fails)
 
@@ -90,12 +85,12 @@ Each step changes exactly one thing and records the same evidence bundle.
 
 | ID | Step | Pass criterion / decision |
 |---|---|---|
-| T04.1 | Restore the kext backup (`patch-wex-tahoe-mmio.sh --restore`) and confirm the 19 MB state returns | isolates the patch as the only variable |
-| T04.2 | Boot `wex061` with `--debug` (`-v debug=0x100`) | capture the OpenCore log and `WhateverXeFirmwarePorts`; expect a VBT conflict, proves the parser limit |
-| T04.3 | Capture `WhateverXeVBTRaw` + panel/port records + `TGLTahoeMMIOGuard` | complete report for upstream |
-| T04.4 | If the patch cannot work, install macOS 26.7.1 (25G241) and boot `hp-adlp-edp` without it | known-good reference combination; Metal expected |
-| T04.5 | Report upstream with BIOS F.35, macOS 25G332, the VBT and the guard | issue contains the evidence listed in [08](08-troubleshooting.md#11-reporting-a-graphics-bug-upstream) |
-| T04.6 | Revert to the last working combination | machine boots and is usable |
+| T04.1 | Reconfirm the default build is unchanged (same kext hash, same boot args) | isolates the driver as the only variable |
+| T04.2 | Boot `wex070` with `--debug` (`-v debug=0x100`), after installing Graphics 0.4.0 | capture the OpenCore log and `WhateverXeFirmwarePorts`; expect a VBT conflict and a dark internal panel |
+| T04.3 | Capture `WhateverXeVBTRaw` + port records + `TGLSequoiaMMIOGuard` | complete report for upstream |
+| T04.4 | If 0.6.0 shows entry 19 = `00`, document the real 24H232 bytes at `_IOProtectCacheMode + 0xCA` | evidence needed for a Sequoia variant of the MMIO patch |
+| T04.5 | Report upstream with BIOS F.35, macOS 24H232, the VBT and the guard | issue contains the evidence listed in [08](08-troubleshooting.md#11-reporting-a-graphics-bug-upstream) |
+| T04.6 | Revert to the default EFI and reinstall Graphics 0.3.1 | machine boots and is usable |
 
 If neither variant accelerates, do not try NootedGreen as a quick fix. It is a
 different driver with a different support matrix, and mixing investigations
@@ -180,7 +175,7 @@ Repeat after any payload update:
 
 | ID | Check |
 |---|---|
-| T11.1 | `make variants` — all five builds pass `verify_efi.py` |
+| T11.1 | `make variants` — all four builds pass `verify_efi.py` |
 | T11.2 | `make inventory` — hashes unchanged unless the payload changed intentionally |
 | T11.3 | Boot the default build: desktop, Wi-Fi, audio, battery, keyboard |
 | T11.4 | Graphics state matches the last recorded state (no silent regression) |
@@ -193,14 +188,15 @@ Keep a simple log next to the evidence bundle:
 ```
 date:
 BIOS:            F.35 (2025-11-17)
-macOS:           26.7.2 (25G332)
-EFI variant:     wex061 / airportitlwm / debug=no
-WhateverXe:      0.6.0  c090b9dd…
+macOS:           15.8.2 (24H232, Darwin 24.6.0)
+EFI variant:     hp-adlp-edp / airportitlwm / debug=no
+WhateverXe:      0.6.0  197da23b…
 Compat:          0.6.0
 Graphics pkg:    0.3.1
-T03.2 AIFB:      0
-T03.5 StartAllowed: No
-T03.6 Panel:     0000…0900…
+T03.2 Guard[19]: 01
+T03.4 StartAllowed: Yes
+T03.5 AIFB:      1
+T03.7 VRAM/Metal:  GB / Yes
 Notes:
 ```
 

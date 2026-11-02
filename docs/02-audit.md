@@ -117,7 +117,7 @@ copied. Commits are the ones actually inspected.
 
 | Repository | Hardware | Graphics approach | What was taken | What was rejected |
 |---|---|---|---|---|
-| [retropineaple/whateverxe-hp-envy-x360](https://github.com/retropineaple/whateverxe-hp-envy-x360) `9809987` | **Exact model**: HP Envy x360 13-bf0059TU, i7-1250U, 0x46AA, 2880×1800 OLED | WhateverXe 0.6.0 + 54 `adlp-edp` patches; Graphics 0.3.1 | Its prebuilt WhateverXe kext as default (patch series 54, MMIO-patched for 25G332), ACPI set, iGPU properties, `-wex-*` args, AppleALC DSP patch, USB map, overall EFI shape | Its published SMBIOS (blank) |
+| [retropineaple/whateverxe-hp-envy-x360](https://github.com/retropineaple/whateverxe-hp-envy-x360) `8100282` (was `9809987`) | **Exact model**: HP Envy x360 13-bf0059TU, i7-1250U, 0x46AA, 2880×1800 OLED | WhateverXe 0.6.0 + 54 `adlp-edp` patches; Graphics 0.3.1 | Its published WhateverXe binary as default (`197da23b…`, patch series 54, unmodified), ACPI set, iGPU properties, `-wex-*` args, AppleALC DSP patch, USB map, overall EFI shape | Its published SMBIOS (blank) |
 | [b00t0x/WhateverXe](https://github.com/b00t0x/WhateverXe) `68a2427` (0.6.1) | TGL, ADL-N, ADL/RPL-H/P/U | Upstream driver + 0.6.1 generic ADL-P/U eDP support | Boot-arg vocabulary, compatibility rules, diagnostic variant | Rejects this unit's VBT (`Status::Conflict`) and has no `-wex-adlp-edp` |
 | [b00t0x/WhateverXe-Graphics](https://github.com/b00t0x/WhateverXe-Graphics) `v0.3.1` (0.3.1) | Same | Signed Apple payloads + `AppleIntelTGLCompat` 0.6.0 | Pinned install package (0.3.1) and AMFIPass 1.4.1 Mod | Bundling Apple payloads in Git |
 | [JulioNectar/Hackintosh-XPS13Plus-IrisXe-Tahoe](https://github.com/JulioNectar/Hackintosh-XPS13Plus-IrisXe-Tahoe) `6f03560` | Dell XPS 13 Plus 9320, i7-1360P, 0xA7A0 | NootedGreen + user-space Metal patches | Debugging methodology, Raptor Lake notes, VA-driver caveats | The NootedGreen stack — different driver, higher risk, not validated for 0x46AA |
@@ -133,11 +133,12 @@ copied. Commits are the ones actually inspected.
   support ADL-P internal panels. Upstream 0.6.1's generic path exists, but it
   returns `Status::Conflict` on this unit's duplicate DDI child, so it is not a
   drop-in replacement here.
-- The HP reference was tested on **macOS 26.7.1 (25G241)**. This machine runs
-  **26.7.2 (25G332)**. The captured VBT is byte-identical to the reference's
-  fixture, so the difference is the kernel, not the firmware: on 25G332 one
-  `_IOProtectCacheMode` call signature changed and WhateverXe's MMIO-UC gate
-  fails (see `docs/03-graphics.md`).
+- The HP reference was tested on **macOS 26.7.1 (25G241)**; at the time of the
+  audit this machine ran **26.7.2 (25G332)**, and that difference was the Tahoe
+  kernel/MMIO problem (see `docs/03-graphics.md`). **The machine has since been
+  downgraded to Sequoia 15.8.2 (24H232)**, where that Tahoe routine does not
+  run and the MMIO byte patch is not applied. The VBT evidence is unaffected:
+  the captured VBT is byte-identical to the reference's fixture.
 - EliteBook840G8 runs WhateverXe 0.6.1 + Graphics 0.3.2 on Tahoe, so that pair
   is viable for Tiger Lake. It is not evidence for ADL-P eDP on this VBT, and
   this repository does not use it.
@@ -157,9 +158,9 @@ copied. Commits are the ones actually inspected.
 
 | Decision | Reason |
 |---|---|
-| Default GPU variant = WhateverXe 0.6.0 + `adlp-edp` | The firmware VBT has two internal DP children plus a duplicate DDI entry; upstream 0.6.1 returns `Status::Conflict` for it and cannot drive the panel. The 0.6.0 fork keeps the first child per DDI and is the only stack proven on this exact model |
-| Keep 0.6.1 as a diagnostic variant | It is the control for upstream behaviour and the source of the boot-arg vocabulary; it is not expected to accelerate this unit |
-| Two Wi-Fi variants | `AirportItlwm` is the default (native Wi-Fi, matches the reference); `itlwm` + HeliPort stays as the proven fallback if the Tahoe build does not attach. Build-time choice avoids two kexts fighting |
+| Default GPU variant = WhateverXe 0.6.0 + `adlp-edp` | The firmware VBT has two internal DP children plus a duplicate DDI entry; upstream 0.6.1 **and 0.7.0** return `Status::Conflict` for it and cannot drive the panel. The 0.6.0 fork keeps the first child per DDI and is the only stack proven on this exact model |
+| Keep 0.7.0 as a control variant | It tests upstream behaviour on Sequoia and is the only build without the exact-build MMIO requirement; its parser was measured against this VBT and is not expected to reach the panel |
+| Two Wi-Fi variants | `AirportItlwm` 2.4.0 (Sequoia build) is the default; `itlwm` + HeliPort stays as the proven, OS-independent fallback if the alpha build does not attach. Build-time choice avoids two kexts fighting |
 | Keep `-igfxdvmt` + `framebuffer-stolenmem 0000c003` | BIOS leaves 60 MB DVMT; both the reference and this unit need the pair |
 | Drop `-vi2c-force-polling` | Only affects VoodooI2C; the touchpad is dead in hardware, and the reference does not use it |
 | Drop `rps-control` | Extra property relative to the working reference; not needed and can alter RPS behaviour |

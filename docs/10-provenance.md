@@ -76,8 +76,8 @@ executable. `-` means the bundle has no executable (a pure plist injector).
 |---|---|---|---|---|
 | `Lilu.kext` | 1.7.2 | [acidanthera/Lilu](https://github.com/acidanthera/Lilu) | `ff98508b40a1eb5fb477029db8886412520f8e39965279ea331c99e3d2e3b274` | none |
 | `AMFIPass.kext` | 1.4.1 | [dhinakg/AMFIPass](https://github.com/dhinakg/AMFIPass) | `2d36aeca1740b258e6bb0b66844b5bfb59a0edb7cdd9ef78206689e5d223d8dc` | "Mod" build from WhateverXe Graphics: trust anchor changed for Xe bundles |
-| `WhateverXe.kext` | 0.6.0 | b00t0x + [retropineaple adlp-edp](https://github.com/retropineaple/WhateverXe/tree/adlp-edp) | `c090b9dd35398c72e9567b38b9bb9b61415ab7fcfe22ffc78cbafc93ee67e49b` | 47 `adlp-edp` patches; **default** (variant `gpu-hp-adlp-edp`) |
-| `WhateverXe.kext` | 0.6.1 | [b00t0x/WhateverXe](https://github.com/b00t0x/WhateverXe) | `e92b65b0cce5964aacb0e7674a762fb8bd85dee5a931d15bd80b0edcafd1c39b` | none; diagnostic only, rejects this VBT (variant `gpu-wex061`) |
+| `WhateverXe.kext` | 0.6.0 | b00t0x + [retropineaple adlp-edp](https://github.com/retropineaple/WhateverXe/tree/adlp-edp), prebuilt in [whateverxe-hp-envy-x360](https://github.com/retropineaple/whateverxe-hp-envy-x360) commit `8100282` | `197da23bbe5a09731ef9517a0a6f9dabe52ab1f9b0c885a841a064190770288c` | unmodified published binary (patch series 54); **default** (variant `gpu-hp-adlp-edp`) |
+| `WhateverXe.kext` | 0.7.0 | [b00t0x/WhateverXe](https://github.com/b00t0x/WhateverXe) | `ea156ad48ce7e29b2b409232b4d0623abd492935428b43da79239899fa2b0f3f` | none; control only, rejects this VBT (variant `gpu-wex070`) |
 | `VirtualSMC.kext` | 1.3.9 | [acidanthera/VirtualSMC](https://github.com/acidanthera/VirtualSMC) | `bf91e9542b86c20acaf210353a93742291c49328e2d14b03fa0fa4fc52b3b5ce` | none |
 | `SMCProcessor.kext` | 1.3.9 | acidanthera/VirtualSMC | `dcf738671431721692f752e3df43acaaa02c93788ae7b21153504b07db01be32` | none |
 | `SMCBatteryManager.kext` | 1.3.9 | acidanthera/VirtualSMC | `791d81018a5374ddc63b8d97ba976e03bab6d241fec08ec3487e4c4e74fc24e4` | none |
@@ -106,35 +106,34 @@ the table is a summary of that file, not a second source.
 
 | Kext | Version | Source | SHA-256 | Notes |
 |---|---|---|---|---|
-| `AirportItlwm.kext` | 2.4.1 | downstream Tahoe/VTD build, byte-identical to the copy in the same-model reference | `cf11f2da43a7a98513417e059dcbd6e1800bb28bf5e821ff950794901e0c65dc` | default; native menu; **not** an official OpenIntelWireless release |
+| `AirportItlwm.kext` | 2.4.0 | [laobamac/itlwm](https://github.com/laobamac/itlwm) `v2.4.0-alpha`, `sequoia-vtd-1` build | `c3b95b3b8b54f9efbb9362d9dd3c29a354bb45e2dbc50a2ca3ec54f0f94bfc58` | default; native menu; **alpha**, not an OpenIntelWireless release |
 | `itlwm.kext` | 2.3.0 | [OpenIntelWireless/itlwm](https://github.com/OpenIntelWireless/itlwm) release `v2.3.0` | `63952b0b7373e6a7e75a9a4f8ab0789a52a48ceb99bb0c8d0f387004d487690b` | fallback; needs HeliPort |
 
 Only one is copied into a built EFI. The config template contains a single
 placeholder entry (`WIFI_BUNDLE.kext`) that the build script rewrites.
 
-### AirportItlwm 2.4.1 provenance
+### AirportItlwm 2.4.0 provenance
 
-This needs to be stated precisely, because the version number suggests an
-upstream release that does not exist:
+This needs to be stated precisely, because the version number does not come
+from an OpenIntelWireless release:
 
 - OpenIntelWireless's newest official release is **2.3.0**, published
-  2024-06-09. It predates Tahoe and has no Tahoe asset; `master` and `pending`
-  are source branches, not released binaries. There is no official 2.4.1.
-- The bundled executable reports `2.4.1` and embeds
-  `AirportItlwm-Tahoe.build` and `tahoe-vtd-1`. It declares
-  `com.apple.iokit.IOSkywalkFamily 1.0` and AirPort personalities, which is
-  consistent with a Tahoe/VTD fork build made with GitHub Actions.
-- It is **byte-identical** to the `AirportItlwm.kext` shipped by
-  [retropineaple/whateverxe-hp-envy-x360](https://github.com/retropineaple/whateverxe-hp-envy-x360)
-  commit `9809987`. That repository is the same laptop model and reports it
-  working on Tahoe 26.7.1.
-- The binary alone does not identify the fork or commit it was built from, so
-  this repository pins it by SHA-256 and treats it as a third-party payload.
-  Do not silently replace it; if a newer build is used, record its source and
-  hash here first.
-- Validation status: proven by the reference on 26.7.1; **not yet validated on
-  26.7.2**. If it does not attach, use the `itlwm` variant rather than mixing
-  drivers.
+  2024-06-09, and stops at Sonoma 14.4. There is no official 2.4.0.
+- `AirportItlwm` links against `IO80211Family`/`IOSkywalkFamily`, so a build is
+  tied to one macOS family. The Tahoe binary this repository used before the
+  downgrade (2.4.1, `tahoe-vtd-1`) cannot attach on Sequoia and was removed
+  from the tree; it remains in Git history.
+- The shipped binary is the **Sequoia** asset of
+  [laobamac/itlwm](https://github.com/laobamac/itlwm) release `v2.4.0-alpha`
+  (`AirportItlwm-Sequoia-v2.4.0-RELEASE-alpha-7204c69.zip`, SHA-256
+  `263d35e5954808f43bde17b9695b675aefc2f6d4cded71306b1b6575aea61a82`).
+  It reports `2.4.0` and embeds `AirportItlwm-Sequoia.build` / `sequoia-vtd-1`.
+  The fork documents it for Darwin 24.2.0–24.99.99, i.e. Sequoia.
+- It is pinned by SHA-256 and treated as a third-party payload. Do not
+  silently replace it; if a newer build is used, record its source and hash
+  here first.
+- Validation status: **not yet boot-tested from this repository** on 15.8.2.
+  If it does not attach, use the `itlwm` variant rather than mixing drivers.
 
 `itlwm` 2.3.0 is the official release and is independent of the macOS
 networking stack, which is why it remains the fallback.
@@ -147,27 +146,28 @@ They are Apple/Intel-derived and are deliberately not vendored here.
 
 | Item | Value |
 |---|---|
-| Package | `WhateverXe-Graphics-0.3.1.pkg` |
+| Package | `WhateverXe-Graphics-0.3.1.pkg` (installed on this machine) |
 | Upstream | [b00t0x/WhateverXe-Graphics](https://github.com/b00t0x/WhateverXe-Graphics) release 0.3.1 |
 | SHA-256 | `bd8b449431b1bf3815f9011ad3e13c7038012d17aed54dfb2aecfce6b9089623` |
 | Pairs with | WhateverXe 0.6.0 (`adlp-edp` fork), `AppleIntelTGLCompat` 0.6.0 |
 | Installs to | `/Library/Extensions` and `/Library/GPUBundles`, then AuxKC |
+| Control package | `WhateverXe-Graphics-0.4.0.pkg`, SHA-256 `7a1b5015b3e6e8b522f26c25df85c313471c9142564a0b57356cddd2c88b9510` (95,200,795 bytes), pairs with WEX 0.7.0 / Compat 0.7.0 |
 
 The same-model reference was tested with 0.3.1, and its installed
 `AppleIntelTGLCompat` is 0.6.0 (the identifier this machine's logs show).
-Graphics 0.3.2 ships Compat 0.6.1 and pairs with upstream 0.6.1; it is not
-used here. Do not mix the two pairs.
+Graphics 0.3.2 ships Compat 0.6.1 and 0.4.0 ships Compat 0.7.0; neither is
+used with the 0.6.0 default. Do not mix the pairs.
 
-One local change is applied on top of the injected 0.6.0 kext after
-installation: `scripts/macos/patch-wex-tahoe-mmio.sh` updates the five-byte
-`_IOProtectCacheMode+0xCC` signature for macOS 26.7.2 (25G332). It changes only
-that constant in `WhateverXe.kext` and keeps a backup; see
-[docs/03-graphics.md](03-graphics.md).
+**No local modification is applied to `WhateverXe.kext` on Sequoia.** The
+Tahoe-era `scripts/macos/patch-wex-tahoe-mmio.sh` patched a constant in the
+Tahoe-only MMIO routine; that routine does not run on Sequoia, so the default
+payload is the published `197da23b…` binary. The script remains in the tree
+for a future Tahoe boot; see [docs/03-graphics.md](03-graphics.md#the-2672-mmio-signature-tahoe-history).
 
-Citation: the 0.6.1 release notes add "experimental internal display (eDP) and
-brightness support for Alder Lake-N / Twin Lake and Alder Lake-H/P/U / Raptor
-Lake-H/P/U GPUs"; Graphics 0.3.2's changelog pairs it with 0.6.1. The same
-release notes do not change the VBT parser's duplicate-DDI behaviour.
+Citation: the 0.6.1/0.7.0 release notes add internal eDP/brightness support for
+Alder Lake-H/P/U, but the same release notes do not change the VBT parser's
+duplicate-DDI behaviour, and 0.7.0 still rejects this machine's VBT (measured,
+not assumed). That is why the 0.6.0 `adlp-edp` fork remains the default.
 
 ## 6. AppleALC patch
 
@@ -195,8 +195,17 @@ The release archives used to populate the repository:
 | Archive | SHA-256 | Used for |
 |---|---|---|
 | `OpenCore-1.0.8-RELEASE.zip` | `2011e8b7216ecb2645d97ea710df965947edd406846e92050b9bc4190be6d27b` | OpenCore, drivers, resources |
-| WhateverXe 0.6.1 RELEASE zip | `46c8cd684461db7f84a971e7479770c423f73d52d45addfb48242176b9eb04fc` | `efi/variants/gpu-wex061` (diagnostic) |
+| WhateverXe 0.7.0 RELEASE zip | `5548c78f687134580913b9f600fb8b0f16bb49f7d430bcc82de7fa9761d4f62b` | `efi/variants/gpu-wex070` (control) |
+| `AirportItlwm-Sequoia-v2.4.0-RELEASE-alpha-7204c69.zip` | `263d35e5954808f43bde17b9695b675aefc2f6d4cded71306b1b6575aea61a82` | `efi/variants/wifi-airportitlwm` |
 | `WhateverXe-Graphics-0.3.1.pkg` | `bd8b449431b1bf3815f9011ad3e13c7038012d17aed54dfb2aecfce6b9089623` | installed separately, not in Git |
+| `WhateverXe-Graphics-0.4.0.pkg` | `7a1b5015b3e6e8b522f26c25df85c313471c9142564a0b57356cddd2c88b9510` | control only; installed for the 0.7.0 test, not in Git |
+
+The 0.6.0 `adlp-edp` binary is taken from the same-model reference
+(`retropineaple/whateverxe-hp-envy-x360` commit `8100282`, 2026-11-01) and
+pinned by its executable hash `197da23b…`. It is the published patch-series-54
+binary, with no local modification. The older commit `9809987` shipped
+`c090b9dd…`; that is the binary the previous EFI used, and it remains in Git
+history of this repository.
 
 The other kexts were taken from their named upstream releases; their
 individual hashes in `payloads.tsv` are the authority.
@@ -250,7 +259,7 @@ disagree, the official documentation wins; the deviation is recorded in
    intentional.
 4. Update the table above, `NOTICE.md`, and (if the version pairing changed)
    [03-graphics.md](03-graphics.md) and [07-install.md](07-install.md).
-5. `make variants` must pass for all five combinations.
+5. `make variants` must pass for all four combinations.
 6. Boot the machine and record the result. An update that was not booted is
    not a verified update.
 

@@ -8,26 +8,41 @@ generation; they are mutually exclusive and selected at build time.
 
 ## Variant A — `AirportItlwm` (default, native)
 
-- Kext: `AirportItlwm.kext` 2.4.1 (downstream Tahoe/VTD build; see
+- Kext: `AirportItlwm.kext` **2.4.0, Sequoia build** (`sequoia-vtd-1`; see
   [10-provenance.md](10-provenance.md))
 - Mechanism: implements Apple's `AirPort` interface, so the native Wi-Fi menu
   and System Settings pane work.
 - Needs AppleVTD: VT-d enabled in firmware and `DisableIoMapper=false`. Both
   are already true in this config.
 
-Why it is the default:
+Why it is the default: it gives the native macOS Wi-Fi UI.
 
-- It gives the native macOS Wi-Fi UI, which is what you asked for.
-- The exact-model reference EFI ships the identical binary (same SHA-256) and
-  boots it on Tahoe 26.7.1.
+### Why the version is not 2.4.1 any more
+
+`AirportItlwm` is not OS-independent. It links against
+`com.apple.iokit.IO80211Family` and `IOSkywalkFamily`, whose ABI changes
+between major macOS releases, so each macOS family needs its own build.
+
+- Upstream [OpenIntelWireless/itlwm](https://github.com/OpenIntelWireless/itlwm)
+  has no Sequoia asset: the newest release, `v2.3.0` (2024-06-09), stops at
+  Sonoma 14.4.
+- The Tahoe binary this repo used before the downgrade embeds
+  `AirportItlwm-Tahoe.build` / `tahoe-vtd-1` and cannot attach on Sequoia.
+  It was removed from the tree; it remains in Git history.
+- The Sequoia binary comes from the [laobamac/itlwm](
+  https://github.com/laobamac/itlwm) fork, whose release `v2.4.0-alpha`
+  builds `AirportItlwm-Sequoia` and `AirportItlwm-Tahoe` separately. The
+  Sequoia asset embeds `sequoia-vtd-1` and is documented for
+  "Darwin 24.2.0–24.99.99".
+
+It is an alpha build, which is why the `itlwm` fallback below stays pinned.
 
 Caveats:
 
-- It is tied to the macOS networking stack, so a point update can require a new
-  build. 2.4.1 is not an official OpenIntelWireless release; it is a Tahoe/VTD
-  build and is not yet validated on 26.7.2.
-- If no interface appears, switch to `itlwm` instead of debugging two variables
-  at once.
+- A Sequoia point update may again require a new build. If no interface
+  appears after an update, that is the first thing to check.
+- If no interface appears at all, switch to `itlwm` instead of debugging two
+  variables at once.
 
 Build:
 
@@ -45,7 +60,7 @@ Build:
 
 Why it is the fallback:
 
-- It is independent of the macOS build, so a point update (26.7.1 → 26.7.2)
+- It is independent of the macOS build, so a point update (15.8.1 → 15.8.2)
   does not invalidate the driver.
 - It is the stack that was working on this exact install before the rebuild.
 

@@ -121,7 +121,7 @@ Checks, in order:
    | EFI variant | WhateverXe | Graphics package | Compat |
    |---|---|---|---|
    | `hp-adlp-edp` (default) | 0.6.0 | 0.3.1 | 0.6.0 |
-   | `wex061` (diagnostic) | 0.6.1 | 0.3.2 | 0.6.1 |
+   | `wex070` (control) | 0.7.0 | 0.4.0 | 0.7.0 |
 
    ```sh
    kextstat | grep -Ei 'whateverxe|tgl'
@@ -129,85 +129,73 @@ Checks, in order:
    # org.b00t0x.AppleIntelTGLCompat (0.6.x)
    ```
 
-   A 0.6.1 kext with Compat 0.6.0 (or the reverse) will load but not start.
-   The 0.6.1 variant is only a control; it cannot parse this unit's VBT.
+   A 0.6.0 kext with Compat 0.7.0 (or the reverse) will load but not start.
+   The `wex070` variant is only a control; it cannot parse this unit's VBT and
+   is expected to leave the panel dark.
 
 2. **Boot arguments match the kext.** `-wex-adlp-edp`,
-   `-wex-reset-restore` and `-wex-no-multicontext` exist only in the 0.6.0
-   variant. The 0.6.1 build must not carry them; the build script adds them
-   only for `--gpu hp-adlp-edp`. An unknown `-wex-*` argument is ignored, but
-   a *partial* set is a sign that the config and kext were mixed by hand.
+   `-wex-reset-restore`, `-wex-no-multicontext`, `-wex-scanout-coherent` and
+   `-wex-pm` exist only in the 0.6.0 fork. The `wex070` build must not carry
+   them; the build script adds them only for `--gpu hp-adlp-edp`. An unknown
+   `-wex-*` argument is ignored, but a *partial* set is a sign that the config
+   and kext were mixed by hand.
 
 3. **No second graphics driver.** `WhateverGreen.kext` must not be enabled
    next to WhateverXe, and NootedGreen/NootedRed must not be present. The
    verifier fails the build if they are.
 
-4. **The 26.7.2 MMIO gate.** This is the known failure on 25G332:
+4. **The Sequoia MMIO gate.** WhateverXe 0.6.0 selects its MMIO-protection
+   routine by OS family. On Sequoia the relevant properties are:
 
    ```sh
-   ioreg -l | grep -E 'TGLMMIOStrongUCRouted|TGLMMIOStrongUCPreflight'
+   ioreg -l | grep -o '"TGLSequoiaMMIOGuard" = <[^>]*>'
+   ioreg -l | grep -o '"TGLSequoiaMMIOInspection" = <[^>]*>'
    ioreg -l | grep -E 'N97NativeStartAllowed|N97NativeProbeBlocked'
-   ioreg -l | grep TGLTahoeMMIOGuard
    ```
 
-   In the broken state `TGLMMIOStrongUCRouted = No`,
-   `TGLMMIOStrongUCPreflight = No`, `N97NativeStartAllowed = No` and
-   `N97NativeProbeBlocked = Yes`. Run
+   `TGLSequoiaMMIOGuard` is a 20-entry array; entry **19** is the overall
+   verdict and entries 8–16 are the individual byte comparisons. Entry 19 =
+   `01` means the 24H232 kernel matches the constants built into 0.6.0. If it
+   is `00`, the kernel layout changed and the accelerator never starts.
 
-   ```sh
-   sudo scripts/macos/patch-wex-tahoe-mmio.sh \
-     --kext /Volumes/EFI/EFI/OC/Kexts/WhateverXe.kext \
-     --kernel /Library/Developer/KDKs/KDK_26.7.2_25G332.kdk/System/Library/Kernels/kernel
-   ```
-
-   and reboot. The script needs the KDK that matches the running build; it
-   parses the kernel Mach-O with perl, so no Command Line Tools are required.
-   It must print `old const`, `real call`, `patched` and `verify`. **No output
-   means it never reached the patch**: update the script and check the kernel
-   candidates it prints. After the reboot `TGLTahoeMMIOGuard` must show the
-   ninth byte check (index 16) as `1`; a remaining `0` means the ESP you
-   patched is not the ESP that booted. See [docs/03-graphics.md](03-graphics.md).
-
-   If the script said `verify: e85ff302` but index 16 is still `0`, inspect the
-   binary that is actually on the ESP before rerunning anything:
-
-   ```sh
-   K=/Volumes/EFI/EFI/OC/Kexts/WhateverXe.kext/Contents/MacOS/WhateverXe
-   xxd -s 0x17904 -l 8 "$K"    # c745 a8e8 5ff3 02b9  <- live immediate patched
-   xxd -s 0xcdf8e -l 5 "$K"    # e82f f302 00        <- dead copy stays original
-   ```
-
-   `e82f…` at `0x17907` means this ESP is not the one that booted. `e85f…` at
-   `0xCDF8E` means the older script patched the dead copy next to the
-   `TGLTahoeMMIOGuard` string; rerun the current script, which restores it and
-   patches the real `movl` immediate. Reboot explicitly from the USB with F9
-   if the internal ESP also holds an OpenCore copy.
+   The Tahoe-era properties (`TGLMMIOStrongUCRouted`, `TGLTahoeMMIOGuard`) do
+   not apply here; the Tahoe patch script modifies bytes that Sequoia never
+   executes. If entry 19 is `0`, the options are, in order: boot `wex070`
+   (which dropped exact-build matching) to see whether it can reach the panel
+   at all, or extend `scripts/macos/patch-wex-tahoe-mmio.sh` to the Sequoia
+   site at `_IOProtectCacheMode + 0xCA` (expected call `E8 71 CB 02 00`) once
+   the real 24H232 kernel bytes are known. Do not run the Tahoe script on
+   Sequoia and expect a change.
 
 5. **The panel record is not the problem.** `WhateverXeFirmwarePanel` is
    `[0, 0, 9, 0, 0]` on this unit because the VBT sets `panel_type = 0xFF`
-   (panel chosen by PnP ID). That is expected and patch 0004 admits the Combo A
-   DP route without it. Do not chase the placeholder `LFP_PanelName` strings;
-   WhateverXe does not read them.
+   (panel chosen by PnP ID). That is expected: the fork's `-wex-adlp-edp` mode
+   admits the Combo A DP route without a panel record. Do not chase the
+   placeholder `LFP_PanelName` strings; WhateverXe does not read them.
 
 6. **Try the other driver variant**, with the same config otherwise:
 
    ```sh
-   ./scripts/build_efi.py --gpu wex061 --out build/EFI-wex061 --force
+   ./scripts/build_efi.py --gpu wex070 --out build/EFI-wex070 --force
    ```
 
-   Install Graphics 0.3.1 before booting it. If the fallback works and 0.6.1
-   does not, the problem is 0.6.1's ADL-P eDP detection, not this config.
+   Install Graphics **0.4.0** before booting it, and expect a dark internal
+   panel: upstream 0.7.0 rejects this VBT (`Status::Conflict`). If the panel
+   lights with 0.7.0 anyway, that is new information worth recording; if it
+   stays dark while an external display works, the fork's parser is confirmed
+   as the reason.
 
-6. **Capture and report.** If neither variant starts, the useful report is the
+7. **Capture and report.** If neither variant starts, the useful report is the
    evidence bundle from section 0 plus:
 
    ```sh
    ioreg -l | grep -E 'WhateverXe(VBTRaw|FirmwarePanel|FirmwarePortRecords|FirmwareChecksum)'
    ioreg -l | grep -E 'N97(NativeStartAllowed|NativeProbeBlocked|NativeKernelReady)'
+   ioreg -l | grep -o '"TGLSequoiaMMIOGuard" = <[^>]*>'
    ```
 
    Include the BIOS version (F.35), the panel EDID, and the macOS build
-   (25G332).
+   (24H232 / Darwin 24.6.0).
 
 ### Black screen but the machine is alive
 
@@ -252,7 +240,7 @@ it works.
 | Symptom | Check |
 |---|---|
 | No Wi-Fi interface | Exactly one of `itlwm.kext` / `AirportItlwm.kext` in `OC/Kexts` and in `Kernel/Add` |
-| `AirportItlwm` loaded, no networks | Check `kmutil showloaded \| grep -i airport`; if absent on 26.7.2, rebuild with `--wifi itlwm` |
+| `AirportItlwm` loaded, no networks | Check `kmutil showloaded \| grep -i airport`; if absent on 15.8.2, rebuild with `--wifi itlwm` |
 | `itlwm` loaded, no networks | HeliPort installed and running; `ifconfig` shows the `en` interface |
 | Native menu missing with AirportItlwm | AirportItlwm build does not match this macOS; it is tied to the networking stack. Switch to the `itlwm` fallback |
 | Both drivers present | Rebuild with one `--wifi` choice; never merge the variants |
@@ -277,10 +265,10 @@ Headphones and the internal microphone are the working paths.
 
 | Symptom | Check |
 |---|---|
-| No audio devices at all | `SimpleHDA.kext` enabled and `MinKernel 25.0.0`; `AppleALC.kext` loaded |
+| No audio devices at all | On Sequoia: `AppleALC.kext` loaded, controller `device-id` injected. `SimpleHDA` is gated to Tahoe and does not load here |
 | Headphones work, mic panics the machine | Unpatched AppleALC; use the shipped kext |
-| Wrong device names | `shda-lang=en` present |
-| No audio after update | SimpleHDA is Tahoe-only; re-check `MinKernel`/`MaxKernel` |
+| Wrong device names | On Tahoe: `shda-lang=en` present. On Sequoia the native `AppleHDA` names apply; `shda-lang` is inert |
+| No audio after update | On Sequoia check AppleALC/layout first; `SimpleHDA` only matters on Tahoe (`MinKernel`/`MaxKernel`) |
 | `alcid` ignored | Remove any `layout-id` from `DeviceProperties`; the boot argument wins and duplicates confuse the lookup |
 
 The controller is `8086:51CC`, which AppleALC does not list; the config injects
@@ -363,11 +351,11 @@ Do not debug sleep at the same time as graphics. One variable at a time.
 
 ## 9. Capturing a boot that dies with a black screen
 
-After the 26.7.2 MMIO patch the machine reaches the accelerator but
-WindowServer dies at the first panel modeset (see
-[03-graphics.md](03-graphics.md#where-the-2672-bring-up-stops-now-2026-11-01)).
-Nothing can be typed on that screen, and a safe-mode capture has none of the
-live `N97FB*` properties. Record the boot from inside macOS instead.
+This section records the Tahoe 26.7.2 capture procedure that produced the
+analysis in
+[03-graphics.md](03-graphics.md#where-the-2672-bring-up-stops-now-2026-11-01).
+On Sequoia the same method is still the right one for a boot that lights the
+panel and then loses WindowServer, or for capturing an MMIO-gate failure.
 
 On a boot that works (safe mode is fine), from the USB stick:
 

@@ -1,6 +1,6 @@
 # OpenMac — HP Envy x360 13-bf0xxx (i7-1250U) OpenCore EFI
 
-A reproducible OpenCore EFI for macOS Tahoe on the **HP ENVY x360 2-in-1
+A reproducible OpenCore EFI for macOS Sequoia on the **HP ENVY x360 2-in-1
 13-bf0xxx** (Alder Lake-U, Iris Xe `8086:46AA`, 2880×1800 OLED), built around
 WhateverXe.
 
@@ -8,16 +8,25 @@ This repository is the result of auditing the machine's previous EFI, auditing
 several public Xe-LP hackintosh EFIs, and rebuilding the configuration from
 scratch with every payload pinned and hashed.
 
-> **Status:** macOS Tahoe 26.7.2 boots and is usable, Wi-Fi/Bluetooth/audio/
-> battery/keyboard/USB work, but the iGPU currently falls back to
-> `IONDRVFramebuffer` (19 MB VRAM, no Metal). The cause is now identified: on
-> 26.7.2 (25G332) WhateverXe's Tahoe MMIO-UC check finds one changed kernel
-> signature, leaves `tglActive` false and rejects the accelerator probe.
-> Upstream 0.6.1 cannot be used on this unit: its VBT parser rejects the
-> firmware's duplicate DDI entry (`Status::Conflict`). The same-model
-> reference stack (0.6.0 + `adlp-edp`) is proven on 26.7.1 and is the default
-> here; `scripts/macos/patch-wex-tahoe-mmio.sh` applies the one-constant fix
-> for 26.7.2. See [docs/03-graphics.md](docs/03-graphics.md).
+> **Status:** the machine now runs **macOS Sequoia 15.8.2 (24H232, Darwin
+> 24.6.0)**, and the EFI has been retargeted to it. Wi-Fi uses a Sequoia build
+> of `AirportItlwm`; the graphics half keeps the `adlp-edp` fork of WhateverXe
+> 0.6.0 with WhateverXe Graphics 0.3.1, because upstream WhateverXe 0.7.0 —
+> although it supports Sequoia and no longer needs a build-matched MMIO
+> constant — cannot drive this panel: it rejects this machine's VBT with
+> `Status::Conflict` and the VBT carries `panel_type = 0xFF`, so it has no
+> panel record to work from. The fork's `-wex-adlp-edp` mode exists to drive
+> exactly that configuration. Evidence and the reasoning are in
+> [docs/03-graphics.md](docs/03-graphics.md#why-the-fork-is-still-required-on-sequoia).
+>
+> The Tahoe 26.7.2 MMIO byte patch is inert on Sequoia: WhateverXe selects a
+> different MMIO routine per OS family, so only the Tahoe one was ever patched.
+> The default kext is now the unmodified published binary again
+> (`197da23b…`), and `scripts/macos/patch-wex-tahoe-mmio.sh` is kept as a tool
+> for a future Tahoe boot.
+>
+> **Not yet boot-tested on 15.8.2 from this repository.** The next step is one
+> normal boot plus a check of `TGLSequoiaMMIOGuard` in IORegistry.
 
 ## Hardware
 
@@ -33,21 +42,23 @@ scratch with every payload pinned and hashed.
 | Wi-Fi / BT | Intel AX211 CNVi, `8086:51F0` |
 | Audio | ALC245 over Intel SST (`8086:51CC`) + CS35L41 amplifiers |
 | Card reader | Realtek RTS5288 (`10ec:5228`) |
-| OS | macOS Tahoe 26.7.2 (25G332), OpenCore 1.0.8 |
+| OS | macOS Sequoia 15.8.2 (24H232, Darwin 24.6.0), OpenCore 1.0.8 |
 | SMBIOS | `MacBookPro16,2` (existing activation identity preserved) |
 
 ## Repository layout
 
 ```
 efi/base/                 OpenCore 1.0.8, 12 ACPI tables, common kexts, resources
-efi/variants/gpu-hp-adlp-edp/     WhateverXe 0.6.0 + retropineaple adlp-edp patches (default)
-efi/variants/gpu-wex061/          WhateverXe 0.6.1 upstream (rejects this unit's VBT)
-efi/variants/wifi-airportitlwm/   AirportItlwm 2.4.1 (native Wi-Fi menu, default)
+efi/variants/gpu-hp-adlp-edp/     WhateverXe 0.6.0 + adlp-edp patches (default)
+efi/variants/gpu-wex070/          WhateverXe 0.7.0 upstream (control experiment)
+efi/variants/wifi-airportitlwm/   AirportItlwm 2.4.0, Sequoia build (native menu, default)
 efi/variants/wifi-itlwm/          itlwm 2.3.0 + HeliPort (fallback)
 scripts/build_efi.py      assembles an EFI, injects private identity
 scripts/verify_efi.py     structural and payload checks for a built EFI
 scripts/payload_inventory.py      regenerates audit/payloads.tsv
 scripts/macos/patch-wex-tahoe-mmio.sh   repairs the 26.7.2 MMIO-UC signature
+                                        (Tahoe history; not used on Sequoia)
+scripts/macos/install-boot-capture.sh    black-screen boot capture daemon
 docs/                     hardware, audit, graphics, Wi-Fi, audio, install, test plan
 audit/                    reference matrix, config diff, log analysis, payload hashes
 private/                  identity.example.plist (committed), identity.plist (ignored)
@@ -60,7 +71,7 @@ private/                  identity.example.plist (committed), identity.plist (ig
 cp private/identity.example.plist private/identity.plist
 $EDITOR private/identity.plist
 
-# 2. Build the default EFI (WhateverXe 0.6.0 + adlp-edp, AirportItlwm).
+# 2. Build the default EFI (WhateverXe 0.6.0 adlp-edp + AirportItlwm).
 make build
 make verify
 
@@ -71,18 +82,44 @@ make verify
 Other combinations:
 
 ```sh
-./scripts/build_efi.py --gpu wex061 --out build/EFI-wex061   # upstream test only
+./scripts/build_efi.py --gpu wex070 --out build/EFI-wex070   # upstream control
 ./scripts/build_efi.py --wifi itlwm --out build/EFI-itlwm
 ./scripts/build_efi.py --debug --out build/EFI-debug     # -v, debug=0x100
 ```
 
 | Build | GPU driver | Wi-Fi | When to use |
 |---|---|---|---|
-| `build/EFI` (default) | WhateverXe 0.6.0 + adlp-edp | AirportItlwm 2.4.1 | Same binary as the working same-model reference; required for this VBT |
+| `build/EFI` (default) | WhateverXe 0.6.0 + adlp-edp | AirportItlwm 2.4.0 (Sequoia) | The only driver that parses this VBT and drives this panel |
 | `build/EFI-itlwm` | WhateverXe 0.6.0 + adlp-edp | itlwm + HeliPort | Fallback if AirportItlwm does not attach |
-| `build/EFI-wex061` | WhateverXe 0.6.1 | AirportItlwm 2.4.1 | Diagnostic only: 0.6.1 rejects this VBT (`Status::Conflict`) |
-| `build/EFI-wex061-itlwm` | WhateverXe 0.6.1 | itlwm + HeliPort | Diagnostic only, both fallbacks |
-| `build/EFI-debug` | WhateverXe 0.6.0 + adlp-edp | AirportItlwm 2.4.1 | Verbose boot and kernel logging while debugging |
+| `build/EFI-wex070` | WhateverXe 0.7.0 | AirportItlwm 2.4.0 (Sequoia) | Control experiment; needs Graphics 0.4.0 and is expected to leave the internal panel dark |
+| `build/EFI-debug` | WhateverXe 0.6.0 + adlp-edp | AirportItlwm 2.4.0 (Sequoia) | Verbose boot and kernel logging while debugging |
+
+## Why Sequoia, and where the Tahoe work went
+
+The Tahoe 26.7.2 install never got past the first display modeset: the
+accelerator probed and the panel was detected, but the first frame flip was
+refused and WindowServer fell back to a virtual display. The trail is in
+[docs/03-graphics.md](docs/03-graphics.md) and
+[audit/log-analysis.md](audit/log-analysis.md) §9.2.
+
+On 2026-11-02 upstream released WhateverXe 0.7.0, which supports Sequoia
+15.8.x and no longer requires an exact OS build match for MMIO, and whose
+changelog claims internal eDP for Alder Lake-H/P/U. That looked like it would
+make the fork unnecessary. It does not, for two reasons that were checked by
+compiling the parsers and feeding them this machine's real VBT:
+
+- upstream's VBT parser returns `Status::Conflict` on the duplicate DDI 1
+  child, so it keeps no ports at all;
+- this panel is described with `panel_type = 0xFF` ("select by PnP id"), so
+  even a parsed table yields no `panel` record for the upstream eDP path.
+
+The fork handles both: `-wex-adlp-edp` parses with first-child-wins and adds
+Combo A as a **fixed DP** output. That is the path the same-model reference
+used to reach a working panel and Metal on Tahoe 26.7.1, and it is still the
+only path that gets this panel past detection. 0.7.0 therefore ships on the
+stick as `EFI-wex070` for a control experiment, not as the default. Reaching
+0.7.0 would mean rebasing those two behaviours onto upstream and building from
+source.
 
 ## What changed compared with the previous EFI
 
@@ -116,7 +153,7 @@ Full reasoning: [docs/02-audit.md](docs/02-audit.md) and
 |---|---|
 | [docs/01-hardware.md](docs/01-hardware.md) | Hardware inventory and how it was collected |
 | [docs/02-audit.md](docs/02-audit.md) | Old EFI audit, reference-repo audit, config diff |
-| [docs/03-graphics.md](docs/03-graphics.md) | Why the iGPU does not accelerate, and the fix plan |
+| [docs/03-graphics.md](docs/03-graphics.md) | Current Sequoia state, VBT/parser evidence, Tahoe history |
 | [docs/04-wifi-bluetooth.md](docs/04-wifi-bluetooth.md) | Both Wi-Fi variants, Bluetooth |
 | [docs/05-audio.md](docs/05-audio.md) | ALC245 layout 11, the DSP patch, SimpleHDA |
 | [docs/06-usb-acpi-power.md](docs/06-usb-acpi-power.md) | USB map, ACPI tables, power management |
@@ -141,7 +178,8 @@ the deviation is recorded in the audit.
   AppleALC, NVMeFix, RestrictEvents, BrightnessKeys, VoodooPS2.
 - [OpenIntelWireless](https://github.com/OpenIntelWireless) — itlwm,
   AirportItlwm, IntelBluetoothFirmware, HeliPort.
-- [laobamac](https://github.com/laobamac) — SimpleHDA.
+- [laobamac](https://github.com/laobamac) — SimpleHDA and the
+  `AirportItlwm-Sequoia` build used here, which upstream does not release.
 - [VoodooI2C](https://github.com/VoodooI2C), [USBToolBox](https://github.com/USBToolBox),
   [HoRNDIS](https://github.com/jwise/HoRNDIS), [corpnewt](https://github.com/corpnewt).
 - [JulioNectar/Hackintosh-XPS13Plus-IrisXe-Tahoe](https://github.com/JulioNectar/Hackintosh-XPS13Plus-IrisXe-Tahoe),
