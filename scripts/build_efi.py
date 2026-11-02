@@ -7,7 +7,7 @@ and one Wi-Fi stack, then writes a ready-to-copy EFI folder.
 
 Usage:
     ./scripts/build_efi.py                         # hp-adlp-edp + airportitlwm, release
-    ./scripts/build_efi.py --gpu wex061            # upstream 0.6.1 (does not parse this VBT)
+    ./scripts/build_efi.py --gpu wex070            # upstream 0.7.0 (experimental)
     ./scripts/build_efi.py --wifi itlwm            # itlwm + HeliPort fallback
     ./scripts/build_efi.py --debug                 # verbose boot
     ./scripts/build_efi.py --out /run/media/.../EFI
@@ -36,12 +36,12 @@ GPU_VARIANTS = {
             "-wex-scanout-coherent",
             "-wex-pm",
         ],
-        "description": "WhateverXe 0.6.0 + adlp-edp patch series 54 (default)",
+        "description": "WhateverXe 0.6.0 + adlp-edp patch series 54 (default, Graphics 0.3.1)",
     },
-    "wex061": {
-        "path": VARIANTS / "gpu-wex061" / "WhateverXe.kext",
+    "wex070": {
+        "path": VARIANTS / "gpu-wex070" / "WhateverXe.kext",
         "args": [],
-        "description": "WhateverXe 0.6.1 upstream (rejects this unit's VBT: duplicate DDI)",
+        "description": "WhateverXe 0.7.0 upstream (experimental, Graphics 0.4.0)",
     },
 }
 
@@ -56,7 +56,7 @@ WIFI_VARIANTS = {
         "path": VARIANTS / "wifi-airportitlwm" / "AirportItlwm.kext",
         "bundle": "AirportItlwm.kext",
         "exec": "Contents/MacOS/AirportItlwm",
-        "description": "AirportItlwm 2.4.1 (native Wi-Fi menu, default)",
+        "description": "AirportItlwm 2.4.0 Sequoia build (native Wi-Fi menu, default)",
     },
 }
 
