@@ -57,7 +57,7 @@ editing the plist by hand.
 
 | Component | Role |
 |---|---|
-| `SSDT-PLUG-ALT-12.aml` | Declares 12 logical CPUs and `plugin-type=1` so XCPM manages P/E cores |
+| `SSDT-PLUG-ALT-12.aml` | Declares 12 logical CPUs (2 P-cores + 8 E-cores, 12 threads) and `plugin-type=1` so XCPM manages P/E cores |
 | `CpuTopologyRebuild.kext` 2.0.2 | Rebuilds the cache topology so P-cores are not misclassified as E-cores |
 | `SMCProcessor.kext` | CPU temperature/voltage sensors |
 | `SMCBatteryManager.kext` | Battery status and charge threshold |
@@ -65,8 +65,9 @@ editing the plist by hand.
 | `NVMeFix.kext` 1.1.4 | NVMe power management and quirks (MinKernel 18) |
 | `RestrictEvents.kext` 1.1.7 | CPU name (`revpatch=cpuname`), no board-id patch |
 
-`ProvideCurrentCpuInfo` is enabled in `Kernel/Quirks`; the CPU name comes from
-`revcpuname` in NVRAM.
+`ProvideCurrentCpuInfo` is enabled in `Kernel/Quirks`; `revcpu=1` and
+`revpatch=cpuname` are on the boot-args line, and the custom CPU name comes from
+`revcpuname` in NVRAM (boot-args cannot carry a name with spaces reliably).
 
 ## Sleep — known broken on this platform
 

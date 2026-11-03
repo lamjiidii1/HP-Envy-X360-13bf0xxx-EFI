@@ -132,8 +132,9 @@ from an OpenIntelWireless release:
 - It is pinned by SHA-256 and treated as a third-party payload. Do not
   silently replace it; if a newer build is used, record its source and hash
   here first.
-- Validation status: **not yet boot-tested from this repository** on 15.8.2.
-  If it does not attach, use the `itlwm` variant rather than mixing drivers.
+- Validation status: **boot-tested on 15.8.2 (24H232), 2026-11-03.**
+  `AirportItlwm` attaches and the native Wi-Fi menu works. If it ever fails to
+  attach, use the `itlwm` variant rather than mixing drivers.
 
 `itlwm` 2.3.0 is the official release and is independent of the macOS
 networking stack, which is why it remains the fallback.

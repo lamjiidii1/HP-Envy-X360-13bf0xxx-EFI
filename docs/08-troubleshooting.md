@@ -50,6 +50,18 @@ pmset -g > pmset.txt
 nvram -p > nvram.txt
 ```
 
+For the six post-install questions (Metal version, CPU name, scaling, battery
+pane, colour, heat), the shorter one-shot report is enough:
+
+```sh
+./scripts/macos/post-install-check.sh
+# or: ./scripts/macos/post-install-check.sh /Volumes/MACUSB/wex-check.txt
+```
+
+It collects `sw_vers`, CPU counts, display modes, Metal/accelerator state,
+RestrictEvents NVRAM, `pmset`, a `top` sample, recent Metal sandbox denials and
+the compiler-bundle permissions, and writes one text file to the Desktop.
+
 `nvram -p` contains the serial number. Strip it before posting anywhere:
 
 ```sh
@@ -268,6 +280,96 @@ where it fixed the same crash on the same build. If the crash persists, capture
 the `.ips` report and note whether the process is ControlCenter, WindowServer
 or Safari; a WindowServer crash is not this bug.
 
+### Metal 2 versus Metal 3
+
+`system_profiler SPDisplaysDataType` reports **`Metal Support: Metal 2`** on the
+working Sequoia install. That is the ceiling of the patched driver, not a
+configuration mistake:
+
+- WhateverXe Graphics 0.3.1 contains a Tiger Lake Metal driver derived from an
+  older Apple driver. It advertises the Metal 2 feature set and does not
+  implement the Metal 3 API surface.
+- macOS shows `Metal Family` when a driver supports Metal 2 and earlier, and
+  `Metal Support: Metal <version>` when it advertises a specific version. Here
+  the driver explicitly advertises Metal 2.
+- There is **no OpenCore, NVRAM or `-wex-*` switch** that turns Metal 2 into
+  Metal 3. It needs a driver-side change in WhateverXe Graphics. Booting the
+  upstream 0.7.0 + Graphics 0.4.0 control (`EFI-wex070`) does not help on this
+  panel, because 0.7.0 rejects the VBT and the panel stays dark.
+
+Apps that require Metal 3 (some newer games and GPU renderers) will therefore
+refuse to start or fall back to CPU. Metal 2 apps, the desktop, Safari video,
+Maps and Photos work. Check the actual capability with:
+
+```sh
+system_profiler SPDisplaysDataType | grep -i 'Metal'
+ioreg -rc IntelAccelerator | grep -i 'Metal'
+```
+
+### The GPU name says "Intel(R) TGL Unknown"
+
+This line comes from the graphics driver, not from the CPU:
+
+```text
+Device PreExisted [000000010000052f] Intel(R) TGL Unknown
+```
+
+`TGL` is Tiger Lake, the GPU family. WhateverXe's patched driver does not
+publish a marketing name, so the fallback string is `Intel(R) TGL Unknown`.
+`system_profiler` still shows the useful part:
+
+```text
+Chipset Model: Intel Iris Xe Graphics
+Device ID: 0x46aa
+VRAM (Dynamic, Max): 1536 MB
+```
+
+This is cosmetic. Changing `device-id`, the SMBIOS or `model` properties will
+not rename it and can break acceleration. The CPU name is separate and is
+covered in [§7](#cpu-name-and-thread-count).
+
+### Apps hang after a few minutes (MTLCompilerService sandbox)
+
+The collected log shows repeated denials while Metal compiles shaders:
+
+```text
+Sandbox: MTLCompilerService(1958) deny(1) file-read-data
+  /Library/GPUBundles/XeCompilerAdapter.bundle/Contents/MacOS/adapter.dylib
+Sandbox: MTLCompilerService(1958) deny(1) file-map-executable
+  /Library/GPUBundles/XeCompilerAdapter.bundle/Contents/MacOS/libigc-tgl.dylib
+```
+
+`MTLCompilerService` is Apple's sandboxed shader compiler. On this build it
+does not have a rule allowing the WhateverXe compiler bundle in
+`/Library/GPUBundles`, so source compilation fails and the request can hang or
+fall back. This matches the App Store hang in `QuartzCore`
+(`CA::Render::prepare_image`) and adds CPU load and heat.
+
+Do not "fix" this by disabling SIP completely or by moving system bundles.
+Instead:
+
+1. Install the Metal archive workaround first (previous section). It is
+   recommended on 24H232; it reduces how often the compiler is invoked.
+2. Clear the Metal caches once, then reboot:
+   ```sh
+   rm -rf ~/Library/Caches/com.apple.Metal
+   rm -rf ~/Library/Caches/com.apple.MetalShaderCache
+   ```
+3. Reproduce with only one app open and capture the last two minutes:
+   ```sh
+   log show --last 2m --style compact \
+     --predicate 'process == "MTLCompilerService" OR eventMessage CONTAINS "XeCompilerAdapter" OR eventMessage CONTAINS "libigc"'
+   ```
+4. If the denials continue, note the exact bundle path and whether the file is
+   readable by your user:
+   ```sh
+   ls -l /Library/GPUBundles/XeCompilerAdapter.bundle/Contents/MacOS/
+   codesign -dv --verbose=4 /Library/GPUBundles/XeCompilerAdapter.bundle 2>&1
+   ```
+   A missing or unreadable `libigc-tgl.dylib` is a package-install problem;
+   reinstall WhateverXe Graphics 0.3.1. A readable but denied file is the
+   sandbox issue above and needs a driver/package update, not an EFI change.
+
 ### Video playback / camera crashes
 
 Both the EliteBook840G8 and XPS13Plus projects report crashes in the
@@ -368,23 +470,171 @@ build unless the identity was injected. If you built on another machine, copy
 Do not sign out of iCloud to "test" activation. Changing the serial after
 activation can require Apple to re-validate the machine.
 
-## 7. Battery, power and thermals
+## 7. Battery, power, CPU and display
 
 | Symptom | Check |
 |---|---|
 | No battery percentage | `SMCBatteryManager.kext` loaded; `SSDT-SBUS.aml` present |
 | Battery drains in sleep | Sleep is broken on this firmware; disable sleep (below) |
-| High idle temperature | `CpuTopologyRebuild.kext` loaded; `SSDT-PLUG-ALT-12.aml` present; check `pmset -g therm` |
-| CPU name wrong | `revpatch=cpuname` in NVRAM (written by the config) and `RestrictEvents.kext` loaded |
-| Fan always on | Expected under sustained load without GPU acceleration; the CPU renders the UI |
+| High idle temperature | `CpuTopologyRebuild.kext` loaded; `SSDT-PLUG-ALT-12.aml` present; check `pmset -g therm`; first reduce the display to 1440×900 HiDPI |
+| CPU name wrong | `revcpu=1` and `revpatch=cpuname` in boot-args, `revcpuname` in NVRAM, and `RestrictEvents.kext` loaded |
+| Fan always on / UI slow | Native 2880×1800 1× mode, `MTLCompilerService` shader denials, or a hung app; see below |
+| Battery settings pane exits | `PowerPreferences` extension crash; capture a log while opening it (below) |
 
-Recommended power settings while graphics is unresolved:
+Recommended power settings (sleep is broken on this firmware):
 
 ```sh
 sudo pmset -a hibernatemode 0 standby 0 sleep 0
 sudo pmset -a displaysleep 10
 sudo rm -f /var/vm/sleepimage
 ```
+
+### CPU name and thread count
+
+The i7-1250U is **2 P-cores + 8 E-cores = 10 cores and 12 threads**. The hang
+report in the collected bundle says `Active cpus: 12`, and `CpuTopologyRebuild`
+plus `SSDT-PLUG-ALT-12.aml` present 12 logical CPUs to macOS. Seeing "10 cores"
+in a tool is correct; it is the physical core count, not a lost thread. There is
+no missing-thread bug to fix in the EFI.
+
+The CPU name is handled by RestrictEvents:
+
+- `revcpu=1` forces the Intel brand-string patch;
+- `revpatch=cpuname` requests the CPU-name patch;
+- `revcpuname` in NVRAM supplies the string (it cannot contain spaces on the
+  boot-args line, which is why the custom name lives in NVRAM).
+
+The default build now carries `revcpu=1 revpatch=cpuname` on the boot-args line
+as well, so a stale `NVRAM/Delete` entry cannot silently disable the patch.
+After one reboot, check:
+
+```sh
+sysctl -n machdep.cpu.brand_string
+system_profiler SPHardwareDataType | grep -i 'Processor\|Chip'
+kmutil showloaded | grep RestrictEvents
+nvram 4D1FDA02-38C7-4A6A-9CC6-4BCCA8B30102:revcpuname
+```
+
+`Intel(R) TGL Unknown` in `system_profiler SPDisplaysDataType` is the **GPU**
+fallback name, not the CPU; see [the GPU-name section](#the-gpu-name-says-intelr-tgl-unknown).
+
+### Display scaling (HiDPI)
+
+A 2880×1800 panel in **1×** mode (`UI Looks like: 2880 x 1800`) gives a very
+small UI and makes WindowServer render every one of the 5.2 million pixels.
+That is both uncomfortable and heavier than it needs to be. macOS calls the
+scaled modes **"Looks like"**, and they render at 2× (or another factor) while
+reporting a smaller logical size:
+
+| System Settings > Displays | Render buffer | Equivalent GNOME scaling | Notes |
+|---|---|---|---|
+| Looks like **1440 × 900** | 2880 × 1800 | **200 %** | Recommended: sharp native panel, comfortable UI |
+| Looks like 1920 × 1200 | 3840 × 2400 then downscaled | 150 % | More desktop space, more GPU load, slightly softer |
+| Looks like 2880 × 1800 | 2880 × 1800 | 100 % | Current mode: tiny UI, highest GPU cost per frame |
+
+Choose **1440 × 900** first. It is the GNOME-200 % equivalent and the mode the
+fork's `-wex-scanout-coherent` argument was added to support. If text is still
+too small, choose 1280 × 800; if you need more space and accept the trade-off,
+try 1920 × 1200 and compare heat and sharpness. Do not use a third-party
+"resolution unlock" tool before the stock list has been tried.
+
+### Display colour profile
+
+The panel's EDID primaries are:
+
+| Primary | x | y |
+|---|---|---|
+| Red | 0.680 | 0.320 |
+| Green | 0.237 | 0.723 |
+| Blue | 0.140 | 0.050 |
+| White | 0.3125 | 0.3291 (D65) |
+
+That gamut is about **110 % of Display P3** by area and about 150 % of sRGB.
+The panel is a wide-gamut OLED, so **Display P3 is the right stock profile**;
+sRGB would clip the red/green end. Keep P3 selected. If colours look
+over-saturated after switching, choose the panel's default "Color LCD"
+profile instead, or make a custom ICC profile with a colorimeter (DisplayCAL
+or Argyl). "Generic RGB" and "Adobe RGB" are not appropriate defaults.
+
+### Battery settings pane exits (PowerPreferences)
+
+The error is the ExtensionKit process, not the battery data:
+
+```text
+Settings Error: Extension process PowerPreferences(1464) exited
+```
+
+The collected battery data is sane (`BatteryInstalled = Yes`,
+`MaxCapacity = 7745`, `DesignCapacity = 8638`, `Temperature = 2931` = 29.31 °C,
+`CycleCount = 0`), so this is not a missing-battery or ACPI-field problem. No
+`PowerPreferences` crash report was captured, so reproduce it while logging:
+
+```sh
+log stream --style compact --level debug \
+  --predicate 'process CONTAINS "PowerPreferences" OR eventMessage CONTAINS "PowerPreferences" OR process == "powerd"'
+```
+
+Then open **System Settings > Battery** in another window and stop `log stream`
+with Control-C. Also check `~/Library/Logs/DiagnosticReports` for a new
+`PowerPreferences*.ips`.
+
+Safe things to try, in order:
+
+1. Quit System Settings, then `sudo killall -9 PowerPreferences` and reopen it.
+2. Shut down, unplug the charger, hold the power button for 10 seconds, then
+   boot. This is the hackintosh equivalent of an SMC reset and rebuilds the
+   virtual SMC state.
+3. Reset NVRAM once from the OpenCore picker, boot once, then check whether the
+   pane opens. Identity is re-injected by OpenCore, so activation is preserved,
+   but do not do this while signed out of iCloud.
+4. Confirm `pmset` still works even if the pane does not:
+   ```sh
+   pmset -g
+   pmset -g batt
+   pmset -g therm
+   ```
+   If these are correct, the battery stack is healthy and only the Settings
+   extension is failing.
+
+Do not remove `SMCBatteryManager.kext` to "fix" the pane: that would trade a
+Settings crash for no battery percentage and no power management.
+
+### Why the machine is slow and hot
+
+The logs point at three separate costs, in order of impact:
+
+1. **Native 1× mode.** 2880×1800 with no HiDPI scaling makes every window
+   redraw at full panel resolution. Switch to 1440×900 HiDPI first; this is the
+   single biggest change.
+2. **Metal archive / compiler mismatch.** On 24H232 the Graphics 0.3.1 payload
+   was built for 24H32. Install the archive workaround in the previous section
+   and clear `~/Library/Caches/com.apple.Metal*` once. Repeated
+   `MTLCompilerService` sandbox denials of `XeCompilerAdapter.bundle` (see
+   [above](#apps-hang-after-a-few-minutes-mtlcompilerservice-sandbox)) make
+   apps hang and burn CPU while they retry.
+3. **A hung or crash-looping app.** The App Store hang at 16:08-16:14 and the
+   GPU reset at 15:34 happened while `DisplaysExt` was changing modes/colour.
+   Quit the app, avoid changing display settings repeatedly, and reboot after a
+   GPU reset. A GPU reset is not normal operation; if it repeats without a
+   display change, capture the new `gpuRestart` report.
+
+Power management itself is present: `X86PlatformPlugin` is loaded,
+`plugin-type = 1`, and `SSDT-PLUG-ALT-12.aml` declares the 12 logical CPUs. The
+12 threads are correct. To measure rather than guess:
+
+```sh
+pmset -g
+pmset -g therm
+pmset -g assertions
+top -l 1 -o cpu -n 15
+sudo powermetrics --samplers smc,cpu_power -n 1 -i 1000
+```
+
+If `kernel_task` is high, that is usually thermal compensation, not a kext
+leak. If `MTLCompilerService` or `WindowServer` is high, fix the display mode
+and the Metal archive issue first. If the CPU idles at a low multiplier but the
+machine is still hot, check `pmset -g therm` for `CPU_Scheduler_Limit` and
+`CPU_Available_CPUs`; report those values rather than changing SMBIOS.
 
 ## 8. Sleep and wake
 

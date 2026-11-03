@@ -71,7 +71,9 @@ from an older build must be repaired with
 | T03.5 | `ioreg -rc AppleIntelFramebuffer` | count ≥ 1 |
 | T03.6 | `ioreg -rc IntelAccelerator` | count ≥ 1 |
 | T03.7 | `system_profiler SPDisplaysDataType` | VRAM in the GB range (not 19 MB); Metal listed |
-| T03.8 | Check the internal panel at native 2880×1800 | no flicker, no half-screen, brightness keys work |
+| T03.8 | Set **Looks like 1440 × 900** (HiDPI) and check the internal panel | no flicker, no half-screen, brightness keys work; UI scale matches GNOME at 200 % |
+| T03.8a | Check `sysctl -n hw.ncpu` and `sysctl -n machdep.cpu.brand_string` | `12` and the i7-1250U name, not `Unknown` |
+| T03.8b | Open System Settings > Battery | pane opens; if it exits, capture the PowerPreferences log described in [08](08-troubleshooting.md#battery-settings-pane-exits-powerpreferences) |
 | T03.9 | Attach an external display over USB-C/HDMI (if available) | second display appears; record the connection path |
 | T03.10 | Open a Metal app (Maps, Photos, a game) | renders without software fallback |
 | T03.11 | Leave ControlCenter and Safari video running for a few minutes | no ControlCenter crash loop, no `RB::load_library_archive` assert |

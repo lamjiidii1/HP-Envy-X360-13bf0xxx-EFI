@@ -29,9 +29,14 @@ scratch with every payload pinned and hashed.
 > macOS update, and `scripts/macos/metal-archive-workaround.plist` covers the
 > matching Metal-archive crash on this build.
 >
-> **Not yet boot-tested on 15.8.2 from this repository.** The next step is one
-> normal boot plus a check of `TGLSequoiaMMIOGuard` in IORegistry (entry 19
-> should now be `1`).
+> **Boot-tested on 15.8.2 from this repository (2026-11-03).** The built stick
+> boots to the desktop, `TGLSequoiaMMIOGuard` entry 19 is `01`,
+> `IntelAccelerator` is present, `VRAM (Dynamic, Max)` is 1536 MB and
+> `system_profiler` reports **Metal 2**. The internal 2880×1800 OLED is online.
+> The remaining known limits are Metal 2 (not Metal 3), the GPU's internal
+> "Intel(R) TGL Unknown" name, and the battery-settings extension crash; they
+> are described in
+> [docs/08-troubleshooting.md](docs/08-troubleshooting.md#metal-2-versus-metal-3).
 
 ## Hardware
 
@@ -65,6 +70,7 @@ scripts/macos/patch-wex-tahoe-mmio.sh   repairs the 26.7.2 MMIO-UC signature
                                         (Tahoe history; not used on Sequoia)
 scripts/macos/patch-wex-sequoia-mmio.sh repairs the 15.8.2 (24H232) signature
 scripts/macos/metal-archive-workaround.plist  Metal archive crash workaround
+scripts/macos/post-install-check.sh      one-shot CPU/GPU/display/battery report
 scripts/macos/install-boot-capture.sh    black-screen boot capture daemon
 docs/                     hardware, audit, graphics, Wi-Fi, audio, install, test plan
 audit/                    reference matrix, config diff, log analysis, payload hashes
