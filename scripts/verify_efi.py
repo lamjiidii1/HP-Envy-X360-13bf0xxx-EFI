@@ -20,6 +20,9 @@ from pathlib import Path
 EXPECTED_ACPI = 12
 SCHEMA = Path(__file__).resolve().parent.parent / "audit" / "config-schema.json"
 FORBIDDEN_KEXTS = {"WhateverGreen.kext", "NootedGreen.kext", "NootedRed.kext", "AppleIntelTGLCompat.kext"}
+# Live `movl` immediate inside WhateverXe's Sequoia guard (four bytes).
+SEQUOIA_MMIO_OLD = bytes.fromhex("e871cb02")
+SEQUOIA_MMIO_NEW = bytes.fromhex("e8a1cb02")
 
 TYPE_NAMES = {
     bool: "bool",
@@ -116,6 +119,21 @@ def main() -> int:
 
     if any(k["BundlePath"] == "WhateverGreen.kext" for k in enabled_kexts):
         problems.append("WhateverGreen and WhateverXe must not be enabled together")
+
+    # A build for Sequoia 15.8.2 records its MMIO byte patch in BUILD-INFO.
+    # Check the output, not the pinned payload: the payload stays published.
+    info_path = root / "BUILD-INFO.plist"
+    if info_path.is_file():
+        with info_path.open("rb") as handle:
+            build_info = plistlib.load(handle)
+        if (build_info.get("gpu_patches") or {}).get("sequoia_mmio"):
+            wex = oc / "Kexts" / "WhateverXe.kext" / "Contents" / "MacOS" / "WhateverXe"
+            if not wex.is_file():
+                problems.append("WhateverXe.kext executable is missing")
+            else:
+                blob = wex.read_bytes()
+                if blob.count(SEQUOIA_MMIO_OLD) or blob.count(SEQUOIA_MMIO_NEW) < 1:
+                    problems.append("WhateverXe Sequoia MMIO patch is missing or inconsistent")
 
     wifi = [k["BundlePath"] for k in enabled_kexts if "itlwm" in k["BundlePath"].lower()]
     if len(wifi) != 1:

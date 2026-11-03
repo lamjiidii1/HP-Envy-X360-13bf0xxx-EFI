@@ -11,6 +11,12 @@ Usage:
     ./scripts/build_efi.py --wifi itlwm            # itlwm + HeliPort fallback
     ./scripts/build_efi.py --debug                 # verbose boot
     ./scripts/build_efi.py --out /run/media/.../EFI
+    ./scripts/build_efi.py --skip-sequoia-mmio-patch   # boot another macOS build
+
+The default GPU variant gets a deterministic byte patch for the Sequoia
+15.8.2 (24H232) MMIO signature; pass --skip-sequoia-mmio-patch when building
+for a different macOS build.  The pinned payload in efi/variants stays
+untouched.
 """
 
 from __future__ import annotations
@@ -36,6 +42,7 @@ GPU_VARIANTS = {
             "-wex-scanout-coherent",
             "-wex-pm",
         ],
+        "sequoia_mmio_patch": True,
         "description": "WhateverXe 0.6.0 + adlp-edp patch series 54 (default, Graphics 0.3.1)",
     },
     "wex070": {
@@ -80,10 +87,66 @@ IDENTITY_FIELDS = (
     "SystemMemoryStatus",
 )
 
+# WhateverXe 0.6.0/0.6.1 compares _IOProtectCacheMode+0xCA with this call.
+# macOS 15.8.2 (24H232) moved the target by +0x30, which leaves the ninth
+# Sequoia guard comparison false and the accelerator stopped.  The value is
+# patched into the build output, not into the pinned payload in efi/variants,
+# so the repository still hashes the published binary.  See
+# scripts/macos/patch-wex-sequoia-mmio.sh and docs/03-graphics.md.
+SEQUOIA_MMIO_OLD = bytes.fromhex("e871cb0200")
+SEQUOIA_MMIO_NEW = bytes.fromhex("e8a1cb0200")
+SEQUOIA_MMIO_MOVL = b"\xc7\x45"
+
 
 def fail(message: str) -> "NoReturn":
     print(f"error: {message}", file=sys.stderr)
     raise SystemExit(1)
+
+
+def _live_sites(data: bytes, pattern: bytes) -> list[int]:
+    return [
+        i
+        for i in range(3, len(data))
+        if data[i - 3 : i - 1] == SEQUOIA_MMIO_MOVL and data[i : i + len(pattern)] == pattern
+    ]
+
+
+def patch_sequoia_mmio(binary: Path) -> dict:
+    """Rewrite WhateverXe's stale Sequoia MMIO constant in a built kext.
+
+    The live comparison loads a four-byte immediate (``c7 45 <disp> imm32``);
+    the fifth byte comes from the adjacent ``c6 45 <disp> 00``.  A second,
+    five-byte copy sits in the literal pool.  Replacing the four-byte pattern
+    covers both: the pool copy keeps its trailing zero.
+    """
+    data = binary.read_bytes()
+    old_live = SEQUOIA_MMIO_OLD[:4]
+    new_live = SEQUOIA_MMIO_NEW[:4]
+
+    old_n = data.count(old_live)
+    new_n = data.count(new_live)
+    live_old = _live_sites(data, old_live)
+    live_new = _live_sites(data, new_live)
+
+    if len(live_new) == 1 and old_n == 0:
+        return {"status": "already-patched", "offset": f"0x{live_new[0]:x}"}
+    if old_n == 0 and new_n == 0:
+        fail(
+            f"{binary} has neither the old nor the new Sequoia MMIO constant; "
+            "this is not the expected WhateverXe build"
+        )
+    if len(live_old) != 1:
+        fail(f"{binary} has {len(live_old)} live Sequoia MMIO movl sites, expected one")
+    if old_n > 2:
+        fail(f"{binary} has {old_n} copies of the old Sequoia MMIO constant, expected at most two")
+
+    binary.write_bytes(data.replace(old_live, new_live))
+    return {
+        "status": "applied",
+        "old": SEQUOIA_MMIO_OLD.hex(),
+        "new": SEQUOIA_MMIO_NEW.hex(),
+        "offset": f"0x{live_old[0]:x}",
+    }
 
 
 def load_identity(path: Path) -> dict:
@@ -115,6 +178,11 @@ def main() -> int:
     parser.add_argument("--out", type=Path, default=REPO / "build" / "EFI")
     parser.add_argument("--debug", action="store_true", help="verbose boot and debug logging")
     parser.add_argument("--force", action="store_true", help="replace an existing output folder")
+    parser.add_argument(
+        "--skip-sequoia-mmio-patch",
+        action="store_true",
+        help="do not patch WhateverXe's 24H232 Sequoia MMIO constant (for other macOS builds)",
+    )
     args = parser.parse_args()
 
     gpu = GPU_VARIANTS[args.gpu]
@@ -135,6 +203,11 @@ def main() -> int:
     # 2. Selected kext variants.
     copy_tree(gpu["path"], args.out / "OC" / "Kexts" / "WhateverXe.kext")
     copy_tree(wifi["path"], args.out / "OC" / "Kexts" / wifi["bundle"])
+
+    gpu_patches = {}
+    if gpu.get("sequoia_mmio_patch") and not args.skip_sequoia_mmio_patch:
+        wex_binary = args.out / "OC" / "Kexts" / "WhateverXe.kext" / "Contents" / "MacOS" / "WhateverXe"
+        gpu_patches["sequoia_mmio"] = patch_sequoia_mmio(wex_binary)
 
     # 3. Configuration: identity, boot arguments, Wi-Fi entry, debug mode.
     config_path = args.out / "OC" / "config.plist"
@@ -170,6 +243,7 @@ def main() -> int:
     manifest = {
         "gpu": args.gpu,
         "gpu_description": gpu["description"],
+        "gpu_patches": gpu_patches,
         "wifi": args.wifi,
         "wifi_description": wifi["description"],
         "debug": args.debug,
@@ -181,6 +255,14 @@ def main() -> int:
 
     print(f"built {args.out}")
     print(f"  GPU     : {args.gpu} - {gpu['description']}")
+    if gpu_patches.get("sequoia_mmio"):
+        patch = gpu_patches["sequoia_mmio"]
+        if patch["status"] == "applied":
+            print(f"  GPU fix : Sequoia 24H232 MMIO {patch['old']} -> {patch['new']} at {patch['offset']}")
+        else:
+            print(f"  GPU fix : Sequoia 24H232 MMIO already patched at {patch['offset']}")
+    elif gpu.get("sequoia_mmio_patch"):
+        print("  GPU fix : Sequoia MMIO patch SKIPPED (--skip-sequoia-mmio-patch)")
     print(f"  Wi-Fi   : {args.wifi} - {wifi['description']}")
     print(f"  Debug   : {'yes' if args.debug else 'no'}")
     print(f"  Identity: {'injected' if identity else 'BLANK (do not boot yet)'}")
