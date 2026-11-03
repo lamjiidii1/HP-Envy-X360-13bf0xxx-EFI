@@ -75,6 +75,13 @@ BASE_ARGS = [
     "msgbuf=4194304",
     "shda-lang=en",
     "alcid=11",
+    # RestrictEvents: force the Intel brand-string patch and request the
+    # cpuname patch.  The custom name itself lives in NVRAM because boot-args
+    # cannot carry spaces reliably.  The NVRAM copies remain authoritative;
+    # these arguments only make the intent explicit and survive a stale
+    # NVRAM/Delete entry.
+    "revcpu=1",
+    "revpatch=cpuname",
 ]
 
 IDENTITY_FIELDS = (
