@@ -135,6 +135,8 @@ def patch_sequoia_mmio(binary: Path) -> dict:
             f"{binary} has neither the old nor the new Sequoia MMIO constant; "
             "this is not the expected WhateverXe build"
         )
+    if old_n and new_n:
+        fail(f"{binary} contains both the old and the new Sequoia MMIO constant")
     if len(live_old) != 1:
         fail(f"{binary} has {len(live_old)} live Sequoia MMIO movl sites, expected one")
     if old_n > 2:
