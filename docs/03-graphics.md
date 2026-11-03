@@ -103,7 +103,8 @@ MTL_DEBUG_IGNORE_PRECOMPILED_BINARIES=1
 MTL_DEBUG_IGNORE_PSO_FAIL_ON_MISS=1
 ```
 
-and restarts ControlCenter. Install it only if the symptoms appear:
+and restarts ControlCenter. Because both 0.3.1 and 0.3.2 target 24H32, it is
+recommended on this build as soon as Metal is confirmed; install it with:
 
 ```sh
 cp scripts/macos/metal-archive-workaround.plist ~/Library/LaunchAgents/
