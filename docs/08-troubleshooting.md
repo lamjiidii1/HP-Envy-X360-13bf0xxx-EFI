@@ -155,17 +155,27 @@ Checks, in order:
 
    `TGLSequoiaMMIOGuard` is a 20-entry array; entry **19** is the overall
    verdict and entries 8–16 are the individual byte comparisons. Entry 19 =
-   `01` means the 24H232 kernel matches the constants built into 0.6.0. If it
-   is `00`, the kernel layout changed and the accelerator never starts.
+   `01` means the kernel matches the constants in WhateverXe. On 24H232 the
+   published binary has a stale ninth constant, so the **default build
+   patches it** (`E8 71 CB 02` → `E8 A1 CB 02`); entry 19 should therefore be
+   `01` on the default `build/EFI`. The details are in
+   [03-graphics.md § The 24H232 MMIO signature](03-graphics.md#the-24h232-mmio-signature).
+
+   If entry 19 is `00`:
+
+   - confirm the stick/ESP really contains the patched binary; check
+     `EFI/BUILD-INFO.plist` for `gpu_patches.sequoia_mmio`, or compare the
+     executable hash with `6bf93338…` (patched) rather than `197da23b…`
+     (published);
+   - repair it in place with
+     `sudo scripts/macos/patch-wex-sequoia-mmio.sh --kext /Volumes/EFI/EFI/OC/Kexts/WhateverXe.kext`
+     (add `--kernel` with the matching KDK to read the real bytes);
+   - if the value changed after a macOS update, decode entry 16 and use the
+     script rather than editing bytes by hand.
 
    The Tahoe-era properties (`TGLMMIOStrongUCRouted`, `TGLTahoeMMIOGuard`) do
    not apply here; the Tahoe patch script modifies bytes that Sequoia never
-   executes. If entry 19 is `0`, the options are, in order: boot `wex070`
-   (which dropped exact-build matching) to see whether it can reach the panel
-   at all, or extend `scripts/macos/patch-wex-tahoe-mmio.sh` to the Sequoia
-   site at `_IOProtectCacheMode + 0xCA` (expected call `E8 71 CB 02 00`) once
-   the real 24H232 kernel bytes are known. Do not run the Tahoe script on
-   Sequoia and expect a change.
+   executes. Do not run the Tahoe script on Sequoia and expect a change.
 
 5. **The panel record is not the problem.** `WhateverXeFirmwarePanel` is
    `[0, 0, 9, 0, 0]` on this unit because the VBT sets `panel_type = 0xFF`
@@ -219,6 +229,44 @@ notify patch are all present. If brightness keys do nothing but the panel is
 on, check `BrightnessKeys.kext` is loaded and that the patch count is 2 (not
 0). If the panel is black at full brightness, this is the panel-record problem
 above, not the backlight table.
+
+### Metal apps crash or Safari video freezes (24H232)
+
+This is the failure **after** the accelerator starts, not the 19 MB fallback.
+Typical evidence:
+
+- ControlCenter crash-loops; the report points at
+  `MTLLoader sliceIDForDevice:…` and an assert inside
+  `RB::load_library_archive`;
+- Safari video freezes the GPU or the window;
+- `IntelAccelerator` is present and `system_profiler` reports Metal 2.
+
+Cause: the Metal driver in WhateverXe Graphics 0.3.1 was built for 24H32 and
+does not match Apple's precompiled Metal archives on 24H232. The fix is a
+per-user LaunchAgent that makes Metal ignore the archives and compile from
+source:
+
+```sh
+cp scripts/macos/metal-archive-workaround.plist ~/Library/LaunchAgents/
+launchctl bootstrap gui/$(id -u) \
+  ~/Library/LaunchAgents/local.wex.metal-archive-workaround.plist
+```
+
+It sets `RB_USE_BINARY_ARCHIVE=0`,
+`MTL_DEBUG_IGNORE_PRECOMPILED_BINARIES=1` and
+`MTL_DEBUG_IGNORE_PSO_FAIL_ON_MISS=1`, then restarts ControlCenter. To undo:
+
+```sh
+launchctl bootout gui/$(id -u) \
+  ~/Library/LaunchAgents/local.wex.metal-archive-workaround.plist
+rm ~/Library/LaunchAgents/local.wex.metal-archive-workaround.plist
+```
+
+The workaround is adapted from
+[dwiwinarno911/opencore-msi-tigerlake-irisxe](https://github.com/dwiwinarno911/opencore-msi-tigerlake-irisxe),
+where it fixed the same crash on the same build. If the crash persists, capture
+the `.ips` report and note whether the process is ControlCenter, WindowServer
+or Safari; a WindowServer crash is not this bug.
 
 ### Video playback / camera crashes
 

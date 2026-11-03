@@ -117,7 +117,7 @@ copied. Commits are the ones actually inspected.
 
 | Repository | Hardware | Graphics approach | What was taken | What was rejected |
 |---|---|---|---|---|
-| [retropineaple/whateverxe-hp-envy-x360](https://github.com/retropineaple/whateverxe-hp-envy-x360) `8100282` (was `9809987`) | **Exact model**: HP Envy x360 13-bf0059TU, i7-1250U, 0x46AA, 2880×1800 OLED | WhateverXe 0.6.0 + 54 `adlp-edp` patches; Graphics 0.3.1 | Its published WhateverXe binary as default (`197da23b…`, patch series 54, unmodified), ACPI set, iGPU properties, `-wex-*` args, AppleALC DSP patch, USB map, overall EFI shape | Its published SMBIOS (blank) |
+| [retropineaple/whateverxe-hp-envy-x360](https://github.com/retropineaple/whateverxe-hp-envy-x360) `8100282` (was `9809987`) | **Exact model**: HP Envy x360 13-bf0059TU, i7-1250U, 0x46AA, 2880×1800 OLED | WhateverXe 0.6.0 + 54 `adlp-edp` patches; Graphics 0.3.1 | Its published WhateverXe binary as default (`197da23b…`, patch series 54; stored unmodified, the build patches the 24H232 Sequoia constant), ACPI set, iGPU properties, `-wex-*` args, AppleALC DSP patch, USB map, overall EFI shape | Its published SMBIOS (blank) |
 | [b00t0x/WhateverXe](https://github.com/b00t0x/WhateverXe) `68a2427` (0.6.1) | TGL, ADL-N, ADL/RPL-H/P/U | Upstream driver + 0.6.1 generic ADL-P/U eDP support | Boot-arg vocabulary, compatibility rules, diagnostic variant | Rejects this unit's VBT (`Status::Conflict`) and has no `-wex-adlp-edp` |
 | [b00t0x/WhateverXe-Graphics](https://github.com/b00t0x/WhateverXe-Graphics) `v0.3.1` (0.3.1) | Same | Signed Apple payloads + `AppleIntelTGLCompat` 0.6.0 | Pinned install package (0.3.1) and AMFIPass 1.4.1 Mod | Bundling Apple payloads in Git |
 | [JulioNectar/Hackintosh-XPS13Plus-IrisXe-Tahoe](https://github.com/JulioNectar/Hackintosh-XPS13Plus-IrisXe-Tahoe) `6f03560` | Dell XPS 13 Plus 9320, i7-1360P, 0xA7A0 | NootedGreen + user-space Metal patches | Debugging methodology, Raptor Lake notes, VA-driver caveats | The NootedGreen stack — different driver, higher risk, not validated for 0x46AA |
@@ -125,6 +125,7 @@ copied. Commits are the ones actually inspected.
 | [danyyok/Dell-Latitude-7420-EFI](https://github.com/danyyok/Dell-Latitude-7420-EFI) `aff2051` | Dell Latitude 7420, TGL i7-1165G7 | WhateverXe | Recovery-profile idea, 11-SSDT layout, `-ibtcompatbeta` note | Dell sensors, `SMCDellSensors`, its ACPI tables |
 | [daddyc00l69/Honor-MagicBook-WhateverXe-Hackintosh](https://github.com/daddyc00l69/Honor-MagicBook-WhateverXe-Hackintosh) | Honor MagicBook, i5-12450H, 0x46A3 | WhateverXe 0.6.1 | Confirmation of `itlwm` + HeliPort on ADL; HWP/topology notes | `AAPL,GfxYTile` (obsolete since WEX 0.4), its ACPI |
 | [Heitorpoggi/ASUS-VivoBook-16X-Hackintosh-](https://github.com/Heitorpoggi/ASUS-VivoBook-16X-Hackintosh-) `ee1a58b` | ASUS VivoBook 16X, i5-12500H | Claims NootedGreen/WhateverGreen acceleration | Nothing — **the repository contains only a README, no EFI** | Its claims (unverifiable, and it recommends WhateverGreen) |
+| [dwiwinarno911/opencore-msi-tigerlake-irisxe](https://github.com/dwiwinarno911/opencore-msi-tigerlake-irisxe) `b823e383` | MSI Tiger Lake-U, i7-1195G7, 0x9A49 | WhateverXe 0.6.1 **patched** + Graphics 0.3.1/0.3.2, **Sequoia 15.8.2 (24H232)** | The 24H232 Sequoia MMIO constant, the expected guard checks, and the Metal archive LaunchAgent | Its 0.6.1 binary (rejects this VBT), zeroed SMBIOS, MSI-specific ACPI/EC and trackpad findings |
 
 ### Details worth keeping
 
@@ -136,9 +137,12 @@ copied. Commits are the ones actually inspected.
 - The HP reference was tested on **macOS 26.7.1 (25G241)**; at the time of the
   audit this machine ran **26.7.2 (25G332)**, and that difference was the Tahoe
   kernel/MMIO problem (see `docs/03-graphics.md`). **The machine has since been
-  downgraded to Sequoia 15.8.2 (24H232)**, where that Tahoe routine does not
-  run and the MMIO byte patch is not applied. The VBT evidence is unaffected:
-  the captured VBT is byte-identical to the reference's fixture.
+  downgraded to Sequoia 15.8.2 (24H232)**. The Tahoe routine does not run
+  there, but Sequoia has its own build-matched check: 24H232 changed
+  `_IOProtectCacheMode+0xCA` by `+0x30`, so the published 0.6.0 constant is
+  stale. The default build patches it; the stored payload is unchanged. The
+  VBT evidence is unaffected: the captured VBT is byte-identical to the
+  reference's fixture.
 - EliteBook840G8 runs WhateverXe 0.6.1 + Graphics 0.3.2 on Tahoe, so that pair
   is viable for Tiger Lake. It is not evidence for ADL-P eDP on this VBT, and
   this repository does not use it.
@@ -160,6 +164,8 @@ copied. Commits are the ones actually inspected.
 |---|---|
 | Default GPU variant = WhateverXe 0.6.0 + `adlp-edp` | The firmware VBT has two internal DP children plus a duplicate DDI entry; upstream 0.6.1 **and 0.7.0** return `Status::Conflict` for it and cannot drive the panel. The 0.6.0 fork keeps the first child per DDI and is the only stack proven on this exact model |
 | Keep 0.7.0 as a control variant | It tests upstream behaviour on Sequoia and is the only build without the exact-build MMIO requirement; its parser was measured against this VBT and is not expected to reach the panel |
+| Patch the 24H232 Sequoia constant in the **build output**, not in Git | The published 0.6.0 binary is the only known driver for this panel, but its ninth Sequoia guard expects the 24H32 call. Patching the output keeps the payload hash meaningful and makes the change reproducible; `patch-wex-sequoia-mmio.sh` repairs a stick without rebuilding |
+| Ship the Metal archive LaunchAgent as an opt-in tool | It is only needed after the accelerator starts on 24H232; installing it by default would mask the difference between "Metal absent" and "Metal crashing on archives" |
 | Two Wi-Fi variants | `AirportItlwm` 2.4.0 (Sequoia build) is the default; `itlwm` + HeliPort stays as the proven, OS-independent fallback if the alpha build does not attach. Build-time choice avoids two kexts fighting |
 | Keep `-igfxdvmt` + `framebuffer-stolenmem 0000c003` | BIOS leaves 60 MB DVMT; both the reference and this unit need the pair |
 | Drop `-vi2c-force-polling` | Only affects VoodooI2C; the touchpad is dead in hardware, and the reference does not use it |

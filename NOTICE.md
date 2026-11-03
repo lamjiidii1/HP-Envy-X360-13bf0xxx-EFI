@@ -20,7 +20,7 @@ they have.
 | `VoodooPS2Controller.kext` | [acidanthera/VoodooPS2](https://github.com/acidanthera/VoodooPS2) 2.3.8 | BSD-3-Clause | none |
 | `AMFIPass.kext` | [dhinakg/AMFIPass](https://github.com/dhinakg/AMFIPass) 1.4.1, "Mod" build from WhateverXe Graphics | BSD-3-Clause | trust anchor changed for Xe bundles |
 | `WhateverXe.kext` (0.7.0) | [b00t0x/WhateverXe](https://github.com/b00t0x/WhateverXe) 0.7.0 | BSD-3-Clause | none; control variant only |
-| `WhateverXe.kext` (0.6.0) | b00t0x 0.6.0 + [retropineaple adlp-edp patches](https://github.com/retropineaple/WhateverXe/tree/adlp-edp), prebuilt in [retropineaple/whateverxe-hp-envy-x360](https://github.com/retropineaple/whateverxe-hp-envy-x360) | BSD-3-Clause | 54 adlp-edp patches; published binary, no local modification |
+| `WhateverXe.kext` (0.6.0) | b00t0x 0.6.0 + [retropineaple adlp-edp patches](https://github.com/retropineaple/WhateverXe/tree/adlp-edp), prebuilt in [retropineaple/whateverxe-hp-envy-x360](https://github.com/retropineaple/whateverxe-hp-envy-x360) | BSD-3-Clause | 54 adlp-edp patches; stored binary unmodified, but `make build` applies the 24H232 Sequoia MMIO constant (one byte) to the output — see `docs/03-graphics.md` |
 | `AirportItlwm.kext` | [laobamac/itlwm](https://github.com/laobamac/itlwm) `v2.4.0-alpha`, `AirportItlwm-Sequoia` build; project upstream [OpenIntelWireless/itlwm](https://github.com/OpenIntelWireless/itlwm) | GPL-2.0 | none; not an official OpenIntelWireless release, see `docs/10-provenance.md` |
 | `itlwm.kext` | OpenIntelWireless/itlwm 2.3.0 | GPL-2.0 | none |
 | `IntelBluetoothFirmware.kext`, `IntelBTPatcher.kext` | OpenIntelWireless 2.5.1 | GPL-2.0 | none |
@@ -32,6 +32,14 @@ they have.
 | `HoRNDIS.kext` | [jwise/HoRNDIS](https://github.com/jwise/HoRNDIS) | GPL-2.0 | none |
 | `VoodooI2C*.kext` | [VoodooI2C](https://github.com/VoodooI2C/VoodooI2C) 2.9.1 | GPL-2.0 | none |
 | `CpuTopologyRebuild.kext` | b00t0x 2.0.2 | BSD-3-Clause | none |
+
+The Sequoia 24H232 MMIO diagnosis and the Metal-archive workaround are adapted
+with attribution from
+[dwiwinarno911/opencore-msi-tigerlake-irisxe](https://github.com/dwiwinarno911/opencore-msi-tigerlake-irisxe),
+which does not state a separate license for its configuration data and scripts.
+`scripts/macos/metal-archive-workaround.plist` is redistributed with no
+functional change; the MMIO patch is reimplemented here and applied to the
+built binary only. Attribution and hashes are in `docs/10-provenance.md`.
 
 Apple's graphics drivers are **not** included in this repository. They come
 from the separately installed WhateverXe Graphics package

@@ -10,32 +10,112 @@ The machine was downgraded from Tahoe 26.7.2 to **macOS Sequoia 15.8.2
 
 | Half | Version | Why |
 |---|---|---|
-| EFI kext | WhateverXe 0.6.0, `adlp-edp` branch, patch series 54, **unmodified** (`197da23b…`) | only build that parses this VBT and drives this panel |
+| EFI kext | WhateverXe 0.6.0, `adlp-edp` branch, patch series 54, published binary `197da23b…`; `make build` applies the 24H232 Sequoia constant | only build that parses this VBT and drives this panel |
 | Installed package | WhateverXe Graphics 0.3.1 (`AppleIntelTGLCompat` 0.6.0) | must match 0.6.0; already installed on the machine |
 
-The Tahoe-only MMIO byte patch is no longer applied. That is not a
-simplification of convenience: WhateverXe picks its MMIO protection routine by
-OS family (`tglPrepareMMIOUC()` dispatches to `…TahoeMMIOUC`,
-`…SequoiaMMIOUC`, `…SonomaMMIOUC`, …), and the patch lived in the Tahoe
-routine's argument. On Sequoia those bytes are never executed, so the patched
-binary behaved exactly like the published one. Shipping the published binary
-again makes the payload reproducible from upstream.
+WhateverXe picks its MMIO protection routine by OS family
+(`tglPrepareMMIOUC()` dispatches to `…TahoeMMIOUC`, `…SequoiaMMIOUC`,
+`…SonomaMMIOUC`, …). The Tahoe patch therefore never ran here. Sequoia has its
+own build-matched check, and **24H232 does not match the constant in either
+WhateverXe 0.6.0 or 0.6.1**, so the published binary still cannot start the
+accelerator. The default build rewrites the one stale byte in the built kext;
+the pinned payload in `efi/variants` stays as published.
 
 What to check after the first Sequoia boot:
 
 ```sh
-ioreg -lw0 | grep -o '"TGLSequoiaMMIOGuard" = <[^>]*>'   # guard[19] should be 01
+ioreg -lw0 | grep -o '"TGLSequoiaMMIOGuard" = <[^>]*>'   # guard[19] must be 01
 ioreg -lw0 | grep -o '"WhateverXeFirmwarePorts" = <[^>]*>'
 ioreg -lw0 | grep -o '"TGLMMIOStrongUCRouted" = [^<]*'
+ioreg -rc IntelAccelerator | head -1                     # must print a match
+system_profiler SPDisplaysDataType | grep -i metal
 ```
 
 `TGLSequoiaMMIOGuard` is a 20-entry array; entry 19 is the overall verdict, and
-entries 8–16 are the individual byte comparisons. If entry 19 is `0`, the
-Sequoia kernel at 24H232 does not match the constants built into 0.6.0 — the
-same class of problem as Tahoe 26.7.2, but at `_IOProtectCacheMode + 0xCA`
-with the expected call `E8 71 CB 02 00`. The natural follow-ups, in order, are
-(a) 0.7.0 (which dropped the exact-build requirement) if it can be made to see
-the panel, or (b) a Sequoia variant of the same one-constant patch.
+entries 8–16 are the individual byte comparisons. Entry 16 is the ninth and
+last comparison, at `_IOProtectCacheMode + 0xCA`. If entry 19 is still `0`,
+decode the array and read the next section.
+
+## The 24H232 MMIO signature
+
+`tglPrepareSequoiaMMIOUC()` compares nine kernel byte patterns. On 24H232 the
+first eight match and the ninth does not:
+
+| | |
+|---|---|
+| Expected by WhateverXe (build 24H32) | `_IOProtectCacheMode+0xCA` = `E8 71 CB 02 00` (call rel32 `0x2CB71`) |
+| Actual on build 24H232 | `E8 A1 CB 02 00` (call rel32 `0x2CBA1`, target shifted `+0x30`) |
+
+The failed comparison sets `tglMMIOUCRouted` and `tglActive` to false; the
+accelerator probe is then rejected and the machine falls back to a framebuffer
+with about 19 MB VRAM and no Metal. This is the same failure shape as the
+Tahoe one, at a different routine and a different offset.
+
+The constant appears **twice** in the binary, and only one copy is live:
+
+| Offset | What it is | Referenced? |
+|---|---|---|
+| `0x16FCE` | four-byte `imm32` of `movl $0x02CB71E8,-0x58(%rbp)` at `0x16FCB`; the fifth byte `00` comes from the adjacent `movb $0,-0x54(%rbp)` | yes — the guard's ninth `memcmp` |
+| `0xCF211` | five-byte copy in the literal pool, immediately before the `TGLSequoiaMMIOGuard` string | no — left over from the guard table |
+
+The fork's `tglPrepareSequoiaMMIOUC()` is byte-identical to upstream 0.6.1's,
+so the finding transfers exactly. Credit for the diagnosis and the first
+working binary goes to
+[dwiwinarno911/opencore-msi-tigerlake-irisxe](https://github.com/dwiwinarno911/opencore-msi-tigerlake-irisxe),
+who patched 0.6.1 at `0x16703` (live `movl`) and `0xcbabe` (pool copy) and got
+`IntelAccelerator` and Metal 2 on the same macOS build.
+
+Two tools apply the change:
+
+- `make build` patches the built `WhateverXe.kext` from `E8 71 CB 02` to
+  `E8 A1 CB 02` and records the result in `BUILD-INFO.plist`
+  (`gpu_patches.sequoia_mmio`). `--skip-sequoia-mmio-patch` disables it when
+  building for a different macOS build. The resulting default binary is
+  `6bf93338…`; the pinned payload remains `197da23b…`.
+- `scripts/macos/patch-wex-sequoia-mmio.sh` repairs a stick or ESP in place.
+  With `--kernel` it reads the actual bytes from the matching KDK kernel and
+  refuses a kernel whose `_IOProtectCacheMode` prologue does not match;
+  without a KDK it uses the known 24H232 value and says so. `--dry-run` and
+  `--restore` work like the Tahoe tool. It patches only `C7 45`-prefixed live
+  immediates and the literal-pool copy, and requires the
+  `TGLSequoiaMMIOGuard` anchor.
+
+After any macOS update, re-check `TGLSequoiaMMIOGuard`. A point update can move
+the call again; in that case decode entry 16 and run the script with the new
+KDK rather than guessing.
+
+## Metal archives on 24H232
+
+Getting the accelerator to start is only the first half. Once
+`IntelAccelerator` is active, WhateverXe Graphics 0.3.1 can still crash on
+Apple's **precompiled Metal archives**, because the payload was built for
+24H32. The symptoms are a ControlCenter crash loop in
+`RB::load_library_archive` (assert after `MTLLoader sliceIDForDevice:…`) and
+Safari video freezes. This is not the MMIO guard: here Metal exists but
+mishandles an archive.
+
+`scripts/macos/metal-archive-workaround.plist` is a per-user LaunchAgent that
+sets:
+
+```
+RB_USE_BINARY_ARCHIVE=0
+MTL_DEBUG_IGNORE_PRECOMPILED_BINARIES=1
+MTL_DEBUG_IGNORE_PSO_FAIL_ON_MISS=1
+```
+
+and restarts ControlCenter. Install it only if the symptoms appear:
+
+```sh
+cp scripts/macos/metal-archive-workaround.plist ~/Library/LaunchAgents/
+launchctl bootstrap gui/$(id -u) \
+  ~/Library/LaunchAgents/local.wex.metal-archive-workaround.plist
+```
+
+Remove it with `launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/local.wex.metal-archive-workaround.plist`
+if a later Graphics package fixes the archive mismatch. The workaround is
+adapted from the MSI repository named above, where it fixed the same crash on
+the same build; see
+[08-troubleshooting.md](08-troubleshooting.md#metal-apps-crash-or-safari-video-freezes-24h232).
 
 ## Why the fork is still required on Sequoia
 
@@ -174,10 +254,10 @@ on this unit:
    no panel.
 2. **It has no `-wex-adlp-edp`.** The option was a 0.6.0-fork feature and was
    never merged upstream.
-3. **It had the same MMIO constant (Tahoe only).** On Tahoe the `protectCall`
-   check was identical in 0.6.0 and 0.6.1, so 0.6.1 would have failed on
-   25G332 even if the VBT parsed. 0.7.0 removed that exact-build requirement,
-   but not the parser problem.
+3. **It has the same stale Sequoia constant.** `tglPrepareSequoiaMMIOUC()` is
+   byte-identical in 0.6.0 and 0.6.1, so 0.6.1 fails the ninth check on
+   24H232 unless it gets the same patch (the MSI EFI does exactly that).
+   0.7.0 removed the exact-build requirement, but not the parser problem.
 
 0.7.0 is in the same position: it fixed the VBT *version* range and the MMIO
 build matching, but the duplicate-DDI rule and the `panel_type = 0xFF` case are
@@ -186,9 +266,9 @@ unchanged (see [above](#why-the-fork-is-still-required-on-sequoia)).
 ## The 26.7.2 MMIO signature (Tahoe history)
 
 Everything in this section applies to **Tahoe 26.7.2 only**. On Sequoia a
-different routine runs and these bytes are never read; the section is kept
-because the same failure mode can reappear on a Sequoia point update, at
-`_IOProtectCacheMode + 0xCA` with the expected call `E8 71 CB 02 00`.
+different routine runs and these bytes are never read. It is kept as the
+method that found the analogous 24H232 check described
+[above](#the-24h232-mmio-signature), and as a tool for a future Tahoe boot.
 
 `tglPrepareTahoeMMIOUC()` validates `_IOProtectCacheMode` by comparing nine
 kernel byte patterns. On 25G332, eight match and only the call at
@@ -405,9 +485,10 @@ applied with the four-byte immediate (`e8 2f f3 02` → `e8 5f f3 02`) in the
 live `movl $imm32,-0x58(%rbp)` initialiser, leaving the unreferenced copy
 before the `TGLTahoeMMIOGuard` anchor at the original constant.
 
-**After the downgrade the patch is no longer applied.** The default payload is
-the published `197da23b…` binary again; on Sequoia the Tahoe routine is not
-called at all (see *Current state* above). `scripts/macos/patch-wex-tahoe-mmio.sh`
+**After the downgrade the Tahoe patch is no longer applied.** The stored
+payload is the published `197da23b…` binary; on Sequoia the Tahoe routine is
+not called. The build does apply the separate 24H232 Sequoia constant described
+in *The 24H232 MMIO signature* above. `scripts/macos/patch-wex-tahoe-mmio.sh`
 stays in the tree for a future Tahoe boot, not as a build step.
 
 Two separate findings remain from the same boot:
@@ -464,7 +545,10 @@ guarantee the 19 MB fallback.
    ```
    If `AppleIntelTGLCompat` is missing or is not 0.6.0, install **WhateverXe
    Graphics 0.3.1** and restart. 0.3.1 is the package that matches the fork.
-3. There is no MMIO patch step on Sequoia.
+3. The default `make build` already contains the 24H232 Sequoia MMIO constant.
+   If you copied an older stick, run
+   `scripts/macos/patch-wex-sequoia-mmio.sh` on it first; the build does not
+   patch a stick that was assembled elsewhere.
 4. Check the Sequoia MMIO verdict and acceleration with the commands in
    *Verify after the reboot* and in *Current state* above.
 

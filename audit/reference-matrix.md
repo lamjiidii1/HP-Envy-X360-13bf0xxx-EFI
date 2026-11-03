@@ -17,6 +17,8 @@ repository.
 > against this machine's real VBT; it still returns `Status::Conflict`, so the
 > 0.6.0 fork remains the default and 0.7.0 ships only as a control. The
 > sections below are kept as the audit trail; §3 and §4 carry the new evidence.
+> §12 records a Sequoia 24H232 reference inspected on 2026-11-03, after the
+> original audit.
 
 ## 1. Overview
 
@@ -30,6 +32,7 @@ repository.
 | [danyyok/Dell-Latitude-7420-EFI](https://github.com/danyyok/Dell-Latitude-7420-EFI) | `aff2051` | Dell Latitude 7420, i7-1165G7 | Tahoe | WhateverXe | — | Recovery-profile idea; 11-SSDT layout |
 | [daddyc00l69/Honor-MagicBook-WhateverXe-Hackintosh](https://github.com/daddyc00l69/Honor-MagicBook-WhateverXe-Hackintosh) | `690146e` | Honor MagicBook `BRN-FXX`, i5-12450H, `0x46A3` | Sonoma/Sequoia | WhateverXe 0.6.1 | itlwm + HeliPort | Confirms itlwm on ADL; HWP/topology notes |
 | [Heitorpoggi/ASUS-VivoBook-16X-Hackintosh-](https://github.com/Heitorpoggi/ASUS-VivoBook-16X-Hackintosh-) | `ee1a58b` | ASUS VivoBook 16X, i5-12500H | claims Tahoe | claims NootedGreen/WhateverGreen | AirportItlwm | **README only — no EFI, nothing adopted** |
+| [dwiwinarno911/opencore-msi-tigerlake-irisxe](https://github.com/dwiwinarno911/opencore-msi-tigerlake-irisxe) | `b823e383` | MSI Tiger Lake-U, i7-1195G7, `0x9A49` | **15.8.2 (24H232)** | WhateverXe 0.6.1 **patched** + Graphics 0.3.1/0.3.2 | itlwm (AirportItlwm included) | Sequoia MMIO constant; Metal-archive workaround |
 
 ## 2. Same-model reference: retropineaple/whateverxe-hp-envy-x360
 
@@ -270,7 +273,57 @@ contradicts the upstream WhateverXe rule and would break this machine.
 - Claims that could not be reproduced from files (ASUS acceleration, XPS
   user-space Metal) are recorded as claims, not as evidence.
 
-## 12. What was not copied
+## 12. Late addition — dwiwinarno911/opencore-msi-tigerlake-irisxe
+
+Inspected on 2026-11-03 (commit `b823e383`, 2026-10-31). This is the first
+public EFI for **the same macOS build** (15.8.2 / 24H232) with a working Xe-LP
+Metal stack, on an MSI Tiger Lake-U (`0x9A49`), so its graphics findings were
+checked against our binary rather than copied.
+
+### Facts that mattered
+
+- WhateverXe 0.6.1's `tglPrepareSequoiaMMIOUC()` expects
+  `_IOProtectCacheMode+0xCA` = `E8 71 CB 02 00`; 24H232 has
+  `E8 A1 CB 02 00` (call target shifted `+0x30`). The ninth guard comparison
+  fails, `TGLMMIOStrongUCRouted` stays `No`, and the accelerator never starts.
+- The published fix changes the constant in two places in the kext binary:
+  the live `movl` immediate (`0x16703` in his 0.6.1) and the literal-pool copy
+  (`0xcbabe`). Pristine `e92b65b0…` → patched `db41df41…`.
+- Our 0.6.0 fork's `tglPrepareSequoiaMMIOUC()` is **byte-identical** to
+  upstream 0.6.1's (verified by diffing the extracted tag sources). The same
+  patch is therefore valid; our offsets are `0x16FCF` and `0xCF212` because the
+  0.6.0 binary layout differs.
+- On 24H232 the Graphics 0.3.x Metal driver can crash ControlCenter in
+  `RB::load_library_archive` and freeze Safari video. His LaunchAgent sets
+  `RB_USE_BINARY_ARCHIVE=0`, `MTL_DEBUG_IGNORE_PRECOMPILED_BINARIES=1`,
+  `MTL_DEBUG_IGNORE_PSO_FAIL_ON_MISS=1`.
+- His `boot-args` are only `-allow3d -disablegfxfirmware -igfxdvmt`; the
+  `-wex-*` fork arguments remain specific to the adlp-edp build.
+- He uses `itlwm` + HeliPort; his AirportItlwm note (native menu, correct
+  BT/Wi-Fi coexistence, slower on 2.4 GHz) matches what we chose by default.
+
+### Adopted
+
+- The 24H232 MMIO constant, applied at build time and reproducible with
+  `scripts/macos/patch-wex-sequoia-mmio.sh`.
+- The Metal archive LaunchAgent, redistributed as
+  `scripts/macos/metal-archive-workaround.plist` with no functional change.
+- The expected verification commands (`TGLSequoiaMMIOGuard`,
+  `TGLAcceleratorAdmissionReady`, `IntelAccelerator`, Metal in
+  `system_profiler`).
+
+### Rejected or not applicable
+
+- **His patched 0.6.1 binary** is not used: 0.6.1 rejects this machine's VBT
+  (`Status::Conflict`) and lacks `-wex-adlp-edp`.
+- **His boot-args and SMBIOS.** The SMBIOS is zeroed in the published repo;
+  we keep the machine's existing identity and the fork's arguments.
+- **His `itlwm` default.** We keep AirportItlwm 2.4.0 unless it fails to
+  attach; the fallback is already built.
+- **His ACPI/EC and ELAN trackpad findings** are MSI-specific and do not
+  transfer to board `8A28`.
+
+## 13. What was not copied
 
 No config, ACPI table, kext, script or documentation text was copied from any
 reference except:
@@ -280,6 +333,8 @@ reference except:
 - the AppleALC patch script (used with attribution; the output is reproduced
   and hashed),
 - the 0.6.0 `adlp-edp` kext (default variant),
+- `scripts/macos/metal-archive-workaround.plist` (copied with attribution from
+  `dwiwinarno911/opencore-msi-tigerlake-irisxe`; no functional change),
 - its VBT and kext hashes as verification fixtures (recorded, not copied).
 
 Everything else was rebuilt and is explained in

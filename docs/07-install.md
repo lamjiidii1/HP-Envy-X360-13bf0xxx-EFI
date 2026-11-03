@@ -80,8 +80,9 @@ Keep the folder structure exactly `EFI/BOOT/BOOTx64.efi` and
 
 Order matters: **boot the target macOS with the WEX 0.6.0 EFI first, then make
 sure Graphics 0.3.1 is installed.** The EFI provides the WEX binary; the package
-provides Compat 0.6.0 and the patched Apple kexts. There is **no MMIO patch step
-on Sequoia** — that byte patch addressed the Tahoe 26.7.2 kernel only.
+provides Compat 0.6.0 and the patched Apple kexts. The default `make build`
+already carries the 24H232 Sequoia MMIO constant, so a fresh `build/EFI` needs
+no manual byte patch. A stick copied from an older build does; see step 4.
 
 1. Copy `build/EFI` to the ESP/USB and boot macOS from it (§3 and §5).
    Confirm the injected driver:
@@ -102,7 +103,14 @@ sudo installer -pkg WhateverXe-Graphics-0.3.1.pkg -target /
 3. The package rebuilds the Auxiliary Kernel Collection. **Restart** after it
    succeeds.
 4. On the next boot, check the Sequoia MMIO verdict and acceleration (§5).
-   Nothing needs patching.
+   A fresh default build is already patched. If you copied a stick made before
+   2026-11-03 (or the guard says `00`), repair it in place:
+   ```sh
+   sudo scripts/macos/patch-wex-sequoia-mmio.sh \
+     --kext /Volumes/EFI/EFI/OC/Kexts/WhateverXe.kext --dry-run
+   sudo scripts/macos/patch-wex-sequoia-mmio.sh \
+     --kext /Volumes/EFI/EFI/OC/Kexts/WhateverXe.kext
+   ```
 
 Do not install Graphics 0.3.2/0.4.0 with this EFI, and do not boot the
 `wex070` variant expecting a picture. The supported pair on this machine is
@@ -130,8 +138,12 @@ WhateverXe 0.6.0 (`adlp-edp`) + Graphics 0.3.1.
    ```
    On Sequoia, entry 19 of `TGLSequoiaMMIOGuard` must be `01` before expecting
    Metal; `TGLMMIOStrongUCRouted` is the Tahoe-era property name and may be
-   absent. See [docs/03-graphics.md](03-graphics.md#current-state-sequoia-1582).
-4. If the screen is black but the machine is alive, boot the `--debug` build
+   absent. The default build patches the ninth comparison for 24H232; see
+   [docs/03-graphics.md](03-graphics.md#the-24h232-mmio-signature).
+4. If ControlCenter crash-loops or Safari video freezes **after** Metal is
+   reported, install the archive workaround from
+   [docs/08-troubleshooting.md](08-troubleshooting.md#metal-apps-crash-or-safari-video-freezes-24h232).
+5. If the screen is black but the machine is alive, boot the `--debug` build
    with `-v` and capture the last screen; see
    [docs/08-troubleshooting.md](08-troubleshooting.md).
 
@@ -167,8 +179,9 @@ by the config on every boot, so a reset is safe.
    Linux/macOS).
 2. Reinstall WhateverXe Graphics 0.3.1. If you cannot boot macOS, the package
    can be reinstalled from Recovery with `installer -pkg … -target /Volumes/…`.
-   (On Sequoia there is no MMIO patch to restore; the default kext is the
-   published binary.)
+   (The default EFI is rebuilt from the published payload, so there is no
+   patched kext to restore; `patch-wex-sequoia-mmio.sh --restore` only undoes a
+   repair made with that script.)
 3. The old EFI in `mine/EFI` is the exact previous state; it is not in Git.
 
 ## 9. Notes for a clean reinstall

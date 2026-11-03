@@ -76,7 +76,7 @@ executable. `-` means the bundle has no executable (a pure plist injector).
 |---|---|---|---|---|
 | `Lilu.kext` | 1.7.2 | [acidanthera/Lilu](https://github.com/acidanthera/Lilu) | `ff98508b40a1eb5fb477029db8886412520f8e39965279ea331c99e3d2e3b274` | none |
 | `AMFIPass.kext` | 1.4.1 | [dhinakg/AMFIPass](https://github.com/dhinakg/AMFIPass) | `2d36aeca1740b258e6bb0b66844b5bfb59a0edb7cdd9ef78206689e5d223d8dc` | "Mod" build from WhateverXe Graphics: trust anchor changed for Xe bundles |
-| `WhateverXe.kext` | 0.6.0 | b00t0x + [retropineaple adlp-edp](https://github.com/retropineaple/WhateverXe/tree/adlp-edp), prebuilt in [whateverxe-hp-envy-x360](https://github.com/retropineaple/whateverxe-hp-envy-x360) commit `8100282` | `197da23bbe5a09731ef9517a0a6f9dabe52ab1f9b0c885a841a064190770288c` | unmodified published binary (patch series 54); **default** (variant `gpu-hp-adlp-edp`) |
+| `WhateverXe.kext` | 0.6.0 | b00t0x + [retropineaple adlp-edp](https://github.com/retropineaple/WhateverXe/tree/adlp-edp), prebuilt in [whateverxe-hp-envy-x360](https://github.com/retropineaple/whateverxe-hp-envy-x360) commit `8100282` | `197da23bbe5a09731ef9517a0a6f9dabe52ab1f9b0c885a841a064190770288c` | unmodified published binary (patch series 54); the build applies the 24H232 Sequoia constant (§5); **default** (variant `gpu-hp-adlp-edp`) |
 | `WhateverXe.kext` | 0.7.0 | [b00t0x/WhateverXe](https://github.com/b00t0x/WhateverXe) | `ea156ad48ce7e29b2b409232b4d0623abd492935428b43da79239899fa2b0f3f` | none; control only, rejects this VBT (variant `gpu-wex070`) |
 | `VirtualSMC.kext` | 1.3.9 | [acidanthera/VirtualSMC](https://github.com/acidanthera/VirtualSMC) | `bf91e9542b86c20acaf210353a93742291c49328e2d14b03fa0fa4fc52b3b5ce` | none |
 | `SMCProcessor.kext` | 1.3.9 | acidanthera/VirtualSMC | `dcf738671431721692f752e3df43acaaa02c93788ae7b21153504b07db01be32` | none |
@@ -158,11 +158,31 @@ The same-model reference was tested with 0.3.1, and its installed
 Graphics 0.3.2 ships Compat 0.6.1 and 0.4.0 ships Compat 0.7.0; neither is
 used with the 0.6.0 default. Do not mix the pairs.
 
-**No local modification is applied to `WhateverXe.kext` on Sequoia.** The
-Tahoe-era `scripts/macos/patch-wex-tahoe-mmio.sh` patched a constant in the
-Tahoe-only MMIO routine; that routine does not run on Sequoia, so the default
-payload is the published `197da23b…` binary. The script remains in the tree
-for a future Tahoe boot; see [docs/03-graphics.md](03-graphics.md#the-2672-mmio-signature-tahoe-history).
+**The stored payload is unmodified; the built kext is not.** The file in
+`efi/variants/gpu-hp-adlp-edp` is the published `197da23b…` binary. On Sequoia
+15.8.2 (24H232) `make build` rewrites its ninth Sequoia MMIO constant from
+`E8 71 CB 02` to `E8 A1 CB 02` in the output, so the default
+`build/EFI/OC/Kexts/WhateverXe.kext` executable is `6bf93338…`
+(`6bf9333808658eb6a5e828fbd2413a1ca33b6553380fa8a3af49e6dd3bea60ba`).
+`BUILD-INFO.plist` records the patch, and `verify_efi.py` checks the output.
+The transformation is one byte at `0x16FCF` (plus the literal-pool copy at
+`0xCF212`): `71` → `a1`. `--skip-sequoia-mmio-patch` builds the unmodified
+binary for another macOS build.
+
+Two tools describe or reproduce the change:
+
+- `scripts/macos/patch-wex-sequoia-mmio.sh` applies it to a stick in place and
+  can read the real kernel bytes from a KDK.
+- The Tahoe-era `scripts/macos/patch-wex-tahoe-mmio.sh` patches a different
+  routine that Sequoia never executes; it is kept for a future Tahoe boot.
+
+The Sequoia diagnosis and the first working patched binary come from
+[dwiwinarno911/opencore-msi-tigerlake-irisxe](https://github.com/dwiwinarno911/opencore-msi-tigerlake-irisxe)
+(WhateverXe 0.6.1, same 24H232 build). That repository also supplies the
+Metal-archive LaunchAgent, redistributed here as
+`scripts/macos/metal-archive-workaround.plist` with no functional change.
+See [docs/03-graphics.md](03-graphics.md#the-24h232-mmio-signature) and
+[docs/08-troubleshooting.md](08-troubleshooting.md#metal-apps-crash-or-safari-video-freezes-24h232).
 
 Citation: the 0.6.1/0.7.0 release notes add internal eDP/brightness support for
 Alder Lake-H/P/U, but the same release notes do not change the VBT parser's
@@ -171,8 +191,9 @@ not assumed). That is why the 0.6.0 `adlp-edp` fork remains the default.
 
 ## 6. AppleALC patch
 
-The only binary in the repository that is not byte-identical to an upstream
-release is `AppleALC.kext`.
+The only *stored* binary in the repository that is not byte-identical to an
+upstream release is `AppleALC.kext`. (`WhateverXe.kext` is stored unmodified
+and patched only in the build output; see §5.)
 
 - Upstream: AppleALC 1.9.8 RELEASE.
 - Patch: `tools/patches/patch-applealc-alc245-layout11.py`, adapted with
@@ -203,7 +224,8 @@ The release archives used to populate the repository:
 The 0.6.0 `adlp-edp` binary is taken from the same-model reference
 (`retropineaple/whateverxe-hp-envy-x360` commit `8100282`, 2026-11-01) and
 pinned by its executable hash `197da23b…`. It is the published patch-series-54
-binary, with no local modification. The older commit `9809987` shipped
+binary, with no local modification in Git; the default build patches its
+24H232 Sequoia constant as described in §5. The older commit `9809987` shipped
 `c090b9dd…`; that is the binary the previous EFI used, and it remains in Git
 history of this repository.
 

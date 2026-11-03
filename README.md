@@ -19,14 +19,19 @@ scratch with every payload pinned and hashed.
 > exactly that configuration. Evidence and the reasoning are in
 > [docs/03-graphics.md](docs/03-graphics.md#why-the-fork-is-still-required-on-sequoia).
 >
-> The Tahoe 26.7.2 MMIO byte patch is inert on Sequoia: WhateverXe selects a
-> different MMIO routine per OS family, so only the Tahoe one was ever patched.
-> The default kext is now the unmodified published binary again
-> (`197da23b…`), and `scripts/macos/patch-wex-tahoe-mmio.sh` is kept as a tool
-> for a future Tahoe boot.
+> On Sequoia 15.8.2 (24H232) WhateverXe selects a different MMIO routine, so
+> the Tahoe patch is inert. The same class of build-matched check exists there:
+> the ninth Sequoia guard comparison expects `E8 71 CB 02 00` at
+> `_IOProtectCacheMode+0xCA`, but 24H232 has `E8 A1 CB 02 00`. `make build`
+> now applies that one-byte constant change to the **built** kext; the payload
+> in `efi/variants` stays the published `197da23b…` binary.
+> `scripts/macos/patch-wex-sequoia-mmio.sh` can repair a stick in place after a
+> macOS update, and `scripts/macos/metal-archive-workaround.plist` covers the
+> matching Metal-archive crash on this build.
 >
 > **Not yet boot-tested on 15.8.2 from this repository.** The next step is one
-> normal boot plus a check of `TGLSequoiaMMIOGuard` in IORegistry.
+> normal boot plus a check of `TGLSequoiaMMIOGuard` in IORegistry (entry 19
+> should now be `1`).
 
 ## Hardware
 
@@ -58,6 +63,8 @@ scripts/verify_efi.py     structural and payload checks for a built EFI
 scripts/payload_inventory.py      regenerates audit/payloads.tsv
 scripts/macos/patch-wex-tahoe-mmio.sh   repairs the 26.7.2 MMIO-UC signature
                                         (Tahoe history; not used on Sequoia)
+scripts/macos/patch-wex-sequoia-mmio.sh repairs the 15.8.2 (24H232) signature
+scripts/macos/metal-archive-workaround.plist  Metal archive crash workaround
 scripts/macos/install-boot-capture.sh    black-screen boot capture daemon
 docs/                     hardware, audit, graphics, Wi-Fi, audio, install, test plan
 audit/                    reference matrix, config diff, log analysis, payload hashes
@@ -188,6 +195,10 @@ the deviation is recorded in the audit.
   [daddyc00l69/Honor-MagicBook-WhateverXe-Hackintosh](https://github.com/daddyc00l69/Honor-MagicBook-WhateverXe-Hackintosh)
   — audited references; no files are copied from them except where noted in
   [docs/10-provenance.md](docs/10-provenance.md).
+- [dwiwinarno911/opencore-msi-tigerlake-irisxe](https://github.com/dwiwinarno911/opencore-msi-tigerlake-irisxe)
+  — first public report of WhateverXe Metal on 15.8.2 (24H232) on Tiger Lake.
+  The Sequoia MMIO constant diagnosis and the Metal archive workaround are
+  adapted from that repository; see [docs/10-provenance.md](docs/10-provenance.md).
 
 ## License
 

@@ -16,12 +16,13 @@ step once and capture the evidence described in
 | T00.1 | `make build` | exits 0; `checked build/EFI` ends with `result : OK` |
 | T00.2 | `python3 scripts/verify_efi.py --allow-blank-identity build/EFI` on a checkout without the private identity | `result : OK` (CI mode) |
 | T00.3 | `make inventory` and `git diff --exit-code audit/payloads.tsv` | no diff: pinned payloads are unchanged |
-| T00.4 | `shasum -a 256 efi/variants/gpu-hp-adlp-edp/WhateverXe.kext/Contents/MacOS/WhateverXe` | `197da23b…770288c` (see [10-provenance.md](10-provenance.md)) |
-| T00.5 | Inspect `build/EFI/BUILD-INFO.plist` | `gpu = hp-adlp-edp`, `wifi = airportitlwm`, `debug = false`, `identity_injected = true` |
-| T00.6 | Open `build/EFI/OC/config.plist` | `boot-args` contains the five `-wex-*` fork arguments; SMBIOS fields are filled |
-| T00.7 | Back up the current ESP and keep a bootable USB | both exist and boot (test the USB before relying on it) |
+| T00.4 | `shasum -a 256 efi/variants/gpu-hp-adlp-edp/WhateverXe.kext/Contents/MacOS/WhateverXe` | `197da23b…770288c` — the stored payload stays published |
+| T00.5 | Inspect `build/EFI/BUILD-INFO.plist` | `gpu = hp-adlp-edp`, `wifi = airportitlwm`, `debug = false`, `identity_injected = true`; `gpu_patches.sequoia_mmio` = `applied` |
+| T00.6 | `shasum -a 256 build/EFI/OC/Kexts/WhateverXe.kext/Contents/MacOS/WhateverXe` | `6bf93338…3bea60ba` (published binary plus the 24H232 constant) |
+| T00.7 | Open `build/EFI/OC/config.plist` | `boot-args` contains the five `-wex-*` fork arguments; SMBIOS fields are filled |
+| T00.8 | Back up the current ESP and keep a bootable USB | both exist and boot (test the USB before relying on it) |
 
-Do not skip T00.7. The rest of the plan assumes a working escape hatch.
+Do not skip T00.8. The rest of the plan assumes a working escape hatch.
 
 ## Phase 1 — Boot and identity
 
@@ -56,8 +57,10 @@ later is honest.
 ## Phase 3 — Graphics: the primary experiment
 
 Prerequisite: `WhateverXe Graphics 0.3.1` (Compat 0.6.0) is installed and the
-`hp-adlp-edp` EFI is on the ESP. **There is no MMIO patch step on Sequoia** —
-the byte patch addressed the Tahoe 26.7.2 kernel only.
+`hp-adlp-edp` EFI is on the ESP. The default `make build` already carries the
+24H232 Sequoia MMIO constant; T00.5/T00.6 prove it before boot. A stick copied
+from an older build must be repaired with
+`scripts/macos/patch-wex-sequoia-mmio.sh` or rebuilt.
 
 | ID | Step | Pass criterion |
 |---|---|---|
@@ -71,13 +74,17 @@ the byte patch addressed the Tahoe 26.7.2 kernel only.
 | T03.8 | Check the internal panel at native 2880×1800 | no flicker, no half-screen, brightness keys work |
 | T03.9 | Attach an external display over USB-C/HDMI (if available) | second display appears; record the connection path |
 | T03.10 | Open a Metal app (Maps, Photos, a game) | renders without software fallback |
+| T03.11 | Leave ControlCenter and Safari video running for a few minutes | no ControlCenter crash loop, no `RB::load_library_archive` assert |
+| T03.12 | If T03.11 fails, install `scripts/macos/metal-archive-workaround.plist` and repeat | ControlCenter stays up; Metal app renders |
 
 If T03.2 shows entry 19 = `00`, save `TGLSequoiaMMIOGuard` and
-`TGLSequoiaMMIOInspection` and stop: the Sequoia kernel at 24H232 does not match
-the constants built into 0.6.0. That is the same class of problem as Tahoe
-26.7.2, at a different site. Do not change `-igfxdvmt`,
-`framebuffer-stolenmem` or the SMBIOS: memory admission already passed.
-See [03-graphics.md](03-graphics.md#current-state-sequoia-1582).
+`TGLSequoiaMMIOInspection` and confirm the ESP has the patched binary
+(`6bf93338…`, or `gpu_patches.sequoia_mmio` in `BUILD-INFO.plist`). If it does
+and entry 19 is still `00`, the kernel moved the call again: read the real
+bytes with `scripts/macos/patch-wex-sequoia-mmio.sh --kernel <KDK>` and record
+entry 16. Do not change `-igfxdvmt`, `framebuffer-stolenmem` or the SMBIOS:
+memory admission already passed.
+See [03-graphics.md](03-graphics.md#the-24h232-mmio-signature).
 
 ## Phase 4 — Graphics fallbacks (only if phase 3 fails)
 
@@ -88,7 +95,7 @@ Each step changes exactly one thing and records the same evidence bundle.
 | T04.1 | Reconfirm the default build is unchanged (same kext hash, same boot args) | isolates the driver as the only variable |
 | T04.2 | Boot `wex070` with `--debug` (`-v debug=0x100`), after installing Graphics 0.4.0 | capture the OpenCore log and `WhateverXeFirmwarePorts`; expect a VBT conflict and a dark internal panel |
 | T04.3 | Capture `WhateverXeVBTRaw` + port records + `TGLSequoiaMMIOGuard` | complete report for upstream |
-| T04.4 | If 0.6.0 shows entry 19 = `00`, document the real 24H232 bytes at `_IOProtectCacheMode + 0xCA` | evidence needed for a Sequoia variant of the MMIO patch |
+| T04.4 | If the patched 0.6.0 still shows entry 19 = `00`, record the real bytes at `_IOProtectCacheMode + 0xCA` with `patch-wex-sequoia-mmio.sh --kernel` | evidence for the next point-update constant |
 | T04.5 | Report upstream with BIOS F.35, macOS 24H232, the VBT and the guard | issue contains the evidence listed in [08](08-troubleshooting.md#11-reporting-a-graphics-bug-upstream) |
 | T04.6 | Revert to the default EFI and reinstall Graphics 0.3.1 | machine boots and is usable |
 
