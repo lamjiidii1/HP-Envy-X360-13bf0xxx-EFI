@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  WhateverXe Metal precompiled-archive workaround for macOS 15.8.2 (24H232).
+
+  The Metal driver in WhateverXe Graphics 0.3.1 does not line up with Apple's
+  precompiled Metal archives on this build, which can crash-loop ControlCenter
+  or freeze Safari video. These three environment variables make Metal ignore
+  the archives and compile from source instead.
+
+  Install as a per-user LaunchAgent:
+    cp metal-archive-workaround.plist ~/Library/LaunchAgents/
+    launchctl bootstrap gui/$(id -u) \
+      ~/Library/LaunchAgents/local.wex.metal-archive-workaround.plist
+
+  Adapted from dwiwinarno911/opencore-msi-tigerlake-irisxe
+  (scripts/metal-archive-workaround.plist), where it fixed the same crash on
+  the same macOS build.
+-->
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>local.wex.metal-archive-workaround</string>
+	<key>LimitLoadToSessionType</key>
+	<string>Aqua</string>
+	<key>ProcessType</key>
+	<string>Background</string>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>KeepAlive</key>
+	<false/>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/bin/sh</string>
+		<string>-c</string>
+		<string>/bin/launchctl setenv RB_USE_BINARY_ARCHIVE 0; /bin/launchctl setenv MTL_DEBUG_IGNORE_PRECOMPILED_BINARIES 1; /bin/launchctl setenv MTL_DEBUG_IGNORE_PSO_FAIL_ON_MISS 1; sleep 2; /usr/bin/killall ControlCenter 2>/dev/null; sleep 2; /usr/bin/open -a /System/Library/CoreServices/ControlCenter.app</string>
+	</array>
+</dict>
+</plist>
