@@ -78,7 +78,7 @@ from an older build must be repaired with
 | T03.9 | Attach an external display over USB-C/HDMI (if available) | second display appears; record the connection path |
 | T03.10 | Open a Metal app (Maps, Photos, a game) | renders without software fallback |
 | T03.11 | Leave ControlCenter and Safari video running for a few minutes | no ControlCenter crash loop, no `RB::load_library_archive` assert |
-| T03.12 | If T03.11 fails, install `scripts/macos/metal-archive-workaround.plist` and repeat | ControlCenter stays up; Metal app renders |
+| T03.12 | If T03.11 fails, run `bash scripts/macos/install-metal-archive-workaround.sh`, reboot and repeat | ControlCenter stays up; Metal app renders |
 
 If T03.2 shows entry 19 = `00`, save `TGLSequoiaMMIOGuard` and
 `TGLSequoiaMMIOInspection` and confirm the ESP has the patched binary

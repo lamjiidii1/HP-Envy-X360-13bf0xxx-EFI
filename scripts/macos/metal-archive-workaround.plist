@@ -8,10 +8,15 @@
   or freeze Safari video. These three environment variables make Metal ignore
   the archives and compile from source instead.
 
-  Install as a per-user LaunchAgent:
-    cp metal-archive-workaround.plist ~/Library/LaunchAgents/
-    launchctl bootstrap gui/$(id -u) \
-      ~/Library/LaunchAgents/local.wex.metal-archive-workaround.plist
+  Install it with the companion script, which copies this file under the label
+  name, bootstraps it, verifies the variables and clears the Metal caches:
+    bash install-metal-archive-workaround.sh
+
+  Do not copy it by hand: the LaunchAgent must live at
+  ~/Library/LaunchAgents/local.wex.metal-archive-workaround.plist, because that
+  is the path launchctl bootstrap needs. Copying it as
+  metal-archive-workaround.plist and then bootstrapping the label name fails
+  with "No such file or directory".
 
   Adapted from dwiwinarno911/opencore-msi-tigerlake-irisxe
   (scripts/metal-archive-workaround.plist), where it fixed the same crash on

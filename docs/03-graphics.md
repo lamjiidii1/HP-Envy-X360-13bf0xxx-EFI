@@ -131,18 +131,17 @@ MTL_DEBUG_IGNORE_PSO_FAIL_ON_MISS=1
 ```
 
 and restarts ControlCenter. Because both 0.3.1 and 0.3.2 target 24H32, it is
-recommended on this build as soon as Metal is confirmed; install it with:
+recommended on this build as soon as Metal is confirmed; install it with the
+companion script, which uses the label filename that `launchctl bootstrap`
+actually needs:
 
 ```sh
-cp scripts/macos/metal-archive-workaround.plist ~/Library/LaunchAgents/
-launchctl bootstrap gui/$(id -u) \
-  ~/Library/LaunchAgents/local.wex.metal-archive-workaround.plist
+bash scripts/macos/install-metal-archive-workaround.sh
 ```
 
-Remove it with `launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/local.wex.metal-archive-workaround.plist`
-if a later Graphics package fixes the archive mismatch. The workaround is
-adapted from the MSI repository named above, where it fixed the same crash on
-the same build; see
+Use `--dry-run` to inspect the commands and `--uninstall` to boot out the agent,
+unset the variables and clear the caches. The workaround is adapted from the
+MSI repository named above, where it fixed the same crash on the same build; see
 [08-troubleshooting.md](08-troubleshooting.md#metal-apps-crash-or-safari-video-freezes-24h232).
 
 ## Why the fork is still required on Sequoia

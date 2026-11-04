@@ -334,7 +334,8 @@ reference except:
   and hashed),
 - the 0.6.0 `adlp-edp` kext (default variant),
 - `scripts/macos/metal-archive-workaround.plist` (copied with attribution from
-  `dwiwinarno911/opencore-msi-tigerlake-irisxe`; no functional change),
+  `dwiwinarno911/opencore-msi-tigerlake-irisxe`; no functional change), plus a
+  local installer script that is not upstream code,
 - its VBT and kext hashes as verification fixtures (recorded, not copied).
 
 Everything else was rebuilt and is explained in

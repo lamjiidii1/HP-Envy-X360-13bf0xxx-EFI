@@ -182,6 +182,9 @@ The Sequoia diagnosis and the first working patched binary come from
 (WhateverXe 0.6.1, same 24H232 build). That repository also supplies the
 Metal-archive LaunchAgent, redistributed here as
 `scripts/macos/metal-archive-workaround.plist` with no functional change.
+`scripts/macos/install-metal-archive-workaround.sh` is local glue that installs
+it under the label filename, verifies the environment and removes it again; it
+is not upstream code.
 See [docs/03-graphics.md](03-graphics.md#the-24h232-mmio-signature) and
 [docs/08-troubleshooting.md](08-troubleshooting.md#metal-apps-crash-or-safari-video-freezes-24h232).
 

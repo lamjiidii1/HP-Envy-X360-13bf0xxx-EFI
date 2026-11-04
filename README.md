@@ -26,8 +26,9 @@ scratch with every payload pinned and hashed.
 > now applies that one-byte constant change to the **built** kext; the payload
 > in `efi/variants` stays the published `197da23b…` binary.
 > `scripts/macos/patch-wex-sequoia-mmio.sh` can repair a stick in place after a
-> macOS update, and `scripts/macos/metal-archive-workaround.plist` covers the
-> matching Metal-archive crash on this build.
+> macOS update, and
+> `scripts/macos/install-metal-archive-workaround.sh` installs the matching
+> Metal-archive agent on this build.
 >
 > **Boot-tested on 15.8.2 from this repository (2026-11-03).** The built stick
 > boots to the desktop, `TGLSequoiaMMIOGuard` entry 19 is `01`,
@@ -73,6 +74,7 @@ scripts/macos/patch-wex-tahoe-mmio.sh   repairs the 26.7.2 MMIO-UC signature
                                         (Tahoe history; not used on Sequoia)
 scripts/macos/patch-wex-sequoia-mmio.sh repairs the 15.8.2 (24H232) signature
 scripts/macos/metal-archive-workaround.plist  Metal archive crash workaround
+scripts/macos/install-metal-archive-workaround.sh  installs/removes that agent
 scripts/macos/openmac-diag.sh            continuous per-user diagnostics collector
 scripts/macos/post-install-check.sh      one-shot CPU/GPU/display/battery report
 scripts/macos/install-boot-capture.sh    black-screen boot capture daemon

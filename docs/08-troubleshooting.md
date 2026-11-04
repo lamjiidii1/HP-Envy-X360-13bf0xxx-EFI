@@ -285,32 +285,38 @@ the App Store and SwiftUI panes that precompile Metal libraries abort instead of
 painting. Upstream lists both "some image-conversion operations can crash
 applications" and "App Store video can freeze the GPU on Sequoia" as known
 issues for this generation of the package. The fix is a per-user LaunchAgent
-that makes Metal ignore the archives and compile from source:
+that makes Metal ignore the archives and compile from source. Install it with
+the script, from Terminal.app in the logged-in desktop session:
 
 ```sh
-cp scripts/macos/metal-archive-workaround.plist ~/Library/LaunchAgents/
-launchctl bootstrap gui/$(id -u) \
-  ~/Library/LaunchAgents/local.wex.metal-archive-workaround.plist
+bash /Volumes/MACUSB/OpenC/macos/install-metal-archive-workaround.sh
 ```
+
+The script copies `metal-archive-workaround.plist` to
+`~/Library/LaunchAgents/local.wex.metal-archive-workaround.plist` (the label
+name), validates it, sets the variables in the current session, bootstraps the
+agent, verifies `launchctl getenv` for all three, clears the user Metal caches
+and restarts ControlCenter. Use `--dry-run` to see the commands first and
+`--uninstall` to remove everything:
+
+```sh
+bash scripts/macos/install-metal-archive-workaround.sh --dry-run
+bash scripts/macos/install-metal-archive-workaround.sh --uninstall
+```
+
+> The earlier hand-written instructions were broken: they copied the plist as
+> `metal-archive-workaround.plist`, but `launchctl bootstrap` was given
+> `~/Library/LaunchAgents/local.wex.metal-archive-workaround.plist`. That path
+> never existed, so the agent was never loaded. The script always installs it
+> under the label name.
 
 It sets `RB_USE_BINARY_ARCHIVE=0`,
 `MTL_DEBUG_IGNORE_PRECOMPILED_BINARIES=1` and
-`MTL_DEBUG_IGNORE_PSO_FAIL_ON_MISS=1`, then restarts ControlCenter. To undo:
-
-```sh
-launchctl bootout gui/$(id -u) \
-  ~/Library/LaunchAgents/local.wex.metal-archive-workaround.plist
-rm ~/Library/LaunchAgents/local.wex.metal-archive-workaround.plist
-```
-
-The workaround is adapted from
+`MTL_DEBUG_IGNORE_PSO_FAIL_ON_MISS=1`, then restarts ControlCenter. The
+workaround is adapted from
 [dwiwinarno911/opencore-msi-tigerlake-irisxe](https://github.com/dwiwinarno911/opencore-msi-tigerlake-irisxe),
-where it fixed the same crash on the same build. Install it, clear the Metal
-caches once, and log out/in (or reboot) before judging it:
-
-```sh
-rm -rf ~/Library/Caches/com.apple.Metal ~/Library/Caches/com.apple.MetalShaderCache
-```
+where it fixed the same crash on the same build. Log out/in (or reboot) before
+judging it, so every process starts with the variables.
 
 If the crash persists, capture the `.ips` report and note whether the process is
 ControlCenter, PowerPreferences, WindowServer or Safari; a WindowServer crash is
