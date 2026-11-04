@@ -284,9 +284,10 @@ The same class of failure appears in `CA::Render::prepare_image`, which is why
 the App Store and SwiftUI panes that precompile Metal libraries abort instead of
 painting. Upstream lists both "some image-conversion operations can crash
 applications" and "App Store video can freeze the GPU on Sequoia" as known
-issues for this generation of the package. The fix is a per-user LaunchAgent
-that makes Metal ignore the archives and compile from source. Install it with
-the script, from Terminal.app in the logged-in desktop session:
+issues for this generation of the package. The suggested mitigation is a
+per-user LaunchAgent that makes Metal ignore the archives and compile from
+source. Install it with the script, from Terminal.app in the logged-in desktop
+session:
 
 ```sh
 bash /Volumes/MACUSB/OpenC/macos/install-metal-archive-workaround.sh
@@ -318,9 +319,18 @@ workaround is adapted from
 where it fixed the same crash on the same build. Log out/in (or reboot) before
 judging it, so every process starts with the variables.
 
-If the crash persists, capture the `.ips` report and note whether the process is
-ControlCenter, PowerPreferences, WindowServer or Safari; a WindowServer crash is
-not this bug. Use
+**Measured on this machine on 2026-11-04: it does not fix the Battery pane.**
+After a clean restore, `check-metal-env.sh` showed the agent loaded and all
+three variables present in the `gui/501` launchd environment; a freshly opened
+Terminal shell inherited all three; a newly launched System Settings then
+opened the Battery pane and `PowerPreferences` still aborted at 20:06:03 with
+the same `MTLLoader` assertion. The environment is delivered, so the variables
+are not sufficient on the `adlp-edp` driver. Keep the agent only as an
+experiment; do not present it as the Battery or App Store fix.
+
+For a crash that still needs a backtrace, note whether the process is
+ControlCenter, PowerPreferences, WindowServer or Safari, and capture the
+leading seconds with
 [11-diagnostics.md](11-diagnostics.md) to keep the seconds before the abort.
 
 One message is **not** evidence of CPU rendering:

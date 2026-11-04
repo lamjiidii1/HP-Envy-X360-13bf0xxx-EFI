@@ -17,6 +17,10 @@
 #
 # No root is needed.  Run it from Terminal.app in the logged-in desktop
 # session, not over SSH.
+#
+# Measured on 2026-11-04: the agent loads and launchd exposes all three
+# variables to new GUI processes, but PowerPreferences still aborts in
+# MTLLoader line 685.  This is an experiment, not a fix for this machine.
 
 set -u
 
@@ -224,6 +228,10 @@ if [ "$BOOTSTRAP_OK" -eq 1 ]; then
 else
 	say "Installed for this session only; the LaunchAgent is not loaded."
 fi
+say ""
+say "Note: measured on 2026-11-04, this agent does NOT stop the"
+say "PowerPreferences / MTLLoader assertion even when all three variables"
+say "are present in the gui domain. Treat it as an experiment, not a fix."
 say ""
 say "Next:"
 say "  1. Reboot (or log out and back in) so every process starts with the variables."

@@ -130,14 +130,21 @@ MTL_DEBUG_IGNORE_PRECOMPILED_BINARIES=1
 MTL_DEBUG_IGNORE_PSO_FAIL_ON_MISS=1
 ```
 
-and restarts ControlCenter. Because both 0.3.1 and 0.3.2 target 24H32, it is
-recommended on this build as soon as Metal is confirmed; install it with the
+and restarts ControlCenter. Because both 0.3.1 and 0.3.2 target 24H32, it was
+suggested on this build as soon as Metal is confirmed; install it with the
 companion script, which uses the label filename that `launchctl bootstrap`
 actually needs:
 
 ```sh
 bash scripts/macos/install-metal-archive-workaround.sh
 ```
+
+Measured again on 2026-11-04 after a clean restore: all three variables were
+present in the `gui/501` launchd environment (and inherited by a new Terminal
+shell), yet a fresh System Settings still aborted in `PowerPreferences` at
+`MTLLoader` line 685. The agent therefore does **not** fix the Battery pane on
+this driver; see
+[08-troubleshooting.md](08-troubleshooting.md#battery-settings-pane-exits-powerpreferences).
 
 Use `--dry-run` to inspect the commands and `--uninstall` to boot out the agent,
 unset the variables and clear the caches. The workaround is adapted from the
