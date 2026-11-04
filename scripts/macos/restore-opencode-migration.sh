@@ -30,9 +30,10 @@ BIN_DIR="$HOME/.opencode/bin"
 OPENCODE="$BIN_DIR/opencode"
 STAMP=$(date +%Y%m%d-%H%M%S)
 
-# OpenCode uses per-platform data directories.  On macOS it uses
-# ~/Library/Application Support/opencode, not ~/.local/share/opencode, so these
-# are resolved from the installed binary with `opencode debug paths` below.
+# OpenCode resolves its data/config directories per platform, and the result
+# differs between builds; on this macOS install it reports
+# ~/.local/share/opencode.  Always ask the installed binary below rather than
+# assuming either ~/.local/share or ~/Library/Application Support.
 DATA_DIR=${DATA_DIR:-}
 CONFIG_DIR=${CONFIG_DIR:-}
 STATE_DIR=${STATE_DIR:-}
@@ -106,8 +107,8 @@ case ":$PATH:" in
 esac
 export PATH="$BIN_DIR:$PATH"
 
-# Resolve the real per-platform locations from the binary itself.  On macOS
-# this is ~/Library/Application Support/opencode, not ~/.local/share/opencode.
+# Resolve the real per-platform locations from the binary itself; the data and
+# config directories differ between builds and must not be assumed.
 [ -n "$DATA_DIR" ]   || DATA_DIR=$("$OPENCODE" debug paths data 2>/dev/null)   || DATA_DIR=""
 [ -n "$CONFIG_DIR" ] || CONFIG_DIR=$("$OPENCODE" debug paths config 2>/dev/null) || CONFIG_DIR=""
 [ -n "$STATE_DIR" ]  || STATE_DIR=$("$OPENCODE" debug paths state 2>/dev/null)  || STATE_DIR=""

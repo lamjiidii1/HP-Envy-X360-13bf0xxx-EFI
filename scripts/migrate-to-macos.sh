@@ -173,15 +173,18 @@ opencode --session $SESSION_ID ~/OpenMac
 If the restore script stops early:
 
 \`\`\`sh
-D="\$HOME/Library/Application Support/opencode"
-mkdir -p ~/.opencode/bin "\$D"
 unzip -o /Volumes/MACUSB/OpenMac-migration/opencode-darwin-x64.zip -d /tmp/oc
 install -m 0755 /tmp/oc/opencode ~/.opencode/bin/opencode
 export PATH="\$HOME/.opencode/bin:\$PATH"
 
+# Ask the binary where this build keeps its data; do not assume a path.
+D=\$(opencode debug paths data)
+C=\$(opencode debug paths config)
+mkdir -p "\$D" "\$C"
+
 tar -xzf /Volumes/MACUSB/OpenMac-migration/$REPO_NAME-repo.tar.gz -C "\$HOME"
 cp /Volumes/MACUSB/OpenMac-migration/opencode.db "\$D/opencode.db"
-cp /Volumes/MACUSB/OpenMac-migration/opencode.json "\$D/opencode.json"
+cp /Volumes/MACUSB/OpenMac-migration/opencode.json "\$C/opencode.json"
 
 cd ~/$REPO_NAME
 opencode api post /api/session/$SESSION_ID/move \\
@@ -189,9 +192,9 @@ opencode api post /api/session/$SESSION_ID/move \\
 opencode --session $SESSION_ID .
 \`\`\`
 
-The paths above are what \`opencode debug paths\` reports on macOS; run that
-command if they differ on your install.  The same directory holds both the
-database and \`opencode.json\` on macOS.
+The data and config directories differ between OpenCode builds (for example
+\`~/.local/share/opencode\` or \`~/Library/Application Support/opencode\`), which
+is why the commands above ask \`opencode debug paths\`.
 
 If the move endpoint refuses (session busy or old server), import the clean
 transcript instead:

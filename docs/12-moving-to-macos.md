@@ -16,14 +16,15 @@ installed macOS system without booting back into Linux.
 | Piece | Linux source | macOS destination |
 | --- | --- | --- |
 | Session transcript | `opencode session export` | imported or moved into the project |
-| Sessions + credentials | `~/.local/share/opencode/opencode.db` | `~/Library/Application Support/opencode/opencode.db` |
-| Provider config | `~/.config/opencode/opencode.json` | `~/Library/Application Support/opencode/opencode.json` |
-| Snapshots, shell, tool output | `~/.local/share/opencode/{snapshot,shell,tool-output}` | same names under the macOS data directory |
+| Sessions + credentials | `~/.local/share/opencode/opencode.db` | `opencode debug paths db` (this install: `~/.local/share/opencode`) |
+| Provider config | `~/.config/opencode/opencode.json` | `opencode debug paths config` (this install: `~/.config/opencode`) |
+| Snapshots, shell, tool output | `~/.local/share/opencode/{snapshot,shell,tool-output}` | same names under the data directory |
 | Repository | this checkout (with `.git`, `build/`, `LOGS/`, `mine/`, `private/`) | `~/OpenMac` |
 | OpenCode binary | — | pinned `opencode-darwin-x64` under `~/.opencode/bin` |
 
-The macOS paths are not `~/.local/share`; OpenCode uses
-`~/Library/Application Support/opencode` there.  The restore script asks the
+The directories differ between OpenCode builds.  On this install macOS reports
+`~/.local/share/opencode` and `~/.config/opencode`, while some builds use
+`~/Library/Application Support/opencode`.  The restore script therefore asks the
 installed binary with `opencode debug paths` instead of assuming a path.
 
 ## Build the bundle on Linux
