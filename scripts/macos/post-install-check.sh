@@ -87,3 +87,4 @@ printf 'CPU:    %s (%s logical CPUs)\n' "$(sysctl -n machdep.cpu.brand_string 2>
 printf 'Metal:  %s\n' "$(system_profiler SPDisplaysDataType 2>/dev/null | awk -F': ' '/Metal Support|Metal Family/{print $2; exit}')"
 printf 'Mode:   %s\n' "$(system_profiler SPDisplaysDataType 2>/dev/null | awk -F': ' '/UI Looks like/{print $2; exit}')"
 printf 'Battery:%s\n' "$(pmset -g batt 2>/dev/null | tail -1)"
+printf 'Next:   install the continuous collector: bash scripts/macos/openmac-diag.sh install\n'

@@ -53,6 +53,7 @@ later is honest.
 | T02.4 | `ioreg -rc IntelAccelerator` | count 1 if accelerated, 0 if falling back |
 | T02.5 | `system_profiler SPDisplaysDataType` | record VRAM and "Kernel Extension Info" verbatim |
 | T02.6 | Save the whole evidence bundle | files exist under `~/Desktop/wex-report` |
+| T02.7 | `./scripts/macos/openmac-diag.sh install`, then `status` after two minutes | five agents loaded; `live/monitor.log` has a sample; see [11-diagnostics.md](11-diagnostics.md) |
 
 ## Phase 3 — Graphics: the primary experiment
 
@@ -155,6 +156,8 @@ a successful recording proves the DSP patch is in the built kext.
 | T08.4 | `sysctl -n machdep.cpu.brand_string` | `12th Gen Intel(R) Core(TM) i7-1250U` |
 | T08.5 | `ioreg -l \| grep -i AppleSmartBattery` | battery data present |
 | T08.6 | Close the lid with sleep disabled | no wake hang; machine stays off/awake as configured |
+| T08.7 | Open **System Settings > Battery** after installing the Metal archive workaround and clearing the Metal caches | pane opens; if it aborts, the collector captured `MTLLoader sliceIDForDevice` and a `ReportCrash` line for that second |
+| T08.8 | Record `openmac-diag.sh status` and keep one `report` bundle | the investigation has a timestamped baseline before any further change |
 
 ## Phase 9 — Sleep (known broken, informational)
 
@@ -189,6 +192,7 @@ Repeat after any payload update:
 | T11.3 | Boot the default build: desktop, Wi-Fi, audio, battery, keyboard |
 | T11.4 | Graphics state matches the last recorded state (no silent regression) |
 | T11.5 | Identity unchanged; iCloud still signed in |
+| T11.6 | `openmac-diag.sh status` and `selftest` | agents still loaded, no required tool missing |
 
 ## Recording results
 
