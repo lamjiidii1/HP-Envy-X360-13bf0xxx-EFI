@@ -76,12 +76,12 @@ BASE_ARGS = [
     "shda-lang=en",
     "alcid=11",
     # RestrictEvents: force the Intel brand-string patch and request the
-    # cpuname patch.  The custom name itself lives in NVRAM because boot-args
-    # cannot carry spaces reliably.  The NVRAM copies remain authoritative;
-    # these arguments only make the intent explicit and survive a stale
-    # NVRAM/Delete entry.
+    # cpuname patch.  Keep sbvmm as well: a boot-argument revpatch overrides
+    # the NVRAM value, so listing only cpuname would silently drop the VMM
+    # spoof that is needed for OTA updates.  The custom name itself lives in
+    # NVRAM because boot-args cannot carry spaces reliably.
     "revcpu=1",
-    "revpatch=cpuname",
+    "revpatch=sbvmm,cpuname",
 ]
 
 IDENTITY_FIELDS = (
@@ -228,6 +228,19 @@ def main() -> int:
     for key in IDENTITY_FIELDS:
         if key in identity:
             generic[key] = identity[key]
+
+    # 0x0701 is AppleProcessorTypeCorei7Type1, a dual-core Sandy Bridge era
+    # type.  On Sequoia an Alder Lake CPU with this type renders as
+    # "Processor Name: Unknown" in System Information, and RestrictEvents has
+    # no marketing string to replace.  0x0F01 (Xeon W) is the value both the
+    # reference configuration and RestrictEvents document for 8+ cores.
+    if generic.get("ProcessorType") == 1793:
+        print(
+            "warning: ProcessorType 1793 (0x0701, Core i7 Type 1) is not valid\n"
+            "         for this Alder Lake CPU and shows 'Processor Name: Unknown'.\n"
+            "         Set it to 3841 (0x0F01, Xeon W).",
+            file=sys.stderr,
+        )
 
     boot_args = list(BASE_ARGS) + gpu["args"]
     if args.debug:
