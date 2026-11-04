@@ -165,7 +165,9 @@ bash scripts/macos/install-metal-archive-workaround.sh --uninstall
 ```
 
 The script is kept only as an experiment and as the record of that negative
-result; do not present it as the Battery or App Store fix.
+result; do not present it as the Battery or App Store fix. On 2026-11-04 the
+agent was uninstalled **after** the shim fix and the Battery pane still opened
+with none of the three variables set, so the fix does not depend on it.
 
 A separate failure affects apps that need **runtime** shader compilation:
 `MTLCompilerService` is denied `file-read-data`/`file-map-executable` on
