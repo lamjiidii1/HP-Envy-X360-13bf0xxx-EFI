@@ -32,11 +32,14 @@ scratch with every payload pinned and hashed.
 > **Boot-tested on 15.8.2 from this repository (2026-11-03).** The built stick
 > boots to the desktop, `TGLSequoiaMMIOGuard` entry 19 is `01`,
 > `IntelAccelerator` is present, `VRAM (Dynamic, Max)` is 1536 MB and
-> `system_profiler` reports **Metal 2**. The internal 2880×1800 OLED is online.
-> The remaining known limits are Metal 2 (not Metal 3), the GPU's internal
-> "Intel(R) TGL Unknown" name, and the battery-settings extension crash; they
-> are described in
-> [docs/08-troubleshooting.md](docs/08-troubleshooting.md#metal-2-versus-metal-3).
+> `system_profiler` reports **Metal 2**. The internal 2880×1800 OLED is online
+> at **Looks like 1440 × 900** HiDPI. The remaining known limits are Metal 2
+> (not Metal 3), the GPU's internal "Intel(R) TGL Unknown" name, and Metal apps
+> that load precompiled archives: the Battery settings pane and App Store video
+> abort/hang in `MTLLoader` / `CA::Render::prepare_image`. The desktop itself
+> is GPU-composited. See
+> [docs/03-graphics.md](docs/03-graphics.md#metal-archives-on-24h232) and
+> [docs/08-troubleshooting.md](docs/08-troubleshooting.md#battery-settings-pane-exits-powerpreferences).
 
 ## Hardware
 
@@ -70,6 +73,7 @@ scripts/macos/patch-wex-tahoe-mmio.sh   repairs the 26.7.2 MMIO-UC signature
                                         (Tahoe history; not used on Sequoia)
 scripts/macos/patch-wex-sequoia-mmio.sh repairs the 15.8.2 (24H232) signature
 scripts/macos/metal-archive-workaround.plist  Metal archive crash workaround
+scripts/macos/openmac-diag.sh            continuous per-user diagnostics collector
 scripts/macos/post-install-check.sh      one-shot CPU/GPU/display/battery report
 scripts/macos/install-boot-capture.sh    black-screen boot capture daemon
 docs/                     hardware, audit, graphics, Wi-Fi, audio, install, test plan
@@ -174,6 +178,7 @@ Full reasoning: [docs/02-audit.md](docs/02-audit.md) and
 | [docs/08-troubleshooting.md](docs/08-troubleshooting.md) | Symptom → cause → action |
 | [docs/09-test-plan.md](docs/09-test-plan.md) | Ordered hardware test checklist |
 | [docs/10-provenance.md](docs/10-provenance.md) | Versions, hashes, sources, modifications |
+| [docs/11-diagnostics.md](docs/11-diagnostics.md) | Continuous collector: install, schedules, output, privacy, uninstall |
 
 Official references (OpenCore `Configuration.pdf`, the Dortania install and
 ACPI guides, upstream driver documentation) are listed in

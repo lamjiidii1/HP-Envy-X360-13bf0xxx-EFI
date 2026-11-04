@@ -89,10 +89,37 @@ KDK rather than guessing.
 Getting the accelerator to start is only the first half. Once
 `IntelAccelerator` is active, WhateverXe Graphics 0.3.1 can still crash on
 Apple's **precompiled Metal archives**, because the payload was built for
-24H32. The symptoms are a ControlCenter crash loop in
-`RB::load_library_archive` (assert after `MTLLoader sliceIDForDevice:…`) and
-Safari video freezes. This is not the MMIO guard: here Metal exists but
-mishandles an archive.
+24H32. This is not the MMIO guard: here Metal exists but mishandles an archive.
+
+Confirmed on 2026-11-03 on this machine:
+
+| Process | Path | Result |
+|---|---|---|
+| ControlCenter | `RB::load_library_archive` | crash loop |
+| `PowerPreferences` (Battery settings) | `MTLLoader sliceIDForDevice:…` | `SIGABRT` on pane open |
+| App Store | `CA::Render::prepare_image` | video hang, kernel `gpuRestart` |
+| Safari video | archive load | freeze |
+
+The assertion is always the same:
+
+```text
++[MTLLoader sliceIDForDevice:legacyDriverVersion:airntDriverVersion:]:685:
+  failed assertion `Target device architecture is nil'
+```
+
+Upstream's known-issues list names both "some image-conversion operations can
+crash applications" and "App Store video can freeze the GPU on Sequoia", so the
+last two rows are acknowledged limitations of the 0.3.x generation rather than
+a local misconfiguration.
+
+A separate failure affects apps that need **runtime** shader compilation:
+`MTLCompilerService` is denied `file-read-data`/`file-map-executable` on
+`/Library/GPUBundles/XeCompilerAdapter.bundle` and `libigc-tgl.dylib`. That
+bundle also reports `bundle format unrecognized` to `codesign`. It is a driver
+packaging problem, not an EFI switch. The practical consequence is that the
+desktop is GPU-composited, but archive-based Metal apps abort and
+compile-on-demand apps wait and burn CPU; see
+[08-troubleshooting.md](08-troubleshooting.md#does-the-gpu-render-the-desktop-or-is-the-cpu-doing-it).
 
 `scripts/macos/metal-archive-workaround.plist` is a per-user LaunchAgent that
 sets:

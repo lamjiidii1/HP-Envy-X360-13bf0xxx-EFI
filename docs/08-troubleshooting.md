@@ -62,6 +62,20 @@ It collects `sw_vers`, CPU counts, display modes, Metal/accelerator state,
 RestrictEvents NVRAM, `pmset`, a `top` sample, recent Metal sandbox denials and
 the compiler-bundle permissions, and writes one text file to the Desktop.
 
+For a problem that comes and goes — the battery pane closing, an App Store
+hang, a lag spike after a crash — a single report is not enough. Install the
+continuous collector once:
+
+```sh
+./scripts/macos/openmac-diag.sh install
+```
+
+It keeps 60-second CPU/GPU/thermal samples, a filtered live log, 15-minute
+snapshots, crash-triggered snapshots and hourly error extracts, all per-user and
+with identity fields redacted. Send the bundle from
+`./scripts/macos/openmac-diag.sh report`. See
+[11-diagnostics.md](11-diagnostics.md) for what it records and how to read it.
+
 `nvram -p` contains the serial number. Strip it before posting anywhere:
 
 ```sh
@@ -250,13 +264,28 @@ Typical evidence:
 - ControlCenter crash-loops; the report points at
   `MTLLoader sliceIDForDevice:…` and an assert inside
   `RB::load_library_archive`;
-- Safari video freezes the GPU or the window;
+- the **Battery settings pane exits immediately** with the same
+  `MTLLoader` assertion (confirmed 2026-11-03, see
+  [§ Battery settings pane](#battery-settings-pane-exits-powerpreferences));
+- Safari video freezes the GPU or the window, and the App Store hangs while
+  loading video;
 - `IntelAccelerator` is present and `system_profiler` reports Metal 2.
 
 Cause: the Metal driver in WhateverXe Graphics 0.3.1 was built for 24H32 and
-does not match Apple's precompiled Metal archives on 24H232. The fix is a
-per-user LaunchAgent that makes Metal ignore the archives and compile from
-source:
+does not match Apple's precompiled Metal archives on 24H232. The assertion text
+is:
+
+```text
++[MTLLoader sliceIDForDevice:legacyDriverVersion:airntDriverVersion:]:685:
+  failed assertion `Target device architecture is nil'
+```
+
+The same class of failure appears in `CA::Render::prepare_image`, which is why
+the App Store and SwiftUI panes that precompile Metal libraries abort instead of
+painting. Upstream lists both "some image-conversion operations can crash
+applications" and "App Store video can freeze the GPU on Sequoia" as known
+issues for this generation of the package. The fix is a per-user LaunchAgent
+that makes Metal ignore the archives and compile from source:
 
 ```sh
 cp scripts/macos/metal-archive-workaround.plist ~/Library/LaunchAgents/
@@ -276,9 +305,27 @@ rm ~/Library/LaunchAgents/local.wex.metal-archive-workaround.plist
 
 The workaround is adapted from
 [dwiwinarno911/opencore-msi-tigerlake-irisxe](https://github.com/dwiwinarno911/opencore-msi-tigerlake-irisxe),
-where it fixed the same crash on the same build. If the crash persists, capture
-the `.ips` report and note whether the process is ControlCenter, WindowServer
-or Safari; a WindowServer crash is not this bug.
+where it fixed the same crash on the same build. Install it, clear the Metal
+caches once, and log out/in (or reboot) before judging it:
+
+```sh
+rm -rf ~/Library/Caches/com.apple.Metal ~/Library/Caches/com.apple.MetalShaderCache
+```
+
+If the crash persists, capture the `.ips` report and note whether the process is
+ControlCenter, PowerPreferences, WindowServer or Safari; a WindowServer crash is
+not this bug. Use
+[11-diagnostics.md](11-diagnostics.md) to keep the seconds before the abort.
+
+One message is **not** evidence of CPU rendering:
+
+```text
+runningboardd: setGPURole:pid: failed due to nil IOGPU device ref
+```
+
+It appears on almost every process launch on this Intel `IOAccelerator` device.
+It is RunningBoard/IOGPU bookkeeping, not a statement that the app fell back to
+the CPU; the compositor is still using `IntelAccelerator`.
 
 ### Metal 2 versus Metal 3
 
@@ -305,6 +352,33 @@ Maps and Photos work. Check the actual capability with:
 system_profiler SPDisplaysDataType | grep -i 'Metal'
 ioreg -rc IntelAccelerator | grep -i 'Metal'
 ```
+
+### Does the GPU render the desktop, or is the CPU doing it?
+
+The desktop, windows, menus, scrolling and video scanout are **GPU-composited**.
+On this install WindowServer owns an `IntelAccelerator` with 1536 MB of dynamic
+VRAM, the internal panel is driven by `AppleIntelFramebuffer`, and
+`system_profiler` reports Metal 2. If that were a CPU fallback, the accelerator
+would be absent, the panel would show the 19 MB generic framebuffer, and Metal
+would not be advertised at all.
+
+What does *not* work is the **shader and archive half of Metal**:
+
+| Layer | State | Evidence |
+|---|---|---|
+| Framebuffer/modeset | working | internal panel 2880×1800, `AppleIntelFramebuffer` present |
+| Compositor | working (GPU) | `IntelAccelerator`, `WindowServer` surfaces, Metal 2 |
+| Precompiled Metal archives | broken | `MTLLoader … Target device architecture is nil` |
+| Runtime shader compilation | blocked | `MTLCompilerService` sandbox denies `XeCompilerAdapter.bundle` |
+| Video decode | partially working | depends on the VA path; see the video section |
+
+So the "slowness" is not "everything is drawn by the CPU". It is that an app
+which asks Metal for a precompiled library (ControlCenter, the Battery pane,
+App Store) aborts, and an app that asks for runtime compilation waits on a
+sandbox-denied compiler and burns CPU while it retries. Fixing the archive
+mismatch removes the first class; the compiler-bundle denial is a driver
+packaging issue and needs a newer WhateverXe Graphics package, which in turn
+needs a WhateverXe build that accepts this panel's VBT.
 
 ### The GPU name says "Intel(R) TGL Unknown"
 
@@ -476,10 +550,10 @@ activation can require Apple to re-validate the machine.
 |---|---|
 | No battery percentage | `SMCBatteryManager.kext` loaded; `SSDT-SBUS.aml` present |
 | Battery drains in sleep | Sleep is broken on this firmware; disable sleep (below) |
-| High idle temperature | `CpuTopologyRebuild.kext` loaded; `SSDT-PLUG-ALT-12.aml` present; check `pmset -g therm`; first reduce the display to 1440×900 HiDPI |
+| High idle temperature | `CpuTopologyRebuild.kext` loaded; `SSDT-PLUG-ALT-12.aml` present; check `pmset -g therm`; confirm the display is in 1440×900 HiDPI, not 1× |
 | CPU name wrong | `revcpu=1` and `revpatch=cpuname` in boot-args, `revcpuname` in NVRAM, and `RestrictEvents.kext` loaded |
-| Fan always on / UI slow | Native 2880×1800 1× mode, `MTLCompilerService` shader denials, or a hung app; see below |
-| Battery settings pane exits | `PowerPreferences` extension crash; capture a log while opening it (below) |
+| Fan always on / UI slow | `MTLCompilerService` shader denials, an archive crash-loop, or a hung app; see below |
+| Battery settings pane exits | confirmed `MTLLoader` / Metal archive crash in `PowerPreferences`, not battery data; see below |
 
 Recommended power settings (sleep is broken on this firmware):
 
@@ -558,65 +632,88 @@ or Argyl). "Generic RGB" and "Adobe RGB" are not appropriate defaults.
 
 ### Battery settings pane exits (PowerPreferences)
 
-The error is the ExtensionKit process, not the battery data:
+**Confirmed 2026-11-03: this is a Metal crash, not a battery-data problem.**
+
+Opening **System Settings > Battery** launches the ExtensionKit process
+`PowerPreferences`, which aborts about one second later. `ReportCrash` extracts
+the actual assertion from the corpse:
 
 ```text
-Settings Error: Extension process PowerPreferences(1464) exited
+PowerPreferences: (Metal) +[MTLLoader sliceIDForDevice:legacyDriverVersion:airntDriverVersion:]:685: error
+ReportCrash: ASI found [libsystem_c.dylib] (sensitive)
+  '+[MTLLoader sliceIDForDevice:legacyDriverVersion:airntDriverVersion:]:685:
+   failed assertion `Target device architecture is nil'
 ```
 
-The collected battery data is sane (`BatteryInstalled = Yes`,
+The sequence in the captured log is:
+
+1. `runningboardd` starts `PowerPreferences` (PID 1508) for
+   `com.apple.Battery-Settings.extension`;
+2. the extension initialises Metal and calls `MTLLoader` for a precompiled
+   library;
+3. the loader cannot resolve the device architecture and asserts;
+4. the process receives `SIGABRT` and `System Settings` reports "Extension
+   process … exited" (PID 1508/1517 on consecutive tries).
+
+The battery data itself is sane (`BatteryInstalled = Yes`,
 `MaxCapacity = 7745`, `DesignCapacity = 8638`, `Temperature = 2931` = 29.31 °C,
-`CycleCount = 0`), so this is not a missing-battery or ACPI-field problem. No
-`PowerPreferences` crash report was captured, so reproduce it while logging:
+`CycleCount = 0`), and `pmset -g batt` works while the pane is closed. This is
+the same failure class as the ControlCenter archive crash
+([§ Metal apps crash](#metal-apps-crash-or-safari-video-freezes-24h232)): the
+WhateverXe Graphics 0.3.1 Metal driver expects 24H32 archives on a 24H232
+system.
 
-```sh
-log stream --style compact --level debug \
-  --predicate 'process CONTAINS "PowerPreferences" OR eventMessage CONTAINS "PowerPreferences" OR process == "powerd"'
-```
+There is **no EFI, SMBIOS, NVRAM or `-wex-*` change that fixes this**, and an
+SMC/NVRAM reset does not address it. Do this instead:
 
-Then open **System Settings > Battery** in another window and stop `log stream`
-with Control-C. Also check `~/Library/Logs/DiagnosticReports` for a new
-`PowerPreferences*.ips`.
-
-Safe things to try, in order:
-
-1. Quit System Settings, then `sudo killall -9 PowerPreferences` and reopen it.
-2. Shut down, unplug the charger, hold the power button for 10 seconds, then
-   boot. This is the hackintosh equivalent of an SMC reset and rebuilds the
-   virtual SMC state.
-3. Reset NVRAM once from the OpenCore picker, boot once, then check whether the
-   pane opens. Identity is re-injected by OpenCore, so activation is preserved,
-   but do not do this while signed out of iCloud.
-4. Confirm `pmset` still works even if the pane does not:
+1. Install the Metal archive workaround from the Metal section.
+2. Clear the Metal caches and reboot:
+   ```sh
+   rm -rf ~/Library/Caches/com.apple.Metal ~/Library/Caches/com.apple.MetalShaderCache
+   ```
+3. Open the Battery pane again. If it still aborts, keep the collector running
+   and capture the exact seconds:
+   ```sh
+   log show --last 5m --style compact \
+     --predicate 'process == "ReportCrash" OR process == "PowerPreferences" OR eventMessage CONTAINS "MTLLoader"'
+   ```
+4. Confirm the rest of the power stack is healthy, independent of the pane:
    ```sh
    pmset -g
    pmset -g batt
    pmset -g therm
    ```
-   If these are correct, the battery stack is healthy and only the Settings
-   extension is failing.
 
 Do not remove `SMCBatteryManager.kext` to "fix" the pane: that would trade a
-Settings crash for no battery percentage and no power management.
+Settings crash for no battery percentage and no power management. Do not change
+the SMBIOS either; the pane fails inside Metal, before it reads battery data.
+
+A real fix needs a WhateverXe Graphics build whose Metal driver matches Sequoia
+and whose compiler bundle can load. 0.4.0 claims that fix, but it pairs with
+WhateverXe 0.7.0, which rejects this panel's VBT (`Status::Conflict`) and leaves
+the internal display dark. Until a build accepts both, this pane remains the
+one known cosmetic casualty of the working graphics stack.
 
 ### Why the machine is slow and hot
 
 The logs point at three separate costs, in order of impact:
 
-1. **Native 1× mode.** 2880×1800 with no HiDPI scaling makes every window
-   redraw at full panel resolution. Switch to 1440×900 HiDPI first; this is the
-   single biggest change.
+1. **Display mode.** Confirm the panel is in **Looks like 1440 × 900** (HiDPI),
+   not the 1× 2880×1800 mode. The 1× mode makes every window redraw at full
+   panel resolution and was the single biggest source of heat; it is fixed on
+   the current install. Verify with `system_profiler SPDisplaysDataType`.
 2. **Metal archive / compiler mismatch.** On 24H232 the Graphics 0.3.1 payload
    was built for 24H32. Install the archive workaround in the previous section
    and clear `~/Library/Caches/com.apple.Metal*` once. Repeated
    `MTLCompilerService` sandbox denials of `XeCompilerAdapter.bundle` (see
    [above](#apps-hang-after-a-few-minutes-mtlcompilerservice-sandbox)) make
    apps hang and burn CPU while they retry.
-3. **A hung or crash-looping app.** The App Store hang at 16:08-16:14 and the
-   GPU reset at 15:34 happened while `DisplaysExt` was changing modes/colour.
-   Quit the app, avoid changing display settings repeatedly, and reboot after a
-   GPU reset. A GPU reset is not normal operation; if it repeats without a
-   display change, capture the new `gpuRestart` report.
+3. **A hung or crash-looping app.** The App Store video hang and the GPU reset
+   at 15:34 happened while `DisplaysExt` was changing modes/colour. App Store
+   video is a known upstream WhateverXe limitation on Sequoia. Quit the app,
+   avoid changing display settings repeatedly, and reboot after a GPU reset. A
+   GPU reset is not normal operation; if it repeats without a display change,
+   capture the new `gpuRestart` report.
 
 Power management itself is present: `X86PlatformPlugin` is loaded,
 `plugin-type = 1`, and `SSDT-PLUG-ALT-12.aml` declares the 12 logical CPUs. The
@@ -635,6 +732,12 @@ leak. If `MTLCompilerService` or `WindowServer` is high, fix the display mode
 and the Metal archive issue first. If the CPU idles at a low multiplier but the
 machine is still hot, check `pmset -g therm` for `CPU_Scheduler_Limit` and
 `CPU_Available_CPUs`; report those values rather than changing SMBIOS.
+
+Because the lag comes in spikes, a single `top` sample rarely catches it. The
+collector's 60-second `live/monitor.log` and filtered `live/events.log` are the
+right evidence: compare the spike timestamp with `ReportCrash`, `spindump`,
+`MTLCompilerService` and `WindowServer` entries. See
+[11-diagnostics.md](11-diagnostics.md).
 
 ## 8. Sleep and wake
 
