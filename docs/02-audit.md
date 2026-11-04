@@ -19,7 +19,7 @@ because `config.plist` contains the machine's activation identity.
 | `MLB` | redacted — in `private/identity.plist` |
 | `SystemUUID` | redacted — in `private/identity.plist` |
 | `ROM` | redacted — in `private/identity.plist` |
-| `ProcessorType` | `1793` |
+| `ProcessorType` | old `1793`, now `3841` (see below) |
 | `SystemMemoryStatus` | `Soldered` |
 | `csr-active-config` | `03080000` |
 | `revpatch` | `sbvmm,cpuname` |
@@ -28,6 +28,12 @@ The concrete values are stored in `private/identity.plist` (gitignored) and
 injected by `scripts/build_efi.py`. The committed
 `private/identity.example.plist` shows the schema. Nothing else from the old
 EFI is reused.
+
+`ProcessorType` is not an activation value. The old EFI used `1793`
+(`0x0701`, `AppleProcessorTypeCorei7Type1`), which Sequoia renders as
+`Processor Name: Unknown` on this Alder Lake CPU; the new build uses `3841`
+(`0x0F01`, Xeon W). The evidence is in
+[08-troubleshooting.md § CPU name and thread count](08-troubleshooting.md#cpu-name-and-thread-count).
 
 ### Old EFI contents
 
@@ -103,7 +109,9 @@ The remaining differences are cosmetic or unrelated:
   the old config.
 - `UEFI/APFS`: `MinDate`/`MinVersion` 0 vs -1.
 - `PlatformInfo`: identity present vs empty in the published reference;
-  `ProcessorType` 1793 vs 3841.
+  `ProcessorType` 1793 (old) vs 3841 (new build and reference). The old value
+  is `AppleProcessorTypeCorei7Type1` and renders as `Processor Name: Unknown`
+  on Sequoia; see [08 § CPU name](08-troubleshooting.md#cpu-name-and-thread-count).
 
 **Conclusion:** rebuilding the config cannot by itself turn acceleration on.
 The difference must be in the driver binaries, the macOS build, or the
@@ -174,5 +182,5 @@ copied. Commits are the ones actually inspected.
 | OpenCanopy + `Resolution Max` + `UIScale 2` | Reference-proven on the 2880×1800 panel; nicer and avoids text-mode scaling |
 | Remove dead `Kernel/Patch`, `ReservedMemory`, sample tools | They were disabled, but they are noise and a future foot-gun |
 | Keep `SecureBootModel Disabled`, `csr-active-config 03080000` | Required by the WhateverXe/AMFIPass stack and already working |
-| Keep `ProcessorType 1793` and `revpatch=cpuname` | The machine already reports the correct CPU name with these values; changing them risks cosmetic regressions |
+| Change `ProcessorType` 1793 → 3841 and `revpatch` to `sbvmm,cpuname` | 1793 is `AppleProcessorTypeCorei7Type1`; the 18:54 report shows `cpu-type = <0107>` and `Processor Name: Unknown`. 3841 (`Xeon W`) is the documented value for 8+ cores and the reference value. Keeping `sbvmm` in the boot-arg prevents it from overriding the NVRAM value |
 | Identity in `private/` | The machine is already activated; committing serial/MLB/UUID would leak it permanently |

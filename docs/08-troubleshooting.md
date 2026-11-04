@@ -565,32 +565,72 @@ sudo rm -f /var/vm/sleepimage
 
 ### CPU name and thread count
 
-The i7-1250U is **2 P-cores + 8 E-cores = 10 cores and 12 threads**. The hang
-report in the collected bundle says `Active cpus: 12`, and `CpuTopologyRebuild`
-plus `SSDT-PLUG-ALT-12.aml` present 12 logical CPUs to macOS. Seeing "10 cores"
-in a tool is correct; it is the physical core count, not a lost thread. There is
-no missing-thread bug to fix in the EFI.
+`wex-post-install-20261103-185409.txt` reports several values that look
+contradictory until they are separated:
 
-The CPU name is handled by RestrictEvents:
+| Query | Value | Meaning |
+|---|---|---|
+| `machdep.cpu.brand_string` | `12th Gen Intel(R) Core(TM) i7-1250U` | Real brand string; already correct |
+| `system_profiler` → `Processor Name` | `Unknown` | Marketing name in System Information; **this is the broken one** |
+| `hw.ncpu`, `hw.logicalcpu`, `machdep.cpu.thread_count` | `12` | Every hardware thread is online |
+| `hw.physicalcpu` | `2` | CpuTopologyRebuild's default SMT spoof: 2 P-cores with the E-cores folded in as SMT siblings |
+| `machdep.cpu.core_count` | `12` | CTR counts threads as cores unless `-ctrfixcnt` is set |
+| `system_profiler` → `Total Number of Cores` | `10` | True P+E physical core count, from SMBIOS type 4 |
 
-- `revcpu=1` forces the Intel brand-string patch;
-- `revpatch=cpuname` requests the CPU-name patch;
-- `revcpuname` in NVRAM supplies the string (it cannot contain spaces on the
-  boot-args line, which is why the custom name lives in NVRAM).
+There is **no missing-thread or wrong-topology bug**. Twelve threads are
+present, and 10 is the physical P+E count. `hw.physicalcpu=2` is
+CpuTopologyRebuild's documented default: it merges each E-core into a P-core
+as an extra SMT thread so macOS schedules the hybrid CPU better. `ctrsmt=off`
+restores the literal topology, but the kext author warns that performance can
+drop.
 
-The default build now carries `revcpu=1 revpatch=cpuname` on the boot-args line
-as well, so a stale `NVRAM/Delete` entry cannot silently disable the patch.
-After one reboot, check:
+`Processor Name: Unknown` is a separate defect. The deciding line is in the
+report's device-tree dump:
 
-```sh
-sysctl -n machdep.cpu.brand_string
-system_profiler SPHardwareDataType | grep -i 'Processor\|Chip'
-kmutil showloaded | grep RestrictEvents
-nvram 4D1FDA02-38C7-4A6A-9CC6-4BCCA8B30102:revcpuname
+```
+"cpu-type" = <0107>
 ```
 
+That is little-endian `0x0701` = `AppleProcessorTypeCorei7Type1`, inherited
+from the old EFI's `PlatformInfo/Generic/ProcessorType = 1793`. It describes an
+old dual-core Core i7, not a 10-core Alder Lake. macOS cannot map it to a
+product name and falls back to `Unknown`; RestrictEvents' `cpuname` patch then
+looks for an existing marketing string such as `12-Core Intel Xeon W`, finds
+none, and leaves the fallback in place. The boot arguments, the `revcpuname`
+NVRAM variable, and RestrictEvents 1.1.7 were all present and loaded — the
+processor type was the blocker.
+
+The repository now sets `ProcessorType = 3841` (`0x0F01`,
+`AppleProcessorTypeXeonW`), the value used by the reference configuration and
+documented by RestrictEvents for CPUs with 8 or more cores. It is not part of
+the activation identity (serial, MLB, UUID, ROM), so iCloud/iMessage are not
+affected.
+
+After the next boot:
+
+```sh
+system_profiler SPHardwareDataType | grep -E 'Processor Name|Total Number of Cores'
+ioreg -lw0 -p IODeviceTree | grep -o '"cpu-type" = <[^>]*>' | head -n 1
+sysctl -n machdep.cpu.brand_string hw.ncpu hw.physicalcpu hw.logicalcpu \
+             machdep.cpu.core_count machdep.cpu.thread_count
+```
+
+Expected: `Processor Name: 12th Gen Intel(R) Core(TM) i7-1250U`,
+`cpu-type = <010f>`, 12 threads, `Total Number of Cores: 10`. If the name is
+still `Unknown`, the remaining variable is RestrictEvents' find string: it
+derives a `<core_count>-Core ...` name from `machdep.cpu.core_count`, which is
+currently 12. `-ctrfixcnt` changes that to 10 but needs
+`AppleMCEReporterDisabler.kext`; `ctrsmt=off` also changes the accounting but
+loses the scheduling optimisation. Do not add either until the next report
+shows the actual `cpu-type` and displayed name.
+
+The default boot arguments now carry `revpatch=sbvmm,cpuname`. The earlier
+`revpatch=cpuname` overrode the NVRAM value and silently disabled `sbvmm`,
+which keeps OTA updates working on an unsupported model. Keep both words.
+
 `Intel(R) TGL Unknown` in `system_profiler SPDisplaysDataType` is the **GPU**
-fallback name, not the CPU; see [the GPU-name section](#the-gpu-name-says-intelr-tgl-unknown).
+fallback name, not the CPU; see
+[the GPU-name section](#the-gpu-name-says-intelr-tgl-unknown).
 
 ### Display scaling (HiDPI)
 

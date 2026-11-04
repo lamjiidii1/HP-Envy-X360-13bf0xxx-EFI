@@ -182,7 +182,7 @@ affects the OpenCore boot chime path, not macOS audio; macOS audio comes from
 | Key | Old | Reference | Meaning |
 |---|---|---|---|
 | `MLB`, `ROM`, `SystemSerialNumber`, `SystemUUID` | real values | blank (published) | The reference cannot be booted as-is |
-| `ProcessorType` | 1793 | 3841 | Old reports the CPU name it already uses |
+| `ProcessorType` | 1793 | 3841 | 1793 is `Core i7 Type 1`; on Sequoia it renders as `Processor Name: Unknown`. 3841 (`Xeon W`) is the reference and documented value for 8+ cores |
 | `SystemMemoryStatus` | `Soldered` | `Auto` | This machine is soldered |
 | `AdviseFeatures` | true | false | Old-only |
 

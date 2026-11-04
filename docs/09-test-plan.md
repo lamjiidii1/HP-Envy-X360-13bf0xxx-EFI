@@ -19,7 +19,7 @@ step once and capture the evidence described in
 | T00.4 | `shasum -a 256 efi/variants/gpu-hp-adlp-edp/WhateverXe.kext/Contents/MacOS/WhateverXe` | `197da23b…770288c` — the stored payload stays published |
 | T00.5 | Inspect `build/EFI/BUILD-INFO.plist` | `gpu = hp-adlp-edp`, `wifi = airportitlwm`, `debug = false`, `identity_injected = true`; `gpu_patches.sequoia_mmio` = `applied` |
 | T00.6 | `shasum -a 256 build/EFI/OC/Kexts/WhateverXe.kext/Contents/MacOS/WhateverXe` | `6bf93338…3bea60ba` (published binary plus the 24H232 constant) |
-| T00.7 | Open `build/EFI/OC/config.plist` | `boot-args` contains the five `-wex-*` fork arguments; SMBIOS fields are filled |
+| T00.7 | Open `build/EFI/OC/config.plist` | `boot-args` contains the five `-wex-*` fork arguments and `revpatch=sbvmm,cpuname`; `PlatformInfo/Generic/ProcessorType` is `3841`; SMBIOS fields are filled |
 | T00.8 | Back up the current ESP and keep a bootable USB | both exist and boot (test the USB before relying on it) |
 
 Do not skip T00.8. The rest of the plan assumes a working escape hatch.
@@ -73,7 +73,7 @@ from an older build must be repaired with
 | T03.6 | `ioreg -rc IntelAccelerator` | count ≥ 1 |
 | T03.7 | `system_profiler SPDisplaysDataType` | VRAM in the GB range (not 19 MB); Metal listed |
 | T03.8 | Set **Looks like 1440 × 900** (HiDPI) and check the internal panel | no flicker, no half-screen, brightness keys work; UI scale matches GNOME at 200 % |
-| T03.8a | Check `sysctl -n hw.ncpu` and `sysctl -n machdep.cpu.brand_string` | `12` and the i7-1250U name, not `Unknown` |
+| T03.8a | `system_profiler SPHardwareDataType \| grep -E 'Processor Name\|Total Number of Cores'`; `ioreg -lw0 -p IODeviceTree \| grep -o '"cpu-type" = <[^>]*>'`; `sysctl -n hw.ncpu machdep.cpu.brand_string` | `Processor Name` is the i7-1250U (not `Unknown`), `cpu-type = <010f>` (0x0F01), `Total Number of Cores: 10`, `hw.ncpu: 12`, brand string correct |
 | T03.8b | Open System Settings > Battery | pane opens; if it exits, capture the PowerPreferences log described in [08](08-troubleshooting.md#battery-settings-pane-exits-powerpreferences) |
 | T03.9 | Attach an external display over USB-C/HDMI (if available) | second display appears; record the connection path |
 | T03.10 | Open a Metal app (Maps, Photos, a game) | renders without software fallback |

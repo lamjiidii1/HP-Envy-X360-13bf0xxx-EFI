@@ -21,7 +21,8 @@ and the collector can be removed without touching the system.
 A snapshot contains:
 
 - macOS build, boot time, load average, `pmset -g log` tail;
-- CPU brand string, core/thread counts, memory, `top`, all processes by CPU;
+- CPU brand string, core/thread counts, the System Information processor name
+  and `cpu-type`, memory, `top`, all processes by CPU;
 - loaded kexts, `/Library/Extensions`, `/Library/GPUBundles`;
 - `system_profiler SPDisplaysDataType`, `IntelAccelerator`, `IOAccelerator`,
   the GFX0 device tree, WhateverXe/guard keys, GPU statistics;
