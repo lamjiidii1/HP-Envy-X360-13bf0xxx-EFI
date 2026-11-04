@@ -141,6 +141,7 @@ if [ "$(basename "$REPO_DIR")" != "$REPO_NAME" ] && [ -d "$(dirname "$REPO_DIR")
 fi
 [ -d "$REPO_DIR/.git" ] || die "extracted repository has no .git"
 note "$(du -sh "$REPO_DIR" 2>/dev/null | cut -f1) in $REPO_DIR"
+cd "$REPO_DIR" || die "cannot enter $REPO_DIR"
 
 # --- 3. stop any running service ------------------------------------------
 if "$OPENCODE" service status >/dev/null 2>&1; then
