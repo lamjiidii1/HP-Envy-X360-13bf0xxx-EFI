@@ -39,6 +39,9 @@ run sysctl -n hw.logicalcpu
 run sysctl -n machdep.cpu.core_count
 run sysctl -n machdep.cpu.thread_count
 run system_profiler SPHardwareDataType
+run sh -c "system_profiler SPHardwareDataType | grep -E 'Processor Name|Total Number of Cores|Hyper-Threading'"
+run sh -c "ioreg -lw0 -p IODeviceTree | grep -o '\"cpu-type\" = <[^>]*>' | head -n 1"
+run sh -c "nvram 4D1FDA02-38C7-4A6A-9CC6-4BCCA8B30102:ctrsmt 4D1FDA02-38C7-4A6A-9CC6-4BCCA8B30102:ctrfixcnt 2>&1"
 
 section "Kexts (expect RestrictEvents, CpuTopologyRebuild, WhateverXe)"
 run kmutil showloaded

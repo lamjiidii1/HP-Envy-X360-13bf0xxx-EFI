@@ -185,6 +185,10 @@ cmd_snapshot() {
   # sysctl -a is large; drop the noisy non-CPU families
   grep -E '^(machdep\.cpu|hw\.|kern\.os|vm\.)' "$out" > "$out.tmp" 2>/dev/null || true
   [ -s "$out.tmp" ] && mv "$out.tmp" "$out"
+  section "CPU name and topology (System Information vs kernel)"
+  run_sh "$out" "system_profiler SPHardwareDataType | grep -E 'Processor Name|Total Number of Cores|Hyper-Threading'"
+  run_sh "$out" "ioreg -lw0 -p IODeviceTree | grep -o '\"cpu-type\" = <[^>]*>' | head -n 1"
+  run_sh "$out" "nvram 4D1FDA02-38C7-4A6A-9CC6-4BCCA8B30102:ctrsmt 4D1FDA02-38C7-4A6A-9CC6-4BCCA8B30102:ctrfixcnt 2>&1"
   section "Top CPU processes"
   run "$out" top -l 1 -o cpu -n 30
   section "All processes by CPU"
