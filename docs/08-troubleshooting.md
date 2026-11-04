@@ -655,6 +655,22 @@ The sequence in the captured log is:
 4. the process receives `SIGABRT` and `System Settings` reports "Extension
    process … exited" (PID 1508/1517 on consecutive tries).
 
+The earlier one-shot report had already caught the same event. In
+`wex-post-install-20261103-185409.txt` the 18:49 attempt is visible:
+
+```text
+18:49:40.059 launchd: Successfully spawned PowerPreferences[973]
+18:49:41.049 launchd: exited due to SIGABRT | sent by PowerPreferences[973], ran for 999ms
+18:49:42.064 ReportCrash: creating type 309 as /private/var/logs/ramrod/.PowerPreferences-….ips
+18:49:42.064 ReportCrash: Error creating file … No such file or directory
+```
+
+That is why no `.ips` exists to open: `ReportCrash` could not create its
+staging directory, not because the pane failed silently. That report's
+predicate did not ask for `MTLLoader` or the `Metal` subsystem, so it recorded
+the exit but not the assertion. The later `log stream` capture added the
+assertion; the collector's predicates now include both.
+
 The battery data itself is sane (`BatteryInstalled = Yes`,
 `MaxCapacity = 7745`, `DesignCapacity = 8638`, `Temperature = 2931` = 29.31 °C,
 `CycleCount = 0`), and `pmset -g batt` works while the pane is closed. This is
