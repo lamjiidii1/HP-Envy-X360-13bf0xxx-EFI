@@ -79,6 +79,8 @@ scripts/macos/check-metal-env.sh         verifies the agent and GUI environment
 scripts/macos/openmac-diag.sh            continuous per-user diagnostics collector
 scripts/macos/post-install-check.sh      one-shot CPU/GPU/display/battery report
 scripts/macos/install-boot-capture.sh    black-screen boot capture daemon
+scripts/macos/restore-opencode-migration.sh  restore chat + repo on macOS
+scripts/migrate-to-macos.sh              build the Linux → macOS migration bundle
 docs/                     hardware, audit, graphics, Wi-Fi, audio, install, test plan
 audit/                    reference matrix, config diff, log analysis, payload hashes
 private/                  identity.example.plist (committed), identity.plist (ignored)
@@ -182,6 +184,7 @@ Full reasoning: [docs/02-audit.md](docs/02-audit.md) and
 | [docs/09-test-plan.md](docs/09-test-plan.md) | Ordered hardware test checklist |
 | [docs/10-provenance.md](docs/10-provenance.md) | Versions, hashes, sources, modifications |
 | [docs/11-diagnostics.md](docs/11-diagnostics.md) | Continuous collector: install, schedules, output, privacy, uninstall |
+| [docs/12-moving-to-macos.md](docs/12-moving-to-macos.md) | Move the chat, credentials, repository and OpenCode binary to macOS |
 
 Official references (OpenCore `Configuration.pdf`, the Dortania install and
 ACPI guides, upstream driver documentation) are listed in
