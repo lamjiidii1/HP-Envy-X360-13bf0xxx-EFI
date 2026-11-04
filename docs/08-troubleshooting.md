@@ -271,62 +271,58 @@ Typical evidence:
   loading video;
 - `IntelAccelerator` is present and `system_profiler` reports Metal 2.
 
-Cause: the Metal driver in WhateverXe Graphics 0.3.1 was built for 24H32 and
-does not match Apple's precompiled Metal archives on 24H232. The assertion text
-is:
+Cause: the WhateverXe Graphics 0.3.1 `impostor.dylib` shim, which is supposed
+to intercept `newBinaryArchiveWithDescriptor:error:` and return a normal
+`NSError`, enables its hook only when
+
+```text
+kern.osversion == "24H32"
+```
+
+This machine reports **24H232**, so the hook is never installed and Metal falls
+through to the assertion:
 
 ```text
 +[MTLLoader sliceIDForDevice:legacyDriverVersion:airntDriverVersion:]:685:
   failed assertion `Target device architecture is nil'
 ```
 
+The driver binary itself behaves the same on both builds; the gate is in the
+shim. `kern.osrelease` is `24.6.0`, which is what later packages test instead.
+
 The same class of failure appears in `CA::Render::prepare_image`, which is why
 the App Store and SwiftUI panes that precompile Metal libraries abort instead of
 painting. Upstream lists both "some image-conversion operations can crash
 applications" and "App Store video can freeze the GPU on Sequoia" as known
-issues for this generation of the package. The suggested mitigation is a
-per-user LaunchAgent that makes Metal ignore the archives and compile from
-source. Install it with the script, from Terminal.app in the logged-in desktop
-session:
+issues for this generation of the package.
+
+**Fix (confirmed 2026-11-04):** WhateverXe Graphics 0.4.0 ships a rebuilt
+`impostor.dylib` that enables the same hook on `kern.osrelease` 24.6.0+ (and
+25.x); its `descriptor.dylib` and `libigdmd.dylib` are byte-identical to 0.3.1,
+so only that one file needs replacing. Run:
 
 ```sh
-bash /Volumes/MACUSB/OpenC/macos/install-metal-archive-workaround.sh
+sudo bash scripts/macos/patch-mtl-impostor.sh --test
 ```
 
-The script copies `metal-archive-workaround.plist` to
-`~/Library/LaunchAgents/local.wex.metal-archive-workaround.plist` (the label
-name), validates it, sets the variables in the current session, bootstraps the
-agent, verifies `launchctl getenv` for all three, clears the user Metal caches
-and restarts ControlCenter. Use `--dry-run` to see the commands first and
-`--uninstall` to remove everything:
+The script pins the 0.4.0 SHA-256
+(`1cc38c79…a1060`), keeps the old bundle at
+`/Library/GPUBundles/AppleIntelTGLGraphicsMTLDriver.bundle.backup-<stamp>`,
+verifies the shim signature and offers `--rollback`. After installation the
+Battery pane opens, ControlCenter stays up, and no `sliceIDForDevice` assertion
+appears. Reinstalling WhateverXe Graphics overwrites the shim; rerun the script
+afterwards. Check the state at any time with
+`bash scripts/macos/patch-mtl-impostor.sh --status`.
+
+The earlier per-user LaunchAgent (`RB_USE_BINARY_ARCHIVE=0` and friends) was
+tried and **did not fix anything**: all three variables were demonstrably
+present in the `gui/501` environment, yet `PowerPreferences` still asserted at
+`MTLLoader` line 685. Remove it unless you are deliberately running that
+experiment:
 
 ```sh
-bash scripts/macos/install-metal-archive-workaround.sh --dry-run
 bash scripts/macos/install-metal-archive-workaround.sh --uninstall
 ```
-
-> The earlier hand-written instructions were broken: they copied the plist as
-> `metal-archive-workaround.plist`, but `launchctl bootstrap` was given
-> `~/Library/LaunchAgents/local.wex.metal-archive-workaround.plist`. That path
-> never existed, so the agent was never loaded. The script always installs it
-> under the label name.
-
-It sets `RB_USE_BINARY_ARCHIVE=0`,
-`MTL_DEBUG_IGNORE_PRECOMPILED_BINARIES=1` and
-`MTL_DEBUG_IGNORE_PSO_FAIL_ON_MISS=1`, then restarts ControlCenter. The
-workaround is adapted from
-[dwiwinarno911/opencore-msi-tigerlake-irisxe](https://github.com/dwiwinarno911/opencore-msi-tigerlake-irisxe),
-where it fixed the same crash on the same build. Log out/in (or reboot) before
-judging it, so every process starts with the variables.
-
-**Measured on this machine on 2026-11-04: it does not fix the Battery pane.**
-After a clean restore, `check-metal-env.sh` showed the agent loaded and all
-three variables present in the `gui/501` launchd environment; a freshly opened
-Terminal shell inherited all three; a newly launched System Settings then
-opened the Battery pane and `PowerPreferences` still aborted at 20:06:03 with
-the same `MTLLoader` assertion. The environment is delivered, so the variables
-are not sufficient on the `adlp-edp` driver. Keep the agent only as an
-experiment; do not present it as the Battery or App Store fix.
 
 For a crash that still needs a backtrace, note whether the process is
 ControlCenter, PowerPreferences, WindowServer or Safari, and capture the
@@ -732,24 +728,25 @@ The battery data itself is sane (`BatteryInstalled = Yes`,
 `CycleCount = 0`), and `pmset -g batt` works while the pane is closed. This is
 the same failure class as the ControlCenter archive crash
 ([§ Metal apps crash](#metal-apps-crash-or-safari-video-freezes-24h232)): the
-WhateverXe Graphics 0.3.1 Metal driver expects 24H32 archives on a 24H232
-system.
+WhateverXe Graphics 0.3.1 `impostor.dylib` only enables its archive hook when
+the build string is exactly 24H32.
 
 There is **no EFI, SMBIOS, NVRAM or `-wex-*` change that fixes this**, and an
-SMC/NVRAM reset does not address it. Do this instead:
+SMC/NVRAM reset does not address it. The actual fix is the `impostor.dylib`
+replacement described in
+[§ Metal apps crash](#metal-apps-crash-or-safari-video-freezes-24h232):
 
-1. Install the Metal archive workaround from the Metal section.
-2. Clear the Metal caches and reboot:
+1. Install the 0.4.0 shim and reopen the pane:
    ```sh
-   rm -rf ~/Library/Caches/com.apple.Metal ~/Library/Caches/com.apple.MetalShaderCache
+   sudo bash scripts/macos/patch-mtl-impostor.sh --test
    ```
-3. Open the Battery pane again. If it still aborts, keep the collector running
-   and capture the exact seconds:
+2. If the pane still aborts, keep the collector running and capture the exact
+   seconds:
    ```sh
    log show --last 5m --style compact \
      --predicate 'process == "ReportCrash" OR process == "PowerPreferences" OR eventMessage CONTAINS "MTLLoader"'
    ```
-4. Confirm the rest of the power stack is healthy, independent of the pane:
+3. Confirm the rest of the power stack is healthy, independent of the pane:
    ```sh
    pmset -g
    pmset -g batt
@@ -760,11 +757,12 @@ Do not remove `SMCBatteryManager.kext` to "fix" the pane: that would trade a
 Settings crash for no battery percentage and no power management. Do not change
 the SMBIOS either; the pane fails inside Metal, before it reads battery data.
 
-A real fix needs a WhateverXe Graphics build whose Metal driver matches Sequoia
-and whose compiler bundle can load. 0.4.0 claims that fix, but it pairs with
-WhateverXe 0.7.0, which rejects this panel's VBT (`Status::Conflict`) and leaves
-the internal display dark. Until a build accepts both, this pane remains the
-one known cosmetic casualty of the working graphics stack.
+**Verified 2026-11-04:** after installing the 0.4.0 `impostor.dylib`, the pane
+opened at 21:09 (`UISoC: 74`) and ControlCenter stayed up with no `MTLLoader`
+errors. The old bundle is kept at
+`/Library/GPUBundles/AppleIntelTGLGraphicsMTLDriver.bundle.backup-20261104-210746`;
+`sudo bash scripts/macos/patch-mtl-impostor.sh --rollback` restores it. The
+0.3.1 behaviour remains the fallback if a future package replaces the shim.
 
 ### Why the machine is slow and hot
 
@@ -774,9 +772,10 @@ The logs point at three separate costs, in order of impact:
    not the 1× 2880×1800 mode. The 1× mode makes every window redraw at full
    panel resolution and was the single biggest source of heat; it is fixed on
    the current install. Verify with `system_profiler SPDisplaysDataType`.
-2. **Metal archive / compiler mismatch.** On 24H232 the Graphics 0.3.1 payload
-   was built for 24H32. Install the archive workaround in the previous section
-   and clear `~/Library/Caches/com.apple.Metal*` once. Repeated
+2. **Metal archive / compiler mismatch.** On 24H232 the Graphics 0.3.1 shim
+   was gated to 24H32, so archive-based apps aborted and retried. Apply the
+   `impostor.dylib` fix in the previous section and clear
+   `~/Library/Caches/com.apple.Metal*` once. Repeated
    `MTLCompilerService` sandbox denials of `XeCompilerAdapter.bundle` (see
    [above](#apps-hang-after-a-few-minutes-mtlcompilerservice-sandbox)) make
    apps hang and burn CPU while they retry.

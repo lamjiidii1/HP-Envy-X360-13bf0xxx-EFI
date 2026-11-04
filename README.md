@@ -27,19 +27,22 @@ scratch with every payload pinned and hashed.
 > in `efi/variants` stays the published `197da23b…` binary.
 > `scripts/macos/patch-wex-sequoia-mmio.sh` can repair a stick in place after a
 > macOS update, and
-> `scripts/macos/install-metal-archive-workaround.sh` installs the matching
-> Metal-archive agent on this build.
+> `scripts/macos/patch-mtl-impostor.sh` replaces the Graphics 0.3.1 Metal shim
+> whose archive hook is gated to the exact build 24H32 — the cause of the
+> Battery pane crash and the ControlCenter crash loop on 24H232.
 >
 > **Boot-tested on 15.8.2 from this repository (2026-11-03).** The built stick
 > boots to the desktop, `TGLSequoiaMMIOGuard` entry 19 is `01`,
 > `IntelAccelerator` is present, `VRAM (Dynamic, Max)` is 1536 MB and
 > `system_profiler` reports **Metal 2**. The internal 2880×1800 OLED is online
 > at **Looks like 1440 × 900** HiDPI. The remaining known limits are Metal 2
-> (not Metal 3), the GPU's internal "Intel(R) TGL Unknown" name, and Metal apps
-> that load precompiled archives: the Battery settings pane and App Store video
-> abort/hang in `MTLLoader` / `CA::Render::prepare_image`. The desktop itself
-> is GPU-composited. See
-> [docs/03-graphics.md](docs/03-graphics.md#metal-archives-on-24h232) and
+> (not Metal 3), the GPU's internal "Intel(R) TGL Unknown" name, and runtime
+> shader compilation (`XeCompilerAdapter` sandbox). The Battery pane and
+> ControlCenter archive crashes are **fixed** by the 0.4.0 `impostor.dylib`
+> (verified 2026-11-04); App Store video remains under investigation. The
+> desktop itself is GPU-composited. See
+> [docs/03-graphics.md](docs/03-graphics.md#the-impostordylib-version-gate-and-the-040-fix)
+> and
 > [docs/08-troubleshooting.md](docs/08-troubleshooting.md#battery-settings-pane-exits-powerpreferences).
 
 ## Hardware
@@ -73,7 +76,9 @@ scripts/payload_inventory.py      regenerates audit/payloads.tsv
 scripts/macos/patch-wex-tahoe-mmio.sh   repairs the 26.7.2 MMIO-UC signature
                                         (Tahoe history; not used on Sequoia)
 scripts/macos/patch-wex-sequoia-mmio.sh repairs the 15.8.2 (24H232) signature
-scripts/macos/metal-archive-workaround.plist  Metal archive crash workaround
+scripts/macos/patch-mtl-impostor.sh      installs the 0.4.0 impostor.dylib
+                                        (fixes Battery pane / ControlCenter)
+scripts/macos/metal-archive-workaround.plist  Metal archive agent (experiment)
 scripts/macos/install-metal-archive-workaround.sh  installs/removes that agent
 scripts/macos/check-metal-env.sh         verifies the agent and GUI environment
 scripts/macos/openmac-diag.sh            continuous per-user diagnostics collector

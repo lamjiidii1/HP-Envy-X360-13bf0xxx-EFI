@@ -88,8 +88,9 @@ KDK rather than guessing.
 
 Getting the accelerator to start is only the first half. Once
 `IntelAccelerator` is active, WhateverXe Graphics 0.3.1 can still crash on
-Apple's **precompiled Metal archives**, because the payload was built for
-24H32. This is not the MMIO guard: here Metal exists but mishandles an archive.
+Apple's **precompiled Metal archives**, because its `impostor.dylib` shim only
+activates the archive hook on 24H32. This is not the MMIO guard: here Metal
+exists but mishandles an archive.
 
 Confirmed on 2026-11-03 on this machine:
 
@@ -108,48 +109,71 @@ The assertion is always the same:
 ```
 
 Upstream's known-issues list names both "some image-conversion operations can
-crash applications" and "App Store video can freeze the GPU on Sequoia", so the
-last two rows are acknowledged limitations of the 0.3.x generation rather than
-a local misconfiguration.
+crash applications" and "App Store video can freeze the GPU on Sequoia", so
+the last two rows are acknowledged limitations of the 0.3.x generation rather
+than a local misconfiguration.
+
+### The `impostor.dylib` version gate and the 0.4.0 fix
+
+The bundle that WhateverXe installs beside Apple's TGL Metal driver is:
+
+```text
+/Library/GPUBundles/AppleIntelTGLGraphicsMTLDriver.bundle/Contents/MacOS/
+    impostor.dylib
+    descriptor.dylib
+    libigdmd.dylib
+```
+
+`impostor.dylib` hooks `-[MTLDevice newBinaryArchiveWithDescriptor:error:]` and,
+for a legacy Intel device, returns a normal `NSError`
+(`MTLBinaryArchiveDomain`, code 4, "This legacy driver has no target
+architecture for binary archives") instead of letting `MTLLoader` assert. The
+0.3.1 build gates that hook on the **exact build string**:
+
+```text
+kern.osversion == "24H32"
+```
+
+This machine is **24H232**, so the hook was never installed — which is why the
+launchd environment workaround could not help. WhateverXe Graphics **0.4.0**
+rebuilds only that shim and gates it on `kern.osrelease` 24.6.0+ (and 25.x);
+`descriptor.dylib` and `libigdmd.dylib` are byte-identical to 0.3.1. Applying
+it needs no EFI or kernel change:
+
+```sh
+sudo bash scripts/macos/patch-mtl-impostor.sh --test
+```
+
+The script pins the 0.4.0 SHA-256
+`1cc38c7941333d3f4b88316795c78ca0095addf945fa35b6ff8634ecc93a1060`, backs up
+the whole driver bundle first, verifies signatures, clears the user Metal
+caches and restarts System Settings/ControlCenter. Verified on this machine on
+2026-11-04: the Battery pane opened at 21:09 and ControlCenter stayed up with no
+`MTLLoader` errors. `--status` reports the installed shim, `--rollback` restores
+the newest bundle backup. Reinstalling WhateverXe Graphics overwrites the shim,
+so rerun the script afterwards.
+
+The earlier per-user LaunchAgent (`RB_USE_BINARY_ARCHIVE=0`,
+`MTL_DEBUG_IGNORE_PRECOMPILED_BINARIES=1`, `MTL_DEBUG_IGNORE_PSO_FAIL_ON_MISS=1`)
+was a plausible mitigation but is **not a fix**: measured on 2026-11-04, all
+three variables were present in the `gui/501` environment (and inherited by a
+new Terminal shell), yet a fresh System Settings still aborted at `MTLLoader`
+line 685. Remove it if it is still installed:
+
+```sh
+bash scripts/macos/install-metal-archive-workaround.sh --uninstall
+```
+
+The script is kept only as an experiment and as the record of that negative
+result; do not present it as the Battery or App Store fix.
 
 A separate failure affects apps that need **runtime** shader compilation:
 `MTLCompilerService` is denied `file-read-data`/`file-map-executable` on
 `/Library/GPUBundles/XeCompilerAdapter.bundle` and `libigc-tgl.dylib`. That
 bundle also reports `bundle format unrecognized` to `codesign`. It is a driver
 packaging problem, not an EFI switch. The practical consequence is that the
-desktop is GPU-composited, but archive-based Metal apps abort and
-compile-on-demand apps wait and burn CPU; see
+desktop is GPU-composited, but compile-on-demand apps wait and burn CPU; see
 [08-troubleshooting.md](08-troubleshooting.md#does-the-gpu-render-the-desktop-or-is-the-cpu-doing-it).
-
-`scripts/macos/metal-archive-workaround.plist` is a per-user LaunchAgent that
-sets:
-
-```
-RB_USE_BINARY_ARCHIVE=0
-MTL_DEBUG_IGNORE_PRECOMPILED_BINARIES=1
-MTL_DEBUG_IGNORE_PSO_FAIL_ON_MISS=1
-```
-
-and restarts ControlCenter. Because both 0.3.1 and 0.3.2 target 24H32, it was
-suggested on this build as soon as Metal is confirmed; install it with the
-companion script, which uses the label filename that `launchctl bootstrap`
-actually needs:
-
-```sh
-bash scripts/macos/install-metal-archive-workaround.sh
-```
-
-Measured again on 2026-11-04 after a clean restore: all three variables were
-present in the `gui/501` launchd environment (and inherited by a new Terminal
-shell), yet a fresh System Settings still aborted in `PowerPreferences` at
-`MTLLoader` line 685. The agent therefore does **not** fix the Battery pane on
-this driver; see
-[08-troubleshooting.md](08-troubleshooting.md#battery-settings-pane-exits-powerpreferences).
-
-Use `--dry-run` to inspect the commands and `--uninstall` to boot out the agent,
-unset the variables and clear the caches. The workaround is adapted from the
-MSI repository named above, where it fixed the same crash on the same build; see
-[08-troubleshooting.md](08-troubleshooting.md#metal-apps-crash-or-safari-video-freezes-24h232).
 
 ## Why the fork is still required on Sequoia
 

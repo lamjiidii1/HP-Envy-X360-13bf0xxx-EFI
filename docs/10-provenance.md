@@ -153,11 +153,16 @@ They are Apple/Intel-derived and are deliberately not vendored here.
 | Pairs with | WhateverXe 0.6.0 (`adlp-edp` fork), `AppleIntelTGLCompat` 0.6.0 |
 | Installs to | `/Library/Extensions` and `/Library/GPUBundles`, then AuxKC |
 | Control package | `WhateverXe-Graphics-0.4.0.pkg`, SHA-256 `7a1b5015b3e6e8b522f26c25df85c313471c9142564a0b57356cddd2c88b9510` (95,200,795 bytes), pairs with WEX 0.7.0 / Compat 0.7.0 |
+| Pinned file | 0.4.0 `impostor.dylib` for Sequoia, SHA-256 `1cc38c7941333d3f4b88316795c78ca0095addf945fa35b6ff8634ecc93a1060`, from `payloads/Sequoia/Library/GPUBundles/AppleIntelTGLGraphicsMTLDriver.bundle/Contents/MacOS/` at tag `v0.4.0`; replaces the 0.3.1 shim (`53c93a6e…fb57b`) named in `scripts/macos/patch-mtl-impostor.sh` |
 
 The same-model reference was tested with 0.3.1, and its installed
 `AppleIntelTGLCompat` is 0.6.0 (the identifier this machine's logs show).
 Graphics 0.3.2 ships Compat 0.6.1 and 0.4.0 ships Compat 0.7.0; neither is
-used with the 0.6.0 default. Do not mix the pairs.
+used with the 0.6.0 default. Do not mix the pairs. The one deliberate
+exception is the 0.4.0 `impostor.dylib`: it is a userspace shim, not part of
+the Compat/kext pair, and is byte-compatible with the 0.3.1 `descriptor.dylib`
+and `libigdmd.dylib`. `scripts/macos/patch-mtl-impostor.sh` installs only that
+file, leaving the 0.6.0 kernel stack and the other two dylibs untouched.
 
 **The stored payload is unmodified; the built kext is not.** The file in
 `efi/variants/gpu-hp-adlp-edp` is the published `197da23b…` binary. On Sequoia
@@ -184,7 +189,11 @@ Metal-archive LaunchAgent, redistributed here as
 `scripts/macos/metal-archive-workaround.plist` with no functional change.
 `scripts/macos/install-metal-archive-workaround.sh` is local glue that installs
 it under the label filename, verifies the environment and removes it again; it
-is not upstream code.
+is not upstream code. The agent is retained as a **negative result**: it was
+measured not to fix the Battery pane on 24H232 (see
+[docs/03-graphics.md](03-graphics.md#metal-archives-on-24h232)). The actual
+fix, `scripts/macos/patch-mtl-impostor.sh`, pins the 0.4.0 `impostor.dylib`
+from b00t0x/WhateverXe-Graphics and is described in §5.
 See [docs/03-graphics.md](03-graphics.md#the-24h232-mmio-signature) and
 [docs/08-troubleshooting.md](08-troubleshooting.md#metal-apps-crash-or-safari-video-freezes-24h232).
 

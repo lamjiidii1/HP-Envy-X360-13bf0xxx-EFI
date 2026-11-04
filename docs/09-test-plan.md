@@ -78,7 +78,7 @@ from an older build must be repaired with
 | T03.9 | Attach an external display over USB-C/HDMI (if available) | second display appears; record the connection path |
 | T03.10 | Open a Metal app (Maps, Photos, a game) | renders without software fallback |
 | T03.11 | Leave ControlCenter and Safari video running for a few minutes | no ControlCenter crash loop, no `RB::load_library_archive` assert |
-| T03.12 | If T03.11 fails, run `bash scripts/macos/install-metal-archive-workaround.sh`, reboot and repeat | ControlCenter stays up; Metal app renders |
+| T03.12 | If T03.11 fails, run `sudo bash scripts/macos/patch-mtl-impostor.sh --test` (0.4.0 shim), then repeat | ControlCenter stays up; no `sliceIDForDevice` assert; Battery pane opens |
 
 If T03.2 shows entry 19 = `00`, save `TGLSequoiaMMIOGuard` and
 `TGLSequoiaMMIOInspection` and confirm the ESP has the patched binary
@@ -156,7 +156,7 @@ a successful recording proves the DSP patch is in the built kext.
 | T08.4 | `sysctl -n machdep.cpu.brand_string` | `12th Gen Intel(R) Core(TM) i7-1250U` |
 | T08.5 | `ioreg -l \| grep -i AppleSmartBattery` | battery data present |
 | T08.6 | Close the lid with sleep disabled | no wake hang; machine stays off/awake as configured |
-| T08.7 | Open **System Settings > Battery** after installing the Metal archive workaround and clearing the Metal caches | pane opens; if it aborts, the collector captured `MTLLoader sliceIDForDevice` and a `ReportCrash` line for that second |
+| T08.7 | Open **System Settings > Battery** after applying the `impostor.dylib` fix (`sudo bash scripts/macos/patch-mtl-impostor.sh --test`) and clearing the Metal caches | pane opens and shows data; **passes** with the 0.4.0 shim on 24H232 (first verified 2026-11-04 21:09). If it aborts, the collector captured `MTLLoader sliceIDForDevice` and a `ReportCrash` line for that second |
 | T08.8 | Record `openmac-diag.sh status` and keep one `report` bundle | the investigation has a timestamped baseline before any further change |
 
 ## Phase 9 — Sleep (known broken, informational)
