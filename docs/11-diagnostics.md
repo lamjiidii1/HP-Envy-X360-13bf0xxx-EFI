@@ -32,6 +32,8 @@ A snapshot contains:
 - NVRAM and boot-args with identity fields redacted;
 - unified-log extracts for errors, GPU/Metal, Settings/App Store/crashes,
   sandbox denials, and kernel GPU/hang/reset events;
+- the installed Metal-archive workaround plist, its `launchctl` state, the
+  GUI-domain environment and the three `launchctl getenv` values;
 - copies of crash, hang, spin and panic reports from the last three days;
 - `powermetrics` when it can run without a password prompt.
 

@@ -75,6 +75,7 @@ scripts/macos/patch-wex-tahoe-mmio.sh   repairs the 26.7.2 MMIO-UC signature
 scripts/macos/patch-wex-sequoia-mmio.sh repairs the 15.8.2 (24H232) signature
 scripts/macos/metal-archive-workaround.plist  Metal archive crash workaround
 scripts/macos/install-metal-archive-workaround.sh  installs/removes that agent
+scripts/macos/check-metal-env.sh         verifies the agent and GUI environment
 scripts/macos/openmac-diag.sh            continuous per-user diagnostics collector
 scripts/macos/post-install-check.sh      one-shot CPU/GPU/display/battery report
 scripts/macos/install-boot-capture.sh    black-screen boot capture daemon

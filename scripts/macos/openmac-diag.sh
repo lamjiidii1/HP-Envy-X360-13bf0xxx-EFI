@@ -362,6 +362,18 @@ cmd_snapshot() {
       cp "$f" "$BASE/snapshots/$ts-$why/crashes/" 2>/dev/null || true
     done
 
+  # --- Metal archive workaround -----------------------------------------
+  out="$BASE/snapshots/$ts-$why/19-metal-env.txt"; : > "$out"
+  section "Installed Metal workaround plists"
+  run_sh "$out" 'ls -l "$HOME/Library/LaunchAgents" | grep -i "metal\|wex"'
+  run_sh "$out" 'for f in "$HOME/Library/LaunchAgents/local.wex.metal-archive-workaround.plist" "$HOME/Library/LaunchAgents/metal-archive-workaround.plist"; do if [ -f "$f" ]; then echo "$f"; plutil -extract Label raw -o - "$f" 2>&1; fi; done'
+  section "Agent state"
+  run_sh "$out" 'launchctl print gui/$(id -u)/local.wex.metal-archive-workaround 2>&1 | head -30'
+  section "GUI-domain environment"
+  run_sh "$out" 'launchctl print gui/$(id -u) 2>/dev/null | sed -n "/environment = {/,/}/p"'
+  section "getenv values"
+  run_sh "$out" 'for k in RB_USE_BINARY_ARCHIVE MTL_DEBUG_IGNORE_PRECOMPILED_BINARIES MTL_DEBUG_IGNORE_PSO_FAIL_ON_MISS; do printf "%s=" "$k"; launchctl getenv "$k" 2>/dev/null || echo "<unset>"; done'
+
   # --- optional: root-only measurements ----------------------------------
   out="$BASE/snapshots/$ts-$why/18-powermetrics.txt"; : > "$out"
   if [ "$(id -u)" = "0" ]; then

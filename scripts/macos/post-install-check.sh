@@ -82,6 +82,13 @@ run sh -c "ls -l /Library/GPUBundles/XeCompilerAdapter.bundle/Contents/MacOS/ 2>
 run sh -c "codesign -dv --verbose=4 /Library/GPUBundles/XeCompilerAdapter.bundle 2>&1"
 run sh -c "ls -l /Library/Extensions/AppleIntelTGLCompat.kext/Contents/MacOS/ 2>&1"
 
+section "Metal archive workaround (environment delivery)"
+run sh -c "ls -l \"$HOME/Library/LaunchAgents\" | grep -i 'metal\|wex'"
+run sh -c "for f in \"$HOME/Library/LaunchAgents/local.wex.metal-archive-workaround.plist\" \"$HOME/Library/LaunchAgents/metal-archive-workaround.plist\"; do [ -f \"\$f\" ] && { echo \"\$f\"; plutil -extract Label raw -o - \"\$f\" 2>&1; }; done"
+run sh -c "launchctl print gui/$(id -u)/local.wex.metal-archive-workaround 2>&1 | head -30"
+run sh -c "launchctl print gui/$(id -u) 2>/dev/null | sed -n '/environment = {/,/}/p'"
+run sh -c 'for k in RB_USE_BINARY_ARCHIVE MTL_DEBUG_IGNORE_PRECOMPILED_BINARIES MTL_DEBUG_IGNORE_PSO_FAIL_ON_MISS; do printf "%s=" "$k"; launchctl getenv "$k" 2>/dev/null || echo "<unset>"; done'
+
 section "Recent crash reports"
 run sh -c "find \"$HOME/Library/Logs/DiagnosticReports\" /Library/Logs/DiagnosticReports -maxdepth 1 -type f -mtime -2 2>/dev/null | sort | tail -40"
 
