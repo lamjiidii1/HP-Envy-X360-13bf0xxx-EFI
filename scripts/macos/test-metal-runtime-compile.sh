@@ -41,7 +41,7 @@ die() { say "VERDICT: FAIL - $*"; exit 1; }
 
 case "${1:-}" in
     -h|--help)
-        sed -n '2,30p' "$0" | sed 's/^# \{0,1\}//'
+        sed -n '2,34p' "$0" | sed 's/^# \{0,1\}//'
         exit 0
         ;;
     "") ;;
