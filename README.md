@@ -92,10 +92,15 @@ scripts/macos/install-metal-archive-workaround.sh  installs/removes that agent
 scripts/macos/check-metal-env.sh         verifies the agent and GUI environment
 scripts/macos/openmac-diag.sh            continuous per-user diagnostics collector
 scripts/macos/post-install-check.sh      one-shot CPU/GPU/display/battery report
+scripts/macos/power-profile.sh           apply balanced/battery/performance pmset profiles
+scripts/macos/install-power-daemon.sh    re-apply the power profile at every boot
+scripts/macos/power-audit.sh             measure CPU package power and XCPM state
+scripts/macos/battery-watch.sh           real discharge watts and projected runtime
+scripts/macos/apply-efi-cpu-speed.sh     set SMBIOS ProcessorSpeed on a live EFI
 scripts/macos/install-boot-capture.sh    black-screen boot capture daemon
 scripts/macos/restore-opencode-migration.sh  restore chat + repo on macOS
 scripts/migrate-to-macos.sh              build the Linux → macOS migration bundle
-docs/                     hardware, audit, graphics, Wi-Fi, audio, install, test plan
+docs/                     hardware, audit, graphics, Wi-Fi, audio, install, bring-up, measurements
 audit/                    reference matrix, config diff, log analysis, payload hashes
 private/                  identity.example.plist (committed), identity.plist (ignored)
 ```
@@ -129,6 +134,101 @@ Other combinations:
 | `build/EFI-itlwm` | WhateverXe 0.6.0 + adlp-edp | itlwm + HeliPort | Fallback if AirportItlwm does not attach |
 | `build/EFI-wex070` | WhateverXe 0.7.0 | AirportItlwm 2.4.0 (Sequoia) | Control experiment; needs Graphics 0.4.0 and is expected to leave the internal panel dark |
 | `build/EFI-debug` | WhateverXe 0.6.0 + adlp-edp | AirportItlwm 2.4.0 (Sequoia) | Verbose boot and kernel logging while debugging |
+
+## From zero to a working install
+
+The complete checklist — prerequisites, expected output, failure modes and
+rollback — is [docs/13-bring-up.md](docs/13-bring-up.md). This is the short
+version.
+
+1. **Clone and create your identity.** Never reuse another machine's values.
+
+   ```sh
+   git clone https://github.com/lamjiidii1/OpenMac.git
+   cd OpenMac
+   cp private/identity.example.plist private/identity.plist
+   $EDITOR private/identity.plist      # serial, MLB, UUID, ROM
+   ```
+
+2. **Build and verify.** `make build` assembles `build/EFI` and runs the
+   structural checks; it fails on a blank SMBIOS identity.
+
+   ```sh
+   make build && make verify
+   ```
+
+3. **Prepare the boot medium.** Create the macOS installer USB, then copy
+   `build/EFI` to its EFI System Partition. Back up any EFI you replace.
+   The expected layout is `EFI/BOOT/BOOTx64.efi` and `EFI/OC/OpenCore.efi`.
+   On an existing install, patch the EFI the machine actually boots from — on
+   this unit that is the USB stick, not `disk0s1` (the HP/Windows ESP).
+
+4. **Set the BIOS.** Secure Boot and Fast Boot off, VT-d on, DVMT at the HP
+   default, no RAID. Record the BIOS version; a VBT change can break eDP.
+
+5. **Install macOS** with the OpenCore picker, then complete the first boot
+   checks in [docs/13 §6](docs/13-bring-up.md#6-first-boot-checks):
+   WhateverXe/Compat **0.6.0**, real CPU name, 10 cores / 12 threads, panel at
+   **Looks like 1440 × 900**, Metal 2, `TGLSequoiaMMIOGuard` entry 19 = `01`.
+
+6. **Install the matching userspace package**: WhateverXe Graphics **0.3.1**
+   (never 0.3.2/0.4.0 with this EFI), then restart. A fresh build already has
+   the 24H232 MMIO constant; repair an older stick with
+   `scripts/macos/patch-wex-sequoia-mmio.sh`.
+
+7. **Apply the post-install fixes** in the table below, in order.
+
+### Post-install fixes
+
+These are the problems that appear only after acceleration works.
+
+| Symptom | Fix | Why |
+|---|---|---|
+| **Battery** pane crashes System Settings; ControlCenter crash-loops | `sudo bash scripts/macos/patch-mtl-impostor.sh --test` | The 0.3.1 Metal archive shim only enables on build 24H32; this install is 24H232 |
+| **App Store** hangs on screenshots/Quick Look; HEIC previews spin | `sudo bash scripts/macos/patch-va-tglva.sh --test` | The VA shim also gates on 24H32, so HEIC/HEVC decode never starts |
+| Safari video freezes or Metal archive errors | `sudo bash scripts/macos/install-metal-archive-workaround.sh` (optional) | Same build-gate class |
+| Hot, laggy normal use | HiDPI mode + both shims + power profile | 1× mode redraws 5.2 MP; a thrashing shim burns CPU |
+| About This Mac shows 1.88 GHz | `bash scripts/macos/apply-efi-cpu-speed.sh --config /Volumes/MACUSB/EFI/OC/config.plist` | SMBIOS type 4 only; XCPM already runs 4700→400 MHz |
+
+The scripts back up what they replace. The patch scripts support `--status`
+and `--rollback`; the daemon installer supports `--uninstall`; the MMIO
+repair supports `--dry-run`. Full reasoning is in
+[docs/03](docs/03-graphics.md), [docs/06](docs/06-usb-acpi-power.md) and
+[docs/08](docs/08-troubleshooting.md).
+
+## Power, battery and thermals
+
+The HP firmware gives macOS no fan control, so the reliable levers are XCPM
+low power mode, the display mode and the idle timers.
+
+| Profile | Battery | AC |
+|---|---|---|
+| `balanced` (default) | `lowpowermode 1` (cap), display sleep 5 s, TCP keepalive off | `lowpowermode 0` (uncapped), display sleep 10 s |
+| `battery` | capped | also capped, display sleep 5 s |
+| `performance` | uncapped | uncapped |
+
+Apply once (it is source-aware, so macOS uses the battery values when
+unplugged and the AC values when plugged in):
+
+```sh
+sudo bash scripts/macos/power-profile.sh balanced
+```
+
+To re-assert it at every boot — the battery menu's **Low Power Mode** toggle
+writes the same key — install the daemon:
+
+```sh
+sudo bash scripts/macos/install-power-daemon.sh balanced
+```
+
+Measured on 2026-11-05 (AC, all-core): package power falls from **19.9 W to
+10.3 W** with the cap, and sustained clock from about 3.6 GHz to 1.8 GHz.
+The orange battery icon **is** Low Power Mode; on battery it is expected, and
+turning it off removes the cap (more heat, faster drain). Measure real runtime
+with `bash scripts/macos/battery-watch.sh`; do not trust a benchmark taken
+under the OpenCode desktop, whose helper and renderer keep about two cores
+busy. Numbers and caveats:
+[docs/06 § Measured effect](docs/06-usb-acpi-power.md#measured-effect-2026-11-05).
 
 ## Why Sequoia, and where the Tahoe work went
 
@@ -199,6 +299,8 @@ Full reasoning: [docs/02-audit.md](docs/02-audit.md) and
 | [docs/10-provenance.md](docs/10-provenance.md) | Versions, hashes, sources, modifications |
 | [docs/11-diagnostics.md](docs/11-diagnostics.md) | Continuous collector: install, schedules, output, privacy, uninstall |
 | [docs/12-moving-to-macos.md](docs/12-moving-to-macos.md) | Move the chat, credentials, repository and OpenCode binary to macOS |
+| [docs/13-bring-up.md](docs/13-bring-up.md) | End-to-end: clone → build → install → post-install fixes → verification |
+| [docs/14-measurements.md](docs/14-measurements.md) | Power, thermal, Geekbench and battery numbers with their caveats |
 
 Official references (OpenCore `Configuration.pdf`, the Dortania install and
 ACPI guides, upstream driver documentation) are listed in
