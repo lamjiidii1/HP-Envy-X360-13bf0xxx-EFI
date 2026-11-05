@@ -683,6 +683,30 @@ The default boot arguments now carry `revpatch=sbvmm,cpuname`. The earlier
 `revpatch=cpuname` overrode the NVRAM value and silently disabled `sbvmm`,
 which keeps OTA updates working on an unsupported model. Keep both words.
 
+### CPU speed display is cosmetic
+
+`hw.cpufrequency`, `hw.cpufrequency_min`, and `hw.cpufrequency_max` all read
+`1880000000`, and About This Mac shows `1,88 GHz`, but that number comes only
+from SMBIOS type 4 (`Max Speed` and `Current Speed` are both 1880 MHz). XCPM
+never uses it:
+
+```sh
+sysctl -n machdep.xcpm.hard_plimit_max_100mhz_ratio   # 47 -> 4.7 GHz
+sysctl -n machdep.xcpm.hard_plimit_min_100mhz_ratio   # 4  -> 400 MHz
+```
+
+The real `CPUPStates` table runs 4700 → 400 MHz in 100 MHz steps. Idle cores
+sitting between 400 and 900 MHz are behaving correctly even while System
+Information claims 1.88 GHz. In practice the P-cores sustain about 3.6 GHz
+under a single-thread load on this firmware (`CPU LIMIT ICCMAX/PL4/OTHER`), so
+the top of the table is not reachable for long; the measured power figures are
+in [§ 6](06-usb-acpi-power.md#measured-effect-2026-11-05).
+
+`scripts/build_efi.py` now sets `PlatformInfo/Generic/ProcessorSpeed = 4700`,
+so a rebuilt EFI reports `4,7 GHz` — the top of the XCPM table. For reference,
+Intel rates the i7-1250U at 1.1 GHz P-core base and 0.7 GHz E-core base; those
+are sustained-clock floors, not the peak the UI is describing.
+
 `Intel(R) TGL Unknown` in `system_profiler SPDisplaysDataType` is the **GPU**
 fallback name, not the CPU; see
 [the GPU-name section](#the-gpu-name-says-intelr-tgl-unknown).
