@@ -5,9 +5,10 @@
 # Why this exists
 # ---------------
 # `build/EFI` was rebuilt with ProcessorSpeed = 4700 (see build_efi.py), but
-# the machine still boots the copy on disk0s1.  Replacing the whole EFI to
-# change one key is unnecessarily risky, so this script mounts the ESP,
-# backs up the live config.plist, changes only that key, and unmounts again.
+# the machine boots the copy on the USB stick, not the rebuilt tree.
+# Replacing the whole EFI to change one key is unnecessarily risky, so this
+# script backs up the live config.plist, changes only that key, and lints the
+# result.
 #
 # The value is cosmetic: XCPM already exposes the full 4700 -> 400 MHz
 # P-state table, and powermetrics shows the real frequencies.  SMBIOS type 4
@@ -17,6 +18,11 @@
 #   sudo bash apply-efi-cpu-speed.sh              # patch disk0s1, unmount
 #   sudo bash apply-efi-cpu-speed.sh --keep       # leave the ESP mounted
 #   sudo bash apply-efi-cpu-speed.sh --disk disk1s1 --speed 4700
+#   sudo bash apply-efi-cpu-speed.sh --config /Volumes/MACUSB/EFI/OC/config.plist
+#
+# --config patches an already-mounted config.plist (for example the USB
+# stick this machine actually boots from) and needs no root if that volume
+# is writable by the user.
 #
 # Reboot afterwards.  To revert, restore the .bak-<timestamp> file next to
 # config.plist while the ESP is mounted, then reboot.
@@ -29,34 +35,42 @@ die() { say "error: $*" >&2; exit 1; }
 DISK=disk0s1
 SPEED=4700
 KEEP=0
+CONFIG=
+MOUNTED=0
 
 while [ $# -gt 0 ]; do
     case "$1" in
-        --disk)  DISK=${2:-}; shift 2 ;;
-        --speed) SPEED=${2:-}; shift 2 ;;
-        --keep)  KEEP=1; shift ;;
-        -h|--help) sed -n '3,20p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        --disk)   DISK=${2:-}; shift 2 ;;
+        --speed)  SPEED=${2:-}; shift 2 ;;
+        --config) CONFIG=${2:-}; shift 2 ;;
+        --keep)   KEEP=1; shift ;;
+        -h|--help) sed -n '3,27p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) die "unknown argument: $1" ;;
     esac
 done
 
-[ "$(id -u)" -eq 0 ] || die "run with sudo: sudo bash $0"
+[ -n "$CONFIG" ] || [ "$(id -u)" -eq 0 ] || die "run with sudo: sudo bash $0"
 
 mountpoint() {
     diskutil info "$DISK" 2>/dev/null \
         | awk -F': *' '/Mount Point/ { print $2; exit }'
 }
 
-mp=$(mountpoint)
-if [ -z "$mp" ] || [ "$mp" = "Not mounted" ]; then
-    say "mounting $DISK"
-    diskutil mount "$DISK" >/dev/null || die "could not mount $DISK"
+if [ -n "$CONFIG" ]; then
+    CFG=$CONFIG
+else
     mp=$(mountpoint)
+    if [ -z "$mp" ] || [ "$mp" = "Not mounted" ]; then
+        say "mounting $DISK"
+        diskutil mount "$DISK" >/dev/null || die "could not mount $DISK"
+        mp=$(mountpoint)
+        MOUNTED=1
+    fi
+    [ -n "$mp" ] && [ "$mp" != "Not mounted" ] || die "$DISK is not mounted"
+    CFG="$mp/EFI/OC/config.plist"
 fi
-[ -n "$mp" ] && [ "$mp" != "Not mounted" ] || die "$DISK is not mounted"
 
-CFG="$mp/EFI/OC/config.plist"
-[ -f "$CFG" ] || die "no config.plist under $mp/EFI/OC"
+[ -f "$CFG" ] || die "no config.plist at $CFG"
 
 old=$(/usr/libexec/PlistBuddy -c "Print :PlatformInfo:Generic:ProcessorSpeed" "$CFG" 2>/dev/null)
 say "config: $CFG"
@@ -86,10 +100,12 @@ for k in SystemSerialNumber MLB SystemUUID ROM; do
 done
 say "identity keys intact"
 
-if [ "$KEEP" -eq 1 ]; then
-    say "ESP left mounted at $mp"
-else
+if [ "$MOUNTED" -eq 1 ] && [ "$KEEP" -eq 0 ]; then
     diskutil unmount "$DISK" >/dev/null && say "unmounted $DISK"
+elif [ -n "$CONFIG" ]; then
+    say "patched an already-mounted volume; leaving it mounted"
+else
+    say "ESP left mounted at $mp"
 fi
 
 say "reboot to apply; About This Mac should then show 4.7 GHz"

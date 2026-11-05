@@ -707,6 +707,20 @@ so a rebuilt EFI reports `4,7 GHz` — the top of the XCPM table. For reference,
 Intel rates the i7-1250U at 1.1 GHz P-core base and 0.7 GHz E-core base; those
 are sustained-clock floors, not the peak the UI is describing.
 
+On this machine the live OpenCore EFI is the one on the USB stick
+(`/Volumes/MACUSB/EFI`), not `disk0s1`. `disk0s1` is the HP/Windows ESP and
+has no `EFI/OC` at all, so do not patch it. Apply the cosmetic value to the
+live config with:
+
+```sh
+bash scripts/macos/apply-efi-cpu-speed.sh \
+  --config /Volumes/MACUSB/EFI/OC/config.plist
+```
+
+The script backs up the config next to itself, sets only that key, lints the
+result, and checks the serial/MLB/UUID/ROM keys are still present. Reboot for
+About This Mac to show `4,7 GHz`.
+
 `Intel(R) TGL Unknown` in `system_profiler SPDisplaysDataType` is the **GPU**
 fallback name, not the CPU; see
 [the GPU-name section](#the-gpu-name-says-intelr-tgl-unknown).
