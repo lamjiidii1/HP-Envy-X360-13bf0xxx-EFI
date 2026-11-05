@@ -845,17 +845,29 @@ about an hour after boot, with both shims installed:
 | Top CPU | OpenCode Helper 39–48 %, its Renderer 26–29 %, WindowServer 25–29 % |
 | GPU resets | two at 14:35/14:36 during the first App Store HEIC load, none since |
 
+**Caveat: these are not idle numbers.** The samples were taken while the
+OpenCode desktop session — the agent writing this document — was open and
+streaming. Its helper/GPU process used 35–45 % CPU and the renderer 25–37 %,
+and WindowServer used 25–45 % redrawing those surfaces; WindowServer RSS moved
+between 1.7 and 2.3 GB with session activity. This inflates every top-process
+figure and the memory total. For a true at-rest baseline, quit OpenCode, leave
+the lid open for ten minutes, then read
+`~/Library/Logs/OpenMacDiag/live/monitor.log`; the collector keeps sampling.
+Treat the table above as an upper bound, not the machine's floor.
+
 Conclusions:
 
 - The machine is **not CPU- or thermal-bound**. There is no thermal warning and
   the CPU is allowed its full speed limit; the battery temperature is normal.
 - The lag tracks **memory pressure**, not GPU work. The long-lived OpenCode
-  desktop session held a helper process at 4.7 GB RSS, and WindowServer held
-  1.7 GB; with 16 GB installed, free memory fell to about 16 MB and the
-  compressor grew. Quitting and reopening OpenCode (or logging out/in) reclaims
-  several GB. This is an application-side issue, not a driver regression.
-- `WallpaperVideoExtension` and `VTDecoderXPCService` sit at 0 % CPU when idle,
-  so the live wallpaper is not the heat source.
+  desktop session held a helper process at 3–5 GB RSS, and WindowServer held
+  1.7–2.3 GB; with 16 GB installed, free memory fell to about 16–24 MB and the
+  compressor grew past 1 GB. Quitting and reopening OpenCode (or logging
+  out/in) reclaims several GB. This is an application-side issue, not a driver
+  regression.
+- `WallpaperVideoExtension` and `VTDecoderXPCService` sit at 0 % CPU when idle.
+  Suspending the extension (`SIGSTOP`) did **not** change WindowServer CPU
+  (40.1 % before, 40.4 % after), so the aerial wallpaper is not the heat source.
 - GPU resets did not recur after the initial decode burst. Keep watching the
   `.gpuRestart` reports rather than reverting the TGLVA shim.
 - `MTLCompilerService` logs about five `XeCompilerAdapter` denials per minute in
