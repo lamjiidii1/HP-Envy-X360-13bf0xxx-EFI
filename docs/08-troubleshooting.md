@@ -426,23 +426,22 @@ VRAM, the internal panel is driven by `AppleIntelFramebuffer`, and
 would be absent, the panel would show the 19 MB generic framebuffer, and Metal
 would not be advertised at all.
 
-What does *not* work is the **shader and archive half of Metal**:
+The rest of Metal is more nuanced than the old "archive crash" summary:
 
 | Layer | State | Evidence |
 |---|---|---|
 | Framebuffer/modeset | working | internal panel 2880×1800, `AppleIntelFramebuffer` present |
 | Compositor | working (GPU) | `IntelAccelerator`, `WindowServer` surfaces, Metal 2 |
-| Precompiled Metal archives | broken | `MTLLoader … Target device architecture is nil` |
-| Runtime shader compilation | blocked | `MTLCompilerService` sandbox denies `XeCompilerAdapter.bundle` |
+| Precompiled Metal archives | rejected cleanly after the impostor shim | no `MTLLoader` assert; the app recompiles at runtime |
+| Runtime shader compilation | working | OS-native AIR converter; `XeCompilerAdapter` denials are cosmetic (measured 2026-11-05) |
 | Video decode | working after the TGLVA patch | HEIC and HEVC decode now complete; see [§ App Store hangs](#app-store-hangs-on-screenshots-or-quick-look-tglva-guard) |
 
 So the "slowness" is not "everything is drawn by the CPU". It is that an app
-which asks Metal for a precompiled library (ControlCenter, the Battery pane,
-App Store) aborts, and an app that asks for runtime compilation waits on a
-sandbox-denied compiler and burns CPU while it retries. Fixing the archive
-mismatch removes the first class; the compiler-bundle denial is a driver
-packaging issue and needs a newer WhateverXe Graphics package, which in turn
-needs a WhateverXe build that accepts this panel's VBT.
+which asks for a precompiled library used to abort in `MTLLoader`; the 0.4.0
+`impostor.dylib` turns that into a clean error, and the app compiles the same
+shaders at runtime instead. The first compile is the visible pause after
+launching an app, and it is cached afterwards. The remaining lag on this
+machine is memory pressure, not the Metal compiler.
 
 ### The GPU name says "Intel(R) TGL Unknown"
 
@@ -466,7 +465,7 @@ This is cosmetic. Changing `device-id`, the SMBIOS or `model` properties will
 not rename it and can break acceleration. The CPU name is separate and is
 covered in [§7](#cpu-name-and-thread-count).
 
-### Apps hang after a few minutes (MTLCompilerService sandbox)
+### XeCompilerAdapter sandbox denials are normal
 
 The collected log shows repeated denials while Metal compiles shaders:
 
@@ -477,36 +476,28 @@ Sandbox: MTLCompilerService(1958) deny(1) file-map-executable
   /Library/GPUBundles/XeCompilerAdapter.bundle/Contents/MacOS/libigc-tgl.dylib
 ```
 
-`MTLCompilerService` is Apple's sandboxed shader compiler. On this build it
-does not have a rule allowing the WhateverXe compiler bundle in
-`/Library/GPUBundles`, so source compilation fails and the request can hang or
-fall back. This adds CPU load and heat; it is **not** the cause of the App
-Store hang (that is the VA/HEIC guard above).
+They look alarming but are expected. Apple's profile
+`/System/Library/Sandbox/Profiles/com.apple.mtlcompilerservice.sb` grants
+`/Library/GPUBundles` only inside
+`(with-filter (system-attribute apple-internal))`, and this install reports
+`Apple Internal: disabled`. WhateverXe Graphics 0.3.1 already routes
+compilation through the OS-native AIR converter, so `MTLCompilerService` falls
+back and succeeds after the plugin load fails.
 
-Do not "fix" this by disabling SIP completely or by moving system bundles.
-Instead:
+Measured on 2026-11-05: a program that compiles a Metal kernel from source and
+builds a compute pipeline printed `LIBRARY OK` / `PIPELINE OK: maxThreads=1024`
+and exited 0 while these denials were logged. Reproduce it with:
 
-1. Apply the archive fix first (`scripts/macos/patch-mtl-impostor.sh`); it
-   removes the crash class that reaches the compiler with a bad archive.
-2. Clear the Metal caches once, then reboot:
-   ```sh
-   rm -rf ~/Library/Caches/com.apple.Metal
-   rm -rf ~/Library/Caches/com.apple.MetalShaderCache
-   ```
-3. Reproduce with only one app open and capture the last two minutes:
-   ```sh
-   log show --last 2m --style compact \
-     --predicate 'process == "MTLCompilerService" OR eventMessage CONTAINS "XeCompilerAdapter" OR eventMessage CONTAINS "libigc"'
-   ```
-4. If the denials continue, note the exact bundle path and whether the file is
-   readable by your user:
-   ```sh
-   ls -l /Library/GPUBundles/XeCompilerAdapter.bundle/Contents/MacOS/
-   codesign -dv --verbose=4 /Library/GPUBundles/XeCompilerAdapter.bundle 2>&1
-   ```
-   A missing or unreadable `libigc-tgl.dylib` is a package-install problem;
-   reinstall WhateverXe Graphics 0.3.1. A readable but denied file is the
-   sandbox issue above and needs a driver/package update, not an EFI change.
+```sh
+bash scripts/macos/test-metal-runtime-compile.sh
+```
+
+Do **not** try to silence the denials by patching the sandbox profile, breaking
+the SSV seal, moving `/System` bundles, or disabling SIP further. The only cost
+is one runtime compile per app/pipeline on first use, cached afterwards. If an
+app still hangs for minutes, the cause is elsewhere: check memory pressure,
+the archive crash class (`patch-mtl-impostor.sh`), and the HEIC/VA guard
+(`patch-va-tglva.sh`).
 
 ### Video playback / camera crashes
 
@@ -616,7 +607,7 @@ activation can require Apple to re-validate the machine.
 | Battery drains in sleep | Sleep is broken on this firmware; disable sleep (below) |
 | High idle temperature | `CpuTopologyRebuild.kext` loaded; `SSDT-PLUG-ALT-12.aml` present; check `pmset -g therm`; confirm the display is in 1440×900 HiDPI, not 1× |
 | CPU name wrong | `revcpu=1` and `revpatch=cpuname` in boot-args, `revcpuname` in NVRAM, and `RestrictEvents.kext` loaded |
-| Fan always on / UI slow | `MTLCompilerService` shader denials, an archive crash-loop, or a hung app; see below |
+| Fan always on / UI slow | memory pressure, an archive crash-loop, or a hung app; see below. `MTLCompilerService` denials alone are normal |
 | Battery settings pane exits | confirmed `MTLLoader` / Metal archive crash in `PowerPreferences`, not battery data; see below |
 
 Recommended power settings (sleep is broken on this firmware):
@@ -824,13 +815,13 @@ The logs point at three separate costs, in order of impact:
    not the 1× 2880×1800 mode. The 1× mode makes every window redraw at full
    panel resolution and was the single biggest source of heat; it is fixed on
    the current install. Verify with `system_profiler SPDisplaysDataType`.
-2. **Metal archive / compiler mismatch.** On 24H232 the Graphics 0.3.1 shim
-   was gated to 24H32, so archive-based apps aborted and retried. Apply the
+2. **Metal archive mismatch.** On 24H232 the Graphics 0.3.1 shim was gated to
+   24H32, so archive-based apps aborted and retried. Apply the
    `impostor.dylib` fix in the previous section and clear
-   `~/Library/Caches/com.apple.Metal*` once. Repeated
-   `MTLCompilerService` sandbox denials of `XeCompilerAdapter.bundle` (see
-   [above](#apps-hang-after-a-few-minutes-mtlcompilerservice-sandbox)) make
-   apps hang and burn CPU while they retry.
+   `~/Library/Caches/com.apple.Metal*` once. The
+   `XeCompilerAdapter.bundle` denials that remain are expected and harmless
+   (see [above](#xecompileradapter-sandbox-denials-are-normal)); they do not
+   make apps hang.
 3. **A hung app or GPU reset.** The App Store HEIC hang is fixed by the
    `TGLVA` patch above; it no longer leaves a spinner. GPU resets are still
    possible under heavy decode: two were logged on 2026-11-05 while App Store
@@ -867,9 +858,10 @@ Conclusions:
   so the live wallpaper is not the heat source.
 - GPU resets did not recur after the initial decode burst. Keep watching the
   `.gpuRestart` reports rather than reverting the TGLVA shim.
-- The remaining graphics cost is `MTLCompilerService` (about five
-  `XeCompilerAdapter` denials per minute in the snapshot); it is real but small
-  next to the memory pressure above.
+- `MTLCompilerService` logs about five `XeCompilerAdapter` denials per minute in
+  the snapshot. They are expected on a non-Apple-internal install, and runtime
+  compilation still succeeds; the cost is one cached compile per pipeline, not
+  a hang.
 
 Power management itself is present: `X86PlatformPlugin` is loaded,
 `plugin-type = 1`, and `SSDT-PLUG-ALT-12.aml` declares the 12 logical CPUs. The

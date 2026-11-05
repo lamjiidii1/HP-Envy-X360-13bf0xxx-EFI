@@ -80,6 +80,7 @@ from an older build must be repaired with
 | T03.11 | Leave ControlCenter and Safari video running for a few minutes | no ControlCenter crash loop, no `RB::load_library_archive` assert |
 | T03.12 | If T03.11 fails, run `sudo bash scripts/macos/patch-mtl-impostor.sh --test` (0.4.0 shim), then repeat | ControlCenter stays up; no `sliceIDForDevice` assert; Battery pane opens |
 | T03.13 | Open the App Store and browse a page with screenshots/previews | page paints; no spinner hang. If it hangs, run `sudo bash scripts/macos/patch-va-tglva.sh --test` and repeat |
+| T03.14 | `bash scripts/macos/test-metal-runtime-compile.sh` | `VERDICT: PASS`; a kernel compiles from source and builds a pipeline. `XeCompilerAdapter` denials may be logged and are expected |
 
 If T03.2 shows entry 19 = `00`, save `TGLSequoiaMMIOGuard` and
 `TGLSequoiaMMIOInspection` and confirm the ESP has the patched binary

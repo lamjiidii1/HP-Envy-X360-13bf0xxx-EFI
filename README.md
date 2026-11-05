@@ -38,10 +38,12 @@ scratch with every payload pinned and hashed.
 > `IntelAccelerator` is present, `VRAM (Dynamic, Max)` is 1536 MB and
 > `system_profiler` reports **Metal 2**. The internal 2880×1800 OLED is online
 > at **Looks like 1440 × 900** HiDPI. The remaining known limits are Metal 2
-> (not Metal 3), the GPU's internal "Intel(R) TGL Unknown" name, and runtime
-> shader compilation (`XeCompilerAdapter` sandbox). The Battery pane,
-> ControlCenter archive crashes and App Store HEIC hang are **fixed** by the
-> 0.4.0 `impostor.dylib` and `TGLVA` shims (verified 2026-11-04/05). Two GPU
+> (not Metal 3) and the GPU's internal "Intel(R) TGL Unknown" name. Runtime
+> shader compilation **works** through the OS-native AIR converter; the
+> `XeCompilerAdapter` sandbox denials in the log are expected and harmless.
+> The Battery pane, ControlCenter archive crashes and App Store HEIC hang are
+> **fixed** by the 0.4.0 `impostor.dylib` and `TGLVA` shims (verified
+> 2026-11-04/05). Two GPU
 > resets were logged while App Store previews first loaded; that is being
 > watched separately. The desktop itself is GPU-composited. See
 > [docs/03-graphics.md](docs/03-graphics.md#heichevc-decode-and-the-tglva-guard)
@@ -83,6 +85,8 @@ scripts/macos/patch-mtl-impostor.sh      installs the 0.4.0 impostor.dylib
                                         (fixes Battery pane / ControlCenter)
 scripts/macos/patch-va-tglva.sh         installs the 0.4.0 TGLVA shim
                                         (fixes App Store / HEIC decode hang)
+scripts/macos/test-metal-runtime-compile.sh  proves on-demand Metal compilation
+                                        works despite XeCompilerAdapter denials
 scripts/macos/metal-archive-workaround.plist  Metal archive agent (experiment)
 scripts/macos/install-metal-archive-workaround.sh  installs/removes that agent
 scripts/macos/check-metal-env.sh         verifies the agent and GUI environment

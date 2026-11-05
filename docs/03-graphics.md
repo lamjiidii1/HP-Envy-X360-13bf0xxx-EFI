@@ -237,13 +237,56 @@ With the 0.3.1 shim this hangs indefinitely; with 0.4.0 it finishes at once.
 > browsing, capture a fresh `.gpuRestart` and consider software decode for the
 > affected path rather than reverting this shim.
 
-A separate failure affects apps that need **runtime** shader compilation:
-`MTLCompilerService` is denied `file-read-data`/`file-map-executable` on
-`/Library/GPUBundles/XeCompilerAdapter.bundle` and `libigc-tgl.dylib`. That
-bundle also reports `bundle format unrecognized` to `codesign`. It is a driver
-packaging problem, not an EFI switch. The practical consequence is that the
-desktop is GPU-composited, but compile-on-demand apps wait and burn CPU; see
-[08-troubleshooting.md](08-troubleshooting.md#does-the-gpu-render-the-desktop-or-is-the-cpu-doing-it).
+### Runtime shader compilation works; the compiler denials are cosmetic
+
+`MTLCompilerService` logs a denial every time a Metal app compiles shaders from
+source:
+
+```text
+Sandbox: MTLCompilerService(pid) deny(1) file-read-data
+  /Library/GPUBundles/XeCompilerAdapter.bundle/Contents/MacOS/adapter.dylib
+Sandbox: MTLCompilerService(pid) deny(1) file-map-executable
+  /Library/GPUBundles/XeCompilerAdapter.bundle/Contents/MacOS/libigc-tgl.dylib
+```
+
+The reason is in Apple's own profile,
+`/System/Library/Sandbox/Profiles/com.apple.mtlcompilerservice.sb`. Read access
+to `/Library/GPUBundles` (and `file-map-executable`) is wrapped in:
+
+```text
+(with-filter (system-attribute apple-internal) ...)
+```
+
+This is a normal install with `Apple Internal: disabled`, so the filter is
+false and the WhateverXe compiler bundle can never be mapped into the sandboxed
+service. `XeCompilerAdapter.bundle` also has no `Info.plist` and reports
+`bundle format unrecognized` to `codesign`, but that is not what blocks it.
+
+**This does not disable shader compilation.** WhateverXe Graphics 0.3.1 already
+changed the path to the OS-native AIR converter, so after the plugin load fails
+`MTLCompilerService` converts the AIR itself. Measured on 2026-11-05 with a
+Swift program that called `device.makeLibrary(source:)` and then
+`makeComputePipelineState`:
+
+```text
+device: Intel(R) TGL Unknown
+LIBRARY OK: ["addone"]
+PIPELINE OK: maxThreads=1024
+```
+
+It completed in well under a second and exited 0 while the denials above were
+being logged. The denials are therefore **log noise, not a functional block**,
+and they are not a reason to patch `/System` or weaken SIP further. The
+regression test is:
+
+```sh
+bash scripts/macos/test-metal-runtime-compile.sh
+```
+
+The practical cost of the archive gate is one runtime compile per app and
+pipeline on first use, cached afterwards. That is much smaller than the memory
+pressure described in
+[08-troubleshooting.md](08-troubleshooting.md#7-battery-power-cpu-and-display).
 
 ## Why the fork is still required on Sequoia
 
@@ -624,8 +667,10 @@ Two separate findings remain from the same boot:
 - `MTLCompilerService` is sandbox-denied `file-read-data` and
   `file-map-executable` for
   `/Library/GPUBundles/XeCompilerAdapter.bundle/Contents/MacOS/adapter.dylib`
-  and `libigc-tgl.dylib`. Metal shader compilation cannot work until that
-  bundle is visible to the service. Fix it after the display is up.
+  and `libigc-tgl.dylib`. The sandbox allows that directory only for
+  `apple-internal` systems, so the denial is expected; compilation still works
+  through the OS-native AIR converter. See
+  [§ Runtime shader compilation works](#runtime-shader-compilation-works-the-compiler-denials-are-cosmetic).
 - `AppleIntelTGLCompat` logs `revision 0.5.0 started` while `kextstat` reports
   package 0.6.0. That is the internal ABI string, not a package mismatch.
 
