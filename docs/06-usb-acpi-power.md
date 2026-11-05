@@ -99,6 +99,33 @@ sudo pmset -a sleep 0
 sudo pmset -a displaysleep 10
 ```
 
+### Observed on this machine (2026-11-05)
+
+The failure is not hypothetical. With the default settings the machine entered
+idle sleep at 14:19 and produced:
+
+```text
+/Library/Logs/DiagnosticReports/Sleep Wake Failure_2026-11-05-142031_MacBook-Pro.diag
+
+Sleep Wake failure in EFI
+Failure code:: 0x00000000 0x0000001f
+Time Awake Since Boot: 25s
+```
+
+The only way back was a forced power-off, which is also why that boot lost the
+temporary test script. The settings above (`sleep 0`, `hibernatemode 0`,
+`standby 0`, `displaysleep 10`) are now applied and survived the reboot;
+`/var/vm/sleepimage` is absent.
+
+**`sleep 0` does not disable lid-close sleep.** Closing the lid still puts the
+machine into S3 and it will not wake. Either shut down before carrying it
+closed, or use:
+
+```sh
+sudo pmset -a disablesleep 1   # lid close keeps running; machine stays warm
+sudo pmset -a disablesleep 0   # undo
+```
+
 ## Booter and kernel quirks that matter
 
 | Quirk | Value | Why |

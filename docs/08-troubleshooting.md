@@ -896,6 +896,14 @@ WhateverXe. The workaround (patch `_S3` to soft-off, add `RTCMemoryFixup` and
 [06-usb-acpi-power.md](06-usb-acpi-power.md) but deliberately **not applied**:
 it changes sleep into shutdown and needs validation on this BIOS.
 
+Observed here on 2026-11-05: idle sleep at 14:19 produced
+`Sleep Wake Failure_2026-11-05-142031_*.diag` with
+`Failure code:: 0x00000000 0x0000001f`, and the machine needed a forced
+power-off. The repository settings (`sleep 0`, `hibernatemode 0`, `standby 0`)
+are applied; `/var/vm/sleepimage` is absent. Closing the lid still sleeps, so
+shut down before carrying it closed, or set `sudo pmset -a disablesleep 1` if
+you accept running warm with the lid shut.
+
 Do not debug sleep at the same time as graphics. One variable at a time.
 
 ## 9. Capturing a boot that dies with a black screen
