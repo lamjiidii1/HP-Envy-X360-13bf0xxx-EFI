@@ -698,7 +698,7 @@ reinstall.
 | `-wex-reset-restore` | Restore display/render state after a GPU reset |
 | `-wex-no-multicontext` | Avoid the second compute ring that deadlocks on recovery |
 | `-wex-scanout-coherent` | Mark every flipped surface displayable (HiDPI above 1440x900) |
-| `-wex-pm` | XE-PM CPU profile: HWP units and the idle table on hybrid Alder Lake |
+| `-wex-pm` | XE-PM CPU profile: HWP units and the idle table on hybrid Alder Lake. On this kernel its HWP route does not install, so it does not change CPU power; see the note below |
 | `-v`, `debug=0x100` | `--debug` builds only |
 
 All five `-wex-*` arguments belong to the fork and are deliberately **absent**
@@ -707,6 +707,30 @@ one. Do not copy them across without knowing which of the two is under test.
 
 Do not add `-wex-noaccel`: it deliberately disables the accelerator and would
 guarantee the 19 MB fallback.
+
+### CPU power: `-wex-pm` is inert on this kernel
+
+WhateverXe 0.6.0 parses `-wex-pm`, registers the `debug.xepm.*` sysctls, and
+then tries to route a hook onto XCPM's set-multiplier function. On 24H232 that
+route fails, and the failure is visible at runtime:
+
+```sh
+sysctl debug.xepm.hwp debug.xepm.route debug.xepm.d3
+# debug.xepm.hwp: 0      <- hook not installed
+# debug.xepm.route: 3    <- 1 would mean installed
+# debug.xepm.d3: 5       <- compiled-in default, unchanged
+```
+
+`xpSetMult` only writes MSR `0x774` (IA32_HWP_REQUEST) when `gXpHwp` is
+non-zero, so the profile's `EPP=0` and EE-turbo-off never reach the hardware.
+`sysctl -w debug.xepm.epp=...` is root-only and cannot help either: it changes
+a variable that the same gate ignores.
+
+The argument is harmless and stays in the default boot-args; `_xcpm_cstate_table`
+resolves on this kernel, so its idle-table patch may still apply, but no EPP
+tuning does. CPU power and heat are managed with XCPM low power mode instead:
+`scripts/macos/power-profile.sh` and
+[§ 6](06-usb-acpi-power.md#power-management).
 
 ## Install order (Sequoia)
 

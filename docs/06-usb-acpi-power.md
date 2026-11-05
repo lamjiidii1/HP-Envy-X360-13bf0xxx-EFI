@@ -69,6 +69,59 @@ editing the plist by hand.
 `revpatch=cpuname` are on the boot-args line, and the custom CPU name comes from
 `revcpuname` in NVRAM (boot-args cannot carry a name with spaces reliably).
 
+### Profiles
+
+`scripts/macos/power-profile.sh` wraps the supported knobs:
+
+| Command | Battery | AC |
+|---|---|---|
+| `status` | current values and XCPM state | current values and XCPM state |
+| `balanced` | `lowpowermode 1` (XCPM 2.4 GHz cap), display sleep 5 s, TCP keepalive off | `lowpowermode 0`, display sleep 10 s |
+| `battery` | same cap | also capped; display sleep 5 s |
+| `performance` | no cap | no cap |
+
+`lowpowermode 1` is the macOS equivalent of `power-profiles-daemon`'s balanced
+profile: XCPM holds the package to `IOPlatformPowerProfile`'s `lpm_ratio`
+(`0x18` = 2.4 GHz ceiling; the measured all-core sustained result is ~1.8 GHz)
+instead of 4.7 GHz. It does not change the topology or the WhateverXe GPU
+driver, and `sudo pmset -a lowpowermode 0` reverts it.
+
+Do not expect `-wex-pm` to help here: its HWP route does not install on this
+kernel, so its EPP value never reaches MSR `0x774` (see
+[§ 3](03-graphics.md#cpu-power--wex-pm-is-inert-on-this-kernel)).
+
+### Measured effect (2026-11-05)
+
+`sudo bash scripts/macos/power-audit.sh --compare-lpm` with `DURATION=8` on AC,
+desktop open (not a cold-boot idle):
+
+| Phase | `lowpowermode 0` | `lowpowermode 1` |
+|---|---|---|
+| idle | 10.15 W, peak 2.80 GHz | 7.63 W, peak 1.52 GHz |
+| one thread | 14.17 W, peak 3.59 GHz | 8.25 W, peak 1.76 GHz |
+| all threads | 19.93 W, peak 3.57 GHz | 10.27 W, peak 1.78 GHz |
+
+Power is the Intel energy-model estimate (`CPUs+GT+SA`); "peak" is the highest
+1 s per-core average seen in that phase, not an instantaneous maximum. The cap
+roughly halves package power under load, so `balanced` trades compile speed for
+battery; on AC the profile leaves the uncapped values in place.
+
+Two platform limits appear in the same runs and are not pmset settings:
+
+- The P-cores (reported as CPU 0–3) sustain about 3.6 GHz with one busy
+  thread, not the 4.7 GHz in the XCPM table. powermetrics reports
+  `CPU LIMIT ICCMAX/PL4/OTHER` in every phase, and a single-thread package
+  draw of ~14 W is consistent with a firmware power limit rather than a
+  frequency-table error.
+- Package C-state residency reports 0.00% (C2–C10) and GPU DC6 reports 0.00%
+  at idle. The DC6 part is real — the iGPU never enters DC6 without GuC — so
+  the package cannot reach its deepest states. Treat the C-state line as a
+  diagnostic, not as a tunable target.
+
+The same hardware therefore loses roughly half its sustained CPU power budget
+under the macOS `lowpowermode` cap, whereas Fedora's `balance` profile can use
+the full PL1/PL2 envelope.
+
 ## Sleep — known broken on this platform
 
 The reference laptop reports:

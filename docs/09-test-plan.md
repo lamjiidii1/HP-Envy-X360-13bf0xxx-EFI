@@ -160,6 +160,9 @@ a successful recording proves the DSP patch is in the built kext.
 | T08.6 | Close the lid with sleep disabled | no wake hang; machine stays off/awake as configured |
 | T08.7 | Open **System Settings > Battery** after applying the `impostor.dylib` fix (`sudo bash scripts/macos/patch-mtl-impostor.sh --test`) and clearing the Metal caches | pane opens and shows data; **passes** with the 0.4.0 shim on 24H232 (first verified 2026-11-04 21:09). If it aborts, the collector captured `MTLLoader sliceIDForDevice` and a `ReportCrash` line for that second |
 | T08.8 | Record `openmac-diag.sh status` and keep one `report` bundle | the investigation has a timestamped baseline before any further change |
+| T08.9 | `sudo bash scripts/macos/power-profile.sh balanced`, then `pmset -g custom` and `sysctl -n machdep.xcpm.lpm_enabled` | battery block has `lowpowermode 1`, AC block `0`; on battery `lpm_enabled = 1`. Revert with `sudo pmset -a lowpowermode 0` |
+| T08.10 | `sudo bash scripts/macos/power-audit.sh --compare-lpm` (spins all threads for `DURATION` seconds, then restores `lowpowermode`) | `lpm1` all-thread package power is below `lpm0`, and its average frequency line is near or below 2.4 GHz; raw data in `LOGS/power-audit-*` |
+| T08.11 | Rebuild the EFI with `scripts/build_efi.py`, boot it, then `system_profiler SPHardwareDataType` | `Processor Speed: 4,7 GHz`; `sysctl -n machdep.xcpm.hard_plimit_max_100mhz_ratio` still `47` |
 
 ## Phase 9 — Sleep (known broken, informational)
 
