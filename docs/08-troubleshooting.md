@@ -840,6 +840,37 @@ The logs point at three separate costs, in order of impact:
    `gpuRestart` report before changing anything, and avoid repeated display
    mode/colour changes in the meantime.
 
+### Measured baseline after both shims (2026-11-05)
+
+From the per-user collector (`~/Library/Logs/OpenMacDiag/live/monitor.log`),
+about an hour after boot, with both shims installed:
+
+| Metric | Value |
+|---|---|
+| CPU | 12–15 % user + 9–11 % sys, **76–82 % idle** |
+| Thermal | no warning recorded; `CPU_Speed_Limit = 100` |
+| Battery | 29.3 °C, 62–64 %, about 3.5–4.3 h remaining |
+| Memory | **16 GB used, 16–20 MB unused**, compressor 0.7–0.9 GB, no swap |
+| Top CPU | OpenCode Helper 39–48 %, its Renderer 26–29 %, WindowServer 25–29 % |
+| GPU resets | two at 14:35/14:36 during the first App Store HEIC load, none since |
+
+Conclusions:
+
+- The machine is **not CPU- or thermal-bound**. There is no thermal warning and
+  the CPU is allowed its full speed limit; the battery temperature is normal.
+- The lag tracks **memory pressure**, not GPU work. The long-lived OpenCode
+  desktop session held a helper process at 4.7 GB RSS, and WindowServer held
+  1.7 GB; with 16 GB installed, free memory fell to about 16 MB and the
+  compressor grew. Quitting and reopening OpenCode (or logging out/in) reclaims
+  several GB. This is an application-side issue, not a driver regression.
+- `WallpaperVideoExtension` and `VTDecoderXPCService` sit at 0 % CPU when idle,
+  so the live wallpaper is not the heat source.
+- GPU resets did not recur after the initial decode burst. Keep watching the
+  `.gpuRestart` reports rather than reverting the TGLVA shim.
+- The remaining graphics cost is `MTLCompilerService` (about five
+  `XeCompilerAdapter` denials per minute in the snapshot); it is real but small
+  next to the memory pressure above.
+
 Power management itself is present: `X86PlatformPlugin` is loaded,
 `plugin-type = 1`, and `SSDT-PLUG-ALT-12.aml` declares the 12 logical CPUs. The
 12 threads are correct. To measure rather than guess:
