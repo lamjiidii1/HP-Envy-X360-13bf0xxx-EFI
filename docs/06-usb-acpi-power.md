@@ -90,6 +90,54 @@ Do not expect `-wex-pm` to help here: its HWP route does not install on this
 kernel, so its EPP value never reaches MSR `0x774` (see
 [§ 3](03-graphics.md#cpu-power--wex-pm-is-inert-on-this-kernel)).
 
+### Persistence, the orange icon, and the boot daemon
+
+`pmset` stores these values in
+`/Library/Preferences/SystemConfiguration/com.apple.PowerManagement.plist`, so
+one `power-profile.sh balanced` survives a reboot. It is **not** per-boot.
+
+The catch is that `lowpowermode` is also what the battery menu's **Low Power
+Mode** switch and System Settings write. The orange/yellow battery icon *is*
+Low Power Mode. On battery with `balanced` it is expected; turning it off sets
+`lowpowermode 0`, removes the CPU cap and leaves every other timer alone.
+
+Because that toggle can silently undo the profile, the repository also ships a
+one-shot LaunchDaemon:
+
+```sh
+sudo bash scripts/macos/install-power-daemon.sh balanced
+sudo bash scripts/macos/install-power-daemon.sh --status
+sudo bash scripts/macos/install-power-daemon.sh --uninstall
+```
+
+It installs `/Library/LaunchDaemons/local.openmac.powerprofile.plist` plus a
+root-owned copy of `power-profile.sh` under `/usr/local/libexec/openmac/`, and
+logs to `/var/log/openmac-powerprofile.log`. It runs at boot only — it does not
+watch or fight a deliberate change made after login. `--status` prints the
+launchd state and the effective battery/AC `lowpowermode`. Re-run the installer
+after updating `power-profile.sh`; the daemon uses the installed copy, not the
+one in the repository.
+
+### Measuring real runtime
+
+`pmset -g batt` gives a coarse percentage and a projection that assumes the
+current load continues. For actual watts, run:
+
+```sh
+INTERVAL=10 bash scripts/macos/battery-watch.sh
+```
+
+Unplug the charger and use the machine normally; Ctrl-C prints the discharge
+average and projected hours. The CSV is written under `LOGS/`. Charging samples
+are recorded but excluded from the average. No root is needed.
+
+Do not judge the profile with a benchmark taken under the OpenCode desktop.
+Its helper and renderer processes keep roughly two cores busy, so Geekbench
+then measures the agent UI rather than the laptop; the same load also makes the
+`pmset` runtime projection look far worse than a normal-use session. The
+2026-11-05 runs and caveats are recorded in
+[14-measurements.md](14-measurements.md#3-geekbench-7-the-runs-and-why-most-were-invalid).
+
 ### Measured effect (2026-11-05)
 
 `sudo bash scripts/macos/power-audit.sh --compare-lpm` with `DURATION=8` on AC,
