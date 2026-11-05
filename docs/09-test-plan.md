@@ -79,6 +79,7 @@ from an older build must be repaired with
 | T03.10 | Open a Metal app (Maps, Photos, a game) | renders without software fallback |
 | T03.11 | Leave ControlCenter and Safari video running for a few minutes | no ControlCenter crash loop, no `RB::load_library_archive` assert |
 | T03.12 | If T03.11 fails, run `sudo bash scripts/macos/patch-mtl-impostor.sh --test` (0.4.0 shim), then repeat | ControlCenter stays up; no `sliceIDForDevice` assert; Battery pane opens |
+| T03.13 | Open the App Store and browse a page with screenshots/previews | page paints; no spinner hang. If it hangs, run `sudo bash scripts/macos/patch-va-tglva.sh --test` and repeat |
 
 If T03.2 shows entry 19 = `00`, save `TGLSequoiaMMIOGuard` and
 `TGLSequoiaMMIOInspection` and confirm the ESP has the patched binary
@@ -173,13 +174,15 @@ Only run this after the machine is otherwise stable and the EFI is backed up.
 Do not apply the `_S3` patch during this test plan. It is a separate change
 with its own validation.
 
-## Phase 10 — Video decode (optional)
+## Phase 10 — Video and image decode
 
 | ID | Step | Pass criterion |
 |---|---|---|
+| T10.0 | `sips -s format png "/System/Library/Desktop Pictures/.thumbnails/Valley Light.heic" --out /tmp/t.png` | finishes in about a second (the regression test for the TGLVA guard) |
 | T10.1 | Play a 4K HEVC file in QuickTime | plays; record whether hardware decode is active (`sudo powermetrics --samplers gpu_power`) |
 | T10.2 | Use the camera in a video call | no `AppleIntelTGLGraphicsVADriver` crash |
-| T10.3 | If it crashes, apply the VA-bundle workaround | playback works on CPU; hardware decode is lost |
+| T10.3 | If decode hangs with `TGLVA adapter fatal` in the log, run `sudo bash scripts/macos/patch-va-tglva.sh --test` | HEIC/HEVC decodes; no fatal; App Store previews paint |
+| T10.4 | After enabling decode, watch for `Kernel_*.gpuRestart` reports | none during ordinary browsing; if one appears, keep the report and note the app |
 
 ## Phase 11 — Regression pass
 

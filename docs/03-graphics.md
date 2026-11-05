@@ -98,7 +98,7 @@ Confirmed on 2026-11-03 on this machine:
 |---|---|---|
 | ControlCenter | `RB::load_library_archive` | crash loop |
 | `PowerPreferences` (Battery settings) | `MTLLoader sliceIDForDevice:…` | `SIGABRT` on pane open |
-| App Store | `CA::Render::prepare_image` | video hang, kernel `gpuRestart` |
+| App Store | `CA::Render::prepare_image` → HEIC decode | hang; separate VA-driver gate, see below |
 | Safari video | archive load | freeze |
 
 The assertion is always the same:
@@ -109,9 +109,10 @@ The assertion is always the same:
 ```
 
 Upstream's known-issues list names both "some image-conversion operations can
-crash applications" and "App Store video can freeze the GPU on Sequoia", so
-the last two rows are acknowledged limitations of the 0.3.x generation rather
-than a local misconfiguration.
+crash applications" and "App Store video can freeze the GPU on Sequoia". The
+first is this archive gate; on this machine the App Store hang turned out to be
+a second, independent VA-driver gate, covered in
+[§ HEIC/HEVC decode](#heichevc-decode-and-the-tglva-guard).
 
 ### The `impostor.dylib` version gate and the 0.4.0 fix
 
@@ -168,6 +169,73 @@ The script is kept only as an experiment and as the record of that negative
 result; do not present it as the Battery or App Store fix. On 2026-11-04 the
 agent was uninstalled **after** the shim fix and the Battery pane still opened
 with none of the three variables set, so the fix does not depend on it.
+
+### HEIC/HEVC decode and the TGLVA guard
+
+The App Store hang is **not** the Metal archive gate. Its hang report shows the
+main thread inside:
+
+```text
+CA::Render::prepare_image
+  → HEIFReadPlugin::decodeImageImp
+    → VTTileDecompressionSessionCopyProperty
+      → dispatch_sync … waiting for com.apple.coremedia.videodecoder
+```
+
+App Store screenshots and previews are HEIC, and HEIC tile decode goes through
+VideoToolbox and the WhateverXe VA shim:
+
+```text
+/Library/GPUBundles/AppleIntelTGLGraphicsVADriver.bundle/Contents/MacOS/
+    TGLVA
+    AppleIntelTGLGraphicsVADriver
+```
+
+The 0.3.1 `TGLVA` gates its SPS/donor hook on the exact build string
+`ProductBuildVersion == "24H32"`. On 24H232 it aborts:
+
+```text
+TGLVA adapter fatal: SPS OS/donor ABI guard
+```
+
+`VTDecoderXPCService` then exits, launchd marks
+`com.apple.coremedia.videodecoder` inactive, and every synchronous decoder
+caller waits forever. That is the App Store "hang": no crash, just a spinner.
+The same guard breaks the dynamic wallpaper and video conferencing
+(`avconferenced` also logs it).
+
+Graphics 0.4.0 rebuilds `TGLVA` with an OS-family guard keyed on
+`kern.osrelease` (`24.6.0` here). Its `AppleIntelTGLGraphicsVADriver` differs
+from 0.3.1 only in the PCI device-ID dispatch table, so replacing only `TGLVA`
+is sufficient on this machine:
+
+```sh
+sudo bash scripts/macos/patch-va-tglva.sh --test
+```
+
+The script pins the 0.4.0 SHA-256
+`db879dbae1c708b5fcdb3c39e251e63e635016d19885e9186fdc6baca68414aa`, backs up
+the whole VA bundle, restarts `VTDecoderXPCService` / `WallpaperVideoExtension`
+/ `avconferenced`, and runs a HEIC decode through `sips` with a 15 s timeout.
+Verified 2026-11-05: the HEIC decoded in under a second, no fatal was logged,
+and the App Store loaded normally. `--status` and `--rollback` work like the
+Metal script.
+
+The simplest manual reproduction, and the regression test, is:
+
+```sh
+sips -s format png "/System/Library/Desktop Pictures/.thumbnails/Valley Light.heic" --out /tmp/t.png
+```
+
+With the 0.3.1 shim this hangs indefinitely; with 0.4.0 it finishes at once.
+
+> **GPU resets after enabling decode.** On 2026-11-05, while the App Store was
+> first loading many HEIC previews, the kernel logged two GPU resets ten
+> seconds apart (`Kernel_2026-11-05-1435*.gpuRestart`, application
+> `VTDecoderXPCServ`, RCS ring hung). Decode continued to work afterwards. This
+> is not the guard bug and not the archive bug; if resets recur during ordinary
+> browsing, capture a fresh `.gpuRestart` and consider software decode for the
+> affected path rather than reverting this shim.
 
 A separate failure affects apps that need **runtime** shader compilation:
 `MTLCompilerService` is denied `file-read-data`/`file-map-executable` on

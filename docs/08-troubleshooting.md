@@ -267,8 +267,10 @@ Typical evidence:
 - the **Battery settings pane exits immediately** with the same
   `MTLLoader` assertion (confirmed 2026-11-03, see
   [§ Battery settings pane](#battery-settings-pane-exits-powerpreferences));
-- Safari video freezes the GPU or the window, and the App Store hangs while
-  loading video;
+- Safari video freezes the GPU or the window;
+- the App Store also hangs, but for a different reason: HEIC decode via the VA
+  driver, covered in
+  [§ App Store hangs on screenshots](#app-store-hangs-on-screenshots-or-quick-look-tglva-guard);
 - `IntelAccelerator` is present and `system_profiler` reports Metal 2.
 
 Cause: the WhateverXe Graphics 0.3.1 `impostor.dylib` shim, which is supposed
@@ -339,6 +341,56 @@ It appears on almost every process launch on this Intel `IOAccelerator` device.
 It is RunningBoard/IOGPU bookkeeping, not a statement that the app fell back to
 the CPU; the compositor is still using `IntelAccelerator`.
 
+### App Store hangs on screenshots or Quick Look (TGLVA guard)
+
+**Confirmed 2026-11-05: this is a video-decode crash, not a Metal archive
+crash.** The App Store does not exit; its main thread waits forever while the
+window shows a spinner. The `.hang` report shows:
+
+```text
+CA::Render::prepare_image
+  → HEIFReadPlugin::decodeImageImp
+    → VTTileDecompressionSessionCopyProperty
+      → dispatch_sync … waiting for com.apple.coremedia.videodecoder
+```
+
+`VTDecoderXPCService` starts, then aborts immediately:
+
+```text
+VTDecoderXPCService: (TGLVA) TGLVA adapter fatal: SPS OS/donor ABI guard
+```
+
+and launchd logs `service inactive: com.apple.coremedia.videodecoder`. The
+App Store screenshots and previews are HEIC images, so the same guard also
+breaks the dynamic wallpaper, Quick Look and video conferencing.
+
+The guard is in WhateverXe's VA shim
+`/Library/GPUBundles/AppleIntelTGLGraphicsVADriver.bundle/Contents/MacOS/TGLVA`.
+The 0.3.1 build requires the exact build string `24H32`; this machine is
+24H232. Graphics 0.4.0 rebuilds `TGLVA` with an OS-family check on
+`kern.osrelease` (24.6.0 here). Only `TGLVA` needs replacing — the adjacent
+`AppleIntelTGLGraphicsVADriver` is identical except for its device-ID table.
+
+Fix and regression test:
+
+```sh
+sudo bash scripts/macos/patch-va-tglva.sh --test
+```
+
+The test decodes a system HEIC through `sips`. Without the patch it hangs
+indefinitely; with it, it finishes at once and the log shows no
+`TGLVA adapter fatal`. To check the state later:
+
+```sh
+bash scripts/macos/patch-va-tglva.sh --status
+```
+
+GPU resets: two `Kernel_*.gpuRestart` reports were logged on 2026-11-05 while
+the App Store first loaded many HEIC previews (application
+`VTDecoderXPCServ`, RCS ring hung). Decode kept working afterwards. This is a
+separate VA-driver stability issue; if resets recur, capture a fresh report
+rather than rolling back the shim.
+
 ### Metal 2 versus Metal 3
 
 `system_profiler SPDisplaysDataType` reports **`Metal Support: Metal 2`** on the
@@ -382,7 +434,7 @@ What does *not* work is the **shader and archive half of Metal**:
 | Compositor | working (GPU) | `IntelAccelerator`, `WindowServer` surfaces, Metal 2 |
 | Precompiled Metal archives | broken | `MTLLoader … Target device architecture is nil` |
 | Runtime shader compilation | blocked | `MTLCompilerService` sandbox denies `XeCompilerAdapter.bundle` |
-| Video decode | partially working | depends on the VA path; see the video section |
+| Video decode | working after the TGLVA patch | HEIC and HEVC decode now complete; see [§ App Store hangs](#app-store-hangs-on-screenshots-or-quick-look-tglva-guard) |
 
 So the "slowness" is not "everything is drawn by the CPU". It is that an app
 which asks Metal for a precompiled library (ControlCenter, the Battery pane,
@@ -428,14 +480,14 @@ Sandbox: MTLCompilerService(1958) deny(1) file-map-executable
 `MTLCompilerService` is Apple's sandboxed shader compiler. On this build it
 does not have a rule allowing the WhateverXe compiler bundle in
 `/Library/GPUBundles`, so source compilation fails and the request can hang or
-fall back. This matches the App Store hang in `QuartzCore`
-(`CA::Render::prepare_image`) and adds CPU load and heat.
+fall back. This adds CPU load and heat; it is **not** the cause of the App
+Store hang (that is the VA/HEIC guard above).
 
 Do not "fix" this by disabling SIP completely or by moving system bundles.
 Instead:
 
-1. Install the Metal archive workaround first (previous section). It is
-   recommended on 24H232; it reduces how often the compiler is invoked.
+1. Apply the archive fix first (`scripts/macos/patch-mtl-impostor.sh`); it
+   removes the crash class that reaches the compiler with a bad archive.
 2. Clear the Metal caches once, then reboot:
    ```sh
    rm -rf ~/Library/Caches/com.apple.Metal
@@ -779,12 +831,14 @@ The logs point at three separate costs, in order of impact:
    `MTLCompilerService` sandbox denials of `XeCompilerAdapter.bundle` (see
    [above](#apps-hang-after-a-few-minutes-mtlcompilerservice-sandbox)) make
    apps hang and burn CPU while they retry.
-3. **A hung or crash-looping app.** The App Store video hang and the GPU reset
-   at 15:34 happened while `DisplaysExt` was changing modes/colour. App Store
-   video is a known upstream WhateverXe limitation on Sequoia. Quit the app,
-   avoid changing display settings repeatedly, and reboot after a GPU reset. A
-   GPU reset is not normal operation; if it repeats without a display change,
-   capture the new `gpuRestart` report.
+3. **A hung app or GPU reset.** The App Store HEIC hang is fixed by the
+   `TGLVA` patch above; it no longer leaves a spinner. GPU resets are still
+   possible under heavy decode: two were logged on 2026-11-05 while App Store
+   previews first loaded (`VTDecoderXPCServ`, RCS ring hung), and an older one
+   on 2026-11-03 happened while `DisplaysExt` was changing modes/colour. A GPU
+   reset is not normal operation. If it repeats, capture the new
+   `gpuRestart` report before changing anything, and avoid repeated display
+   mode/colour changes in the meantime.
 
 Power management itself is present: `X86PlatformPlugin` is loaded,
 `plugin-type = 1`, and `SSDT-PLUG-ALT-12.aml` declares the 12 logical CPUs. The

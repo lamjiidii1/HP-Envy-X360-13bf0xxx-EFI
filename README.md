@@ -26,10 +26,12 @@ scratch with every payload pinned and hashed.
 > now applies that one-byte constant change to the **built** kext; the payload
 > in `efi/variants` stays the published `197da23b…` binary.
 > `scripts/macos/patch-wex-sequoia-mmio.sh` can repair a stick in place after a
-> macOS update, and
-> `scripts/macos/patch-mtl-impostor.sh` replaces the Graphics 0.3.1 Metal shim
-> whose archive hook is gated to the exact build 24H32 — the cause of the
-> Battery pane crash and the ControlCenter crash loop on 24H232.
+> macOS update. Two version-gated userspace shims also need replacing:
+> `scripts/macos/patch-mtl-impostor.sh` fixes the Graphics 0.3.1 Metal shim
+> (Battery pane and ControlCenter crash loop), and
+> `scripts/macos/patch-va-tglva.sh` fixes the VA shim (App Store/HEIC decode
+> hang and dynamic wallpaper). Both gates accept only the exact build 24H32;
+> this machine is 24H232.
 >
 > **Boot-tested on 15.8.2 from this repository (2026-11-03).** The built stick
 > boots to the desktop, `TGLSequoiaMMIOGuard` entry 19 is `01`,
@@ -37,13 +39,14 @@ scratch with every payload pinned and hashed.
 > `system_profiler` reports **Metal 2**. The internal 2880×1800 OLED is online
 > at **Looks like 1440 × 900** HiDPI. The remaining known limits are Metal 2
 > (not Metal 3), the GPU's internal "Intel(R) TGL Unknown" name, and runtime
-> shader compilation (`XeCompilerAdapter` sandbox). The Battery pane and
-> ControlCenter archive crashes are **fixed** by the 0.4.0 `impostor.dylib`
-> (verified 2026-11-04); App Store video remains under investigation. The
-> desktop itself is GPU-composited. See
-> [docs/03-graphics.md](docs/03-graphics.md#the-impostordylib-version-gate-and-the-040-fix)
+> shader compilation (`XeCompilerAdapter` sandbox). The Battery pane,
+> ControlCenter archive crashes and App Store HEIC hang are **fixed** by the
+> 0.4.0 `impostor.dylib` and `TGLVA` shims (verified 2026-11-04/05). Two GPU
+> resets were logged while App Store previews first loaded; that is being
+> watched separately. The desktop itself is GPU-composited. See
+> [docs/03-graphics.md](docs/03-graphics.md#heichevc-decode-and-the-tglva-guard)
 > and
-> [docs/08-troubleshooting.md](docs/08-troubleshooting.md#battery-settings-pane-exits-powerpreferences).
+> [docs/08-troubleshooting.md](docs/08-troubleshooting.md#app-store-hangs-on-screenshots-or-quick-look-tglva-guard).
 
 ## Hardware
 
@@ -78,6 +81,8 @@ scripts/macos/patch-wex-tahoe-mmio.sh   repairs the 26.7.2 MMIO-UC signature
 scripts/macos/patch-wex-sequoia-mmio.sh repairs the 15.8.2 (24H232) signature
 scripts/macos/patch-mtl-impostor.sh      installs the 0.4.0 impostor.dylib
                                         (fixes Battery pane / ControlCenter)
+scripts/macos/patch-va-tglva.sh         installs the 0.4.0 TGLVA shim
+                                        (fixes App Store / HEIC decode hang)
 scripts/macos/metal-archive-workaround.plist  Metal archive agent (experiment)
 scripts/macos/install-metal-archive-workaround.sh  installs/removes that agent
 scripts/macos/check-metal-env.sh         verifies the agent and GUI environment

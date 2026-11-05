@@ -154,15 +154,18 @@ They are Apple/Intel-derived and are deliberately not vendored here.
 | Installs to | `/Library/Extensions` and `/Library/GPUBundles`, then AuxKC |
 | Control package | `WhateverXe-Graphics-0.4.0.pkg`, SHA-256 `7a1b5015b3e6e8b522f26c25df85c313471c9142564a0b57356cddd2c88b9510` (95,200,795 bytes), pairs with WEX 0.7.0 / Compat 0.7.0 |
 | Pinned file | 0.4.0 `impostor.dylib` for Sequoia, SHA-256 `1cc38c7941333d3f4b88316795c78ca0095addf945fa35b6ff8634ecc93a1060`, from `payloads/Sequoia/Library/GPUBundles/AppleIntelTGLGraphicsMTLDriver.bundle/Contents/MacOS/` at tag `v0.4.0`; replaces the 0.3.1 shim (`53c93a6e…fb57b`) named in `scripts/macos/patch-mtl-impostor.sh` |
+| Pinned file | 0.4.0 `TGLVA` for Sequoia, SHA-256 `db879dbae1c708b5fcdb3c39e251e63e635016d19885e9186fdc6baca68414aa`, from `payloads/Sequoia/Library/GPUBundles/AppleIntelTGLGraphicsVADriver.bundle/Contents/MacOS/TGLVA` at tag `v0.4.0`; replaces the 0.3.1 shim (`0c4df393…e35ac`) named in `scripts/macos/patch-va-tglva.sh`. The adjacent `AppleIntelTGLGraphicsVADriver` is **not** replaced: its 0.4.0 build differs only in the PCI device-ID dispatch table |
 
 The same-model reference was tested with 0.3.1, and its installed
 `AppleIntelTGLCompat` is 0.6.0 (the identifier this machine's logs show).
 Graphics 0.3.2 ships Compat 0.6.1 and 0.4.0 ships Compat 0.7.0; neither is
-used with the 0.6.0 default. Do not mix the pairs. The one deliberate
-exception is the 0.4.0 `impostor.dylib`: it is a userspace shim, not part of
-the Compat/kext pair, and is byte-compatible with the 0.3.1 `descriptor.dylib`
-and `libigdmd.dylib`. `scripts/macos/patch-mtl-impostor.sh` installs only that
-file, leaving the 0.6.0 kernel stack and the other two dylibs untouched.
+used with the 0.6.0 default. Do not mix the pairs. The two deliberate
+exceptions are the userspace shims `impostor.dylib` (Metal) and `TGLVA`
+(video): they are not part of the Compat/kext pair, and both are built to sit
+next to the otherwise unchanged 0.3.1 payload. `patch-mtl-impostor.sh` replaces
+only `impostor.dylib`; `patch-va-tglva.sh` replaces only `TGLVA`. The 0.6.0
+kernel stack, `descriptor.dylib`, `libigdmd.dylib` and
+`AppleIntelTGLGraphicsVADriver` stay untouched.
 
 **The stored payload is unmodified; the built kext is not.** The file in
 `efi/variants/gpu-hp-adlp-edp` is the published `197da23b…` binary. On Sequoia
