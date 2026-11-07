@@ -284,6 +284,10 @@ over 14 minutes (77 % → 74 %). That is the realistic document-reading figure;
 the 1:51 projection seen under the agent UI was load, not the hardware. Full
 method and caveats: [docs/14 §4](docs/14-measurements.md#4-battery-life-a-clean-run-and-why-load-dominates).
 
+The same session with `lowpowermode 0` drew **11.74 W (+48 %)** and cut the
+normalised full-charge runtime from **8.0 h to 5.4 h (−33 %)**. Keep the cap
+for reading, not just for compiles; the orange icon is doing real work.
+
 The orange battery icon **is** Low Power Mode; on battery it is expected, and
 turning it off removes the cap (more heat, faster drain). Measure real runtime
 with `bash scripts/macos/battery-watch.sh`; do not trust a benchmark taken

@@ -307,7 +307,10 @@ logged; those denials are expected and harmless.
 | `performance` | uncapped | uncapped |
 
 `balanced` is source-aware: run it once, and macOS uses the battery values
-when unplugged and the AC values when plugged in.
+when unplugged and the AC values when plugged in. Measured on battery while
+reading a PDF: **7.93 W with the cap, 11.74 W without (+48 %)**, i.e. a
+normalised runtime of **8.0 h versus 5.4 h**. See
+[14-measurements.md § 4](14-measurements.md#4-battery-life-a-clean-run-and-why-load-dominates).
 
 Apply it once:
 

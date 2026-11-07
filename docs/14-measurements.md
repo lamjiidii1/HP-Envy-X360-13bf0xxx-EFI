@@ -118,14 +118,41 @@ bash scripts/macos/battery-cap-compare.sh
 ```
 
 The script refuses to start on AC, holds the panel awake, runs 14 minutes with
-`lowpowermode 0`, prints the delta against this baseline, and restores
-`lowpowermode 1` on every exit path. Quit OpenCode first: its helper and
-renderer keep roughly two cores busy, so a measurement taken with the desktop
-open would be a measurement of the agent.
+`lowpowermode 0`, and restores `lowpowermode 1` on every exit path. Quit
+OpenCode first: its helper and renderer keep roughly two cores busy.
 
-Record the output here when the run is done. The expected shape is a small
-positive delta at idle (the cap mostly limits burst clocks) and a large one
-under sustained load, where the AC audit already showed 19.9 W → 10.3 W.
+**Result, 2026-11-07 14:46–14:54** (8 minutes, PDF reading, no background
+apps, `lowpowermode 0`):
+
+| Metric | Cap on (`balanced`) | Cap off | Delta |
+|---|---|---|---|
+| Average draw | 7.93 W | **11.74 W** | **+3.81 W (+48 %)** |
+| Peak draw | 10.51 W | 15.05 W | +4.54 W |
+| Minimum draw | 6.97 W | 9.37 W | +2.40 W |
+| Full-charge runtime (normalised) | 8.0 h | **5.4 h** | **−33 %** |
+| Observed range | 7.0–10.5 W | 9.4–15.1 W | much wider |
+
+`InstantAmperage` was sampled every 10 s; 47 rows but only **9 distinct
+currents**, because the SMC updates about once a minute. The two projections
+were taken at different charge levels (75 % and 70 %), so the table normalises
+both to a full pack before comparing; the watts need no normalisation.
+
+The result was larger than expected for "light use". Reading and scrolling a
+PDF still produces UI bursts that the uncapped CPU services at full turbo, and
+the cap removes exactly those. **Keep `balanced` for reading, not just for
+compiles.**
+
+Caveats: one session per state, different charge levels, 8 versus 14 minutes,
+and screen brightness was not recorded. Treat the magnitude as ±10–15 %, not
+as a precise law. The direction is large enough to be real, and the cap-off
+range being wider at both ends makes the mechanism clear.
+
+Record a repeat here if you want a tighter number. `--analyze FILE` re-scores
+any CSV without measuring again:
+
+```sh
+bash scripts/macos/battery-cap-compare.sh --analyze LOGS/battery-cap-off-*.csv
+```
 
 ### Load dominates the projection
 

@@ -184,6 +184,11 @@ peak** over 14 minutes of PDF reading at 1440×900 with no background apps, and
 projected **6.03 h** (77 % → 74 %). That is the realistic light-use figure; see
 [14-measurements.md § 4](14-measurements.md#4-battery-life-a-clean-run-and-why-load-dominates).
 
+The cap is worth keeping even for reading: the same session with
+`lowpowermode 0` drew **11.74 W average (+48 %)** and cut the normalised
+full-charge runtime from 8.0 h to **5.4 h (−33 %)**. The 10.3 → 19.9 W AC
+result was not the whole story; UI bursts alone are enough to pay for the cap.
+
 Two platform limits appear in the same runs and are not pmset settings:
 
 - The P-cores (reported as CPU 0–3) sustain about 3.6 GHz with one busy
