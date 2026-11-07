@@ -1,7 +1,11 @@
 # OpenMac — HP Envy x360 13-bf0xxx (i7-1250U) OpenCore EFI
 
 <p align="center">
-  <img src="media/info.png" alt="macOS Sequoia running on the HP ENVY x360 13-bf0xxx: About This Mac, Desktop and System Information" width="900">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="media/info_dark.png">
+    <source media="(prefers-color-scheme: light)" srcset="media/info_light.png">
+    <img src="media/info_light.png" alt="macOS Sequoia running on the HP ENVY x360 13-bf0xxx: About This Mac, Desktop and System Information" width="900">
+  </picture>
 </p>
 
 <p align="center">
