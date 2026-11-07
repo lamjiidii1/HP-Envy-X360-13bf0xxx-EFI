@@ -24,12 +24,13 @@ scratch with every payload pinned and hashed.
 > **Status:** the machine now runs **macOS Sequoia 15.8.2 (24H232, Darwin
 > 24.6.0)**, and the EFI has been retargeted to it. Wi-Fi uses a Sequoia build
 > of `AirportItlwm`; the graphics half keeps the `adlp-edp` fork of WhateverXe
-> 0.6.0 with WhateverXe Graphics 0.3.1, because upstream WhateverXe 0.7.0 —
-> although it supports Sequoia and no longer needs a build-matched MMIO
-> constant — cannot drive this panel: it rejects this machine's VBT with
-> `Status::Conflict` and the VBT carries `panel_type = 0xFF`, so it has no
-> panel record to work from. The fork's `-wex-adlp-edp` mode exists to drive
-> exactly that configuration. Evidence and the reasoning are in
+> 0.6.0 with WhateverXe Graphics 0.3.1, because unmodified upstream WhateverXe
+> 0.7.0 and 0.8.0 — although they support Sequoia/Tahoe and no longer need a
+> build-matched MMIO constant — cannot drive this panel: they reject this
+> machine's VBT with `Status::Conflict` and the VBT carries
+> `panel_type = 0xFF`, so there is no panel record to work from. The fork's
+> `-wex-adlp-edp` mode exists to drive exactly that configuration, and the
+> `wex080-adlp` variant ports it onto 0.8.0. Evidence and the reasoning are in
 > [docs/03-graphics.md](docs/03-graphics.md#why-the-fork-is-still-required-on-sequoia).
 >
 > On Sequoia 15.8.2 (24H232) WhateverXe selects a different MMIO routine, so
@@ -322,10 +323,11 @@ refused and WindowServer fell back to a virtual display. The trail is in
 [audit/log-analysis.md](audit/log-analysis.md) §9.2.
 
 On 2026-11-02 upstream released WhateverXe 0.7.0, which supports Sequoia
-15.8.x and no longer requires an exact OS build match for MMIO, and whose
-changelog claims internal eDP for Alder Lake-H/P/U. That looked like it would
-make the fork unnecessary. It does not, for two reasons that were checked by
-compiling the parsers and feeding them this machine's real VBT:
+15.8.x, no longer requires an exact OS build match for MMIO, and claims
+internal eDP for Alder Lake-H/P/U. 0.8.0 followed on 2026-11-07 with Raptor
+Lake-U and fixes, but no change to this panel path. Neither release makes the
+fork unnecessary, for two reasons checked by compiling the parsers and feeding
+them this machine's real VBT:
 
 - upstream's VBT parser returns `Status::Conflict` on the duplicate DDI 1
   child, so it keeps no ports at all;
@@ -336,9 +338,10 @@ The fork handles both: `-wex-adlp-edp` parses with first-child-wins and adds
 Combo A as a **fixed DP** output. That is the path the same-model reference
 used to reach a working panel and Metal on Tahoe 26.7.1, and it is still the
 only path that gets this panel past detection. 0.7.0 therefore ships on the
-stick as `EFI-wex070` for a control experiment, not as the default. Reaching
-0.7.0 would mean rebasing those two behaviours onto upstream and building from
-source.
+stick as `EFI-wex070` for a control experiment, not as the default. That rebase
+has since been done: the `wex080-adlp` port below applies both behaviours to
+0.8.0. Unmodified upstream 0.7.0/0.8.0 still cannot drive this panel. Details:
+[docs/03 § 0.8.0](docs/03-graphics.md#upstream-whateverxe-080-2026-11-07-does-not-change-this).
 
 ### WhateverXe 0.8.0 port (`wex080-adlp`)
 

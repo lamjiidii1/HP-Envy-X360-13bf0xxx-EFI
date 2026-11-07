@@ -335,10 +335,10 @@ Upstream 0.7.0 is shipped on the stick as `EFI-wex070` so the claim can be
 tested directly — it pairs with WhateverXe Graphics 0.4.0
 (`AppleIntelTGLCompat` 0.7.0), which is **not** installed.
 
-Making 0.7.0 the default would mean rebasing those two behaviours onto current
-upstream and building the kext from source on macOS, then re-testing the panel
-path. That is a larger project than the downgrade, and is not needed to get a
-usable machine.
+Making current upstream (0.7.0 or 0.8.0) the default would mean rebasing those
+two behaviours onto it and building the kext from source on macOS, then
+re-testing the panel path. That is a larger project than the downgrade, and is
+not needed to get a usable machine.
 
 In November 2026, WhateverXe 0.8.0 was released with dynamic MMIO resolution.
 The `adlp-edp` logic was ported to 0.8.0 as `efi/variants/gpu-wex080-adlp`,
@@ -368,11 +368,12 @@ patched Apple drivers.
 | WhateverXe 0.6.0 + `adlp-edp` (default) | WhateverXe Graphics 0.3.1 | 0.6.0 | Verified working (requires 24H232 build-time patch) |
 | WhateverXe 0.8.0 + `adlp-edp` (`EFI-wex080-adlp`) | WhateverXe Graphics 0.3.1 | 0.6.0 ABI compatible | Verified working (native dynamic MMIO, zero patching) |
 | upstream WhateverXe 0.7.0 (`EFI-wex070`) | WhateverXe Graphics 0.4.0 | 0.7.0 | Control experiment (internal panel dark) |
+| upstream WhateverXe 0.8.0 | WhateverXe Graphics 0.4.1 | 0.8.0 | Control experiment (Tahoe only; internal panel dark) |
 
-Do not install Graphics 0.4.0 with WhateverXe 0.6.0 or vice versa.
+Do not install Graphics 0.4.0/0.4.1 with WhateverXe 0.6.0 or vice versa.
 WhateverXe 0.8.0 maintains backward ABI compatibility with Compat 0.6.0,
-so it runs directly against Graphics 0.3.1 without needing userspace package
-reinstallation.
+so the 0.8.0-adlp port runs directly against Graphics 0.3.1 without needing
+userspace package reinstallation.
 
 ### WhateverXe 0.8.0-adlp: Dynamic MMIO and the Type-C conflict fix
 
@@ -477,7 +478,7 @@ The file is **byte-identical** to the reference fork's own fixture
 `4d790a72…fa30c`). BIOS F.35, the VBT and the panel are therefore not the
 difference between this machine and the working one.
 
-## Why upstream 0.6.1 and 0.7.0 are not the answer
+## Why unmodified upstream 0.6.1, 0.7.0 and 0.8.0 are not the answer
 
 Upstream 0.6.1 (2026-10-27) added generic eDP support, but it cannot be used
 on this unit:
@@ -496,6 +497,54 @@ on this unit:
 0.7.0 is in the same position: it fixed the VBT *version* range and the MMIO
 build matching, but the duplicate-DDI rule and the `panel_type = 0xFF` case are
 unchanged (see [above](#why-the-fork-is-still-required-on-sequoia)).
+
+### Upstream WhateverXe 0.8.0 (2026-11-07) does not change this
+
+0.8.0 adds Raptor Lake-U support, experimental MIPI DSI system sleep/wake,
+an optional 60 Hz MiniBook panel mode, and fixes the 0.7.0 acceleration
+regression (#27). None of that touches this panel. The release was checked
+against tag `0.8.0` (`db438fd`, release asset SHA-256
+`5b71e14ce10c673f6baba276183f268d7f04766d298cd34f1df0bb96f11c8e4b`) and
+against the real HP Envy VBT fixture:
+
+- `WhateverXe/kern_vbt.hpp` still rejects a second child for an already-used
+  DDI with `Status::Conflict`; there is no `firstWins` mode and no duplicate
+  counter.
+- `panelFacts()` still requires `options[0] < 16`, so `panel_type = 0xFF`
+  produces no panel record. It also refuses to associate two internal DP
+  children, which this VBT has (Combo A and Combo B).
+- `display13Fixed()` can mark an eDP panel only when
+  `PanelPower::nativePPS0()` succeeds. That function requires a valid VBT
+  panel record **and** a PWM backlight record; both are absent for this OLED,
+  which is dimmed over DPCD AUX.
+- The release binary contains none of the fork's markers
+  (`-wex-adlp-edp`, `-wex-scanout-coherent`, `-wex-pm`, `WEXADLPPanelDP`).
+
+Compiling the 0.8.0 parser from that tag and feeding it the machine's 8704-byte
+VBT gives the same result as 0.7.0:
+
+```
+status=7 (Status::Conflict)  valid=0  version=247  present=0x3
+ddi=0 type=0x1806 aux=0x40  internal=1 dp=1
+ddi=1 type=0x1806 aux=0x10  internal=1 dp=1
+panel valid=0
+```
+
+So upstream 0.8.0 plus WhateverXe Graphics 0.4.1 is **not** a route to the
+internal 2880×1800 OLED. The two blockers are independent: even if the duplicate
+DDI were ignored, the panel would still have no VBT panel/PWM record, and the
+upstream code has no fixed-Combo-A DP fallback. A Tahoe experiment with
+unmodified 0.8.0 can only test external HDMI/USB-C output and accelerator
+bring-up; it will not light the laptop panel.
+
+**The port now exists.** The `wex080-adlp` variant on `master` does exactly the
+source port described here — `firstWins` VBT parsing, the Combo A internal-DP
+panel association, the `display13PanelDP()` fixed-DP route, and the DPCD-AUX
+backlight and scanout fixes — and it drives the panel under Sequoia with native
+dynamic MMIO and no binary patching. Prefer that variant over unmodified 0.8.0
+when testing on Tahoe; the remaining question is only whether the Tahoe donor
+ABI accepts the same route. The previously known-good Tahoe panel path was the
+0.6.0 `adlp-edp` fork paired with Graphics 0.3.1.
 
 ## The 26.7.2 MMIO signature (Tahoe history)
 
@@ -832,17 +881,20 @@ tuning does. CPU power and heat are managed with XCPM low power mode instead:
    ```
    No binary patching or MMIO script execution is required.
 
-### Testing upstream 0.7.0 instead
+### Testing upstream 0.7.0 or 0.8.0 instead
 
 This swaps the ABI half of the stack, so both steps are required and the
 machine is not accelerated in between:
 
-1. Copy `EFI-wex070` from the stick over the EFI you boot from.
-2. Boot, then install `WhateverXe-Graphics-0.4.0.pkg` (also on the stick) and
-   restart.
+1. Copy `EFI-wex070` from the stick over the EFI you boot from. For 0.8.0,
+   build a separate EFI with the 0.8.0 kext; the boot arguments stay upstream
+   (no `-wex-*`).
+2. Boot, then install the matching package — `WhateverXe-Graphics-0.4.0.pkg`
+   for 0.7.0, `WhateverXe-Graphics-0.4.1.pkg` for 0.8.0 — and restart.
 3. Expect the internal panel to stay dark — upstream discards this VBT. The
    useful outcome of the experiment is the IORegistry evidence
-   (`WhateverXeFirmwarePorts` status, `TGLSequoiaMMIOGuard`), not a picture.
+   (`WhateverXeFirmwarePorts` status, `TGLSequoiaMMIOGuard`) and external
+   HDMI/USB-C output, not a picture on the laptop panel.
 4. To go back, restore the default EFI and reinstall Graphics 0.3.1.
 
 ## Rollback
