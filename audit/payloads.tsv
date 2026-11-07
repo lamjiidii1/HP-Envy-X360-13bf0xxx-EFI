@@ -27,7 +27,7 @@ efi/base/OC/Kexts/VoodooPS2Controller.kext/Contents/PlugIns/VoodooPS2Mouse.kext	
 efi/base/OC/Kexts/VoodooPS2Controller.kext/Contents/PlugIns/VoodooPS2Trackpad.kext	as.acidanthera.voodoo.driver.PS2Trackpad	2.3.8	e42cd2f68ee472829051b1c1f2b503c6db33c006ee4035e5698d104fe3c20049
 efi/base/OC/Kexts/XHCI-unsupported.kext	org.rehabman.injector.XHCI.unsupported	0.9.2	-
 efi/variants/gpu-hp-adlp-edp/WhateverXe.kext	org.b00t0x.WhateverXe	0.6.0	197da23bbe5a09731ef9517a0a6f9dabe52ab1f9b0c885a841a064190770288c
-efi/variants/gpu-wex080-adlp/WhateverXe.kext	org.b00t0x.WhateverXe	0.8.0	a4b72e7bd3af276e67c06be3bd6763c20be3b8fedac7b30064e7531ad28a4b1a
+efi/variants/gpu-wex080-adlp/WhateverXe.kext	org.b00t0x.WhateverXe	0.8.0	2b64ebc02afca386b47497006d3bf245a6d097b1d62e01b220a5f03fd7ec0518
 efi/variants/gpu-wex070/WhateverXe.kext	org.b00t0x.WhateverXe	0.7.0	ea156ad48ce7e29b2b409232b4d0623abd492935428b43da79239899fa2b0f3f
 efi/variants/wifi-airportitlwm/AirportItlwm.kext	com.zxystd.AirportItlwm	2.4.0	c3b95b3b8b54f9efbb9362d9dd3c29a354bb45e2dbc50a2ca3ec54f0f94bfc58
 efi/variants/wifi-itlwm/itlwm.kext	com.zxystd.itlwm	2.3.0	63952b0b7373e6a7e75a9a4f8ab0789a52a48ceb99bb0c8d0f387004d487690b
