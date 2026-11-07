@@ -276,6 +276,13 @@ sudo bash scripts/macos/install-power-daemon.sh balanced
 
 Measured on 2026-11-05 (AC, all-core): package power falls from **19.9 W to
 10.3 W** with the cap, and sustained clock from about 3.6 GHz to 1.8 GHz.
+
+Measured on 2026-11-07 (on battery, `balanced`, reading a PDF at 1440×900
+with no background apps): **7.93 W average**, 10.51 W peak, **~6 h projected**
+over 14 minutes (77 % → 74 %). That is the realistic document-reading figure;
+the 1:51 projection seen under the agent UI was load, not the hardware. Full
+method and caveats: [docs/14 §4](docs/14-measurements.md#4-battery-life-a-clean-run-and-why-load-dominates).
+
 The orange battery icon **is** Low Power Mode; on battery it is expected, and
 turning it off removes the cap (more heat, faster drain). Measure real runtime
 with `bash scripts/macos/battery-watch.sh`; do not trust a benchmark taken

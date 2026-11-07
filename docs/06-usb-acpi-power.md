@@ -166,6 +166,11 @@ Power is the Intel energy-model estimate (`CPUs+GT+SA`); "peak" is the highest
 roughly halves package power under load, so `balanced` trades compile speed for
 battery; on AC the profile leaves the uncapped values in place.
 
+On **battery**, the same `balanced` profile measured **7.93 W average / 10.51 W
+peak** over 14 minutes of PDF reading at 1440×900 with no background apps, and
+projected **6.03 h** (77 % → 74 %). That is the realistic light-use figure; see
+[14-measurements.md § 4](14-measurements.md#4-battery-life-a-clean-run-and-why-load-dominates).
+
 Two platform limits appear in the same runs and are not pmset settings:
 
 - The P-cores (reported as CPU 0–3) sustain about 3.6 GHz with one busy

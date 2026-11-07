@@ -83,14 +83,37 @@ power profile, and do not treat the macOS-vs-Fedora score gap as a tuning
 target by itself. If a clean comparison is needed, quit the desktop and run it
 from a normal session.
 
-## 4. Battery discharge is dominated by load, not by the cap
+## 4. Battery life: a clean run, and why load dominates
 
-During run 3 the battery fell **83 % → 75 % in 8 min 10 s** (about 46 %/h;
-`pmset` projected 1:51). Moments later, with the UI idle, the same pack
-projected **3:54** at 60 %.
+### Clean measurement (2026-11-07)
 
-That spread is why the repository ships `battery-watch.sh` instead of trusting
-a single `pmset` estimate:
+On battery, `balanced` (`lowpowermode 1`), panel at **Looks like 1440 × 900**,
+reading a PDF from internal storage with no background apps:
+
+| Metric | Value |
+|---|---|
+| Window | 14:24:44 → 14:39:00 (14 min 16 s) |
+| Samples | 81 at 10 s |
+| Average draw | **7.93 W** |
+| Peak draw | 10.51 W (first minute, panel refresh) |
+| Charge used | 77 % → 74 % |
+| Projected runtime | **6.03 h** |
+
+The numbers cross-check: 7.93 W × 0.238 h ≈ 1.89 Wh, and 3 % of the ~63 Wh
+pack is about 1.9 Wh. `pmset` independently projected 5:42 at 77 %. **This is
+the figure to quote for normal document reading**, not the 1:51 seen under the
+agent UI.
+
+Caveat: the SMC updates `InstantAmperage` about once every 50 s, so the 81
+rows contain only ~17 independent changes. The average is still valid, but the
+row count overstates the statistical power.
+
+### Load dominates the projection
+
+During Geekbench run 3 the battery fell **83 % → 75 % in 8 min 10 s** (about
+46 %/h; `pmset` projected 1:51). Moments later, with the UI idle, the same pack
+projected **3:54** at 60 %. That spread is why the repository ships
+`battery-watch.sh` instead of trusting a single `pmset` estimate:
 
 ```sh
 INTERVAL=10 bash scripts/macos/battery-watch.sh
