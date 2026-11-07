@@ -1,5 +1,14 @@
 # OpenMac — HP Envy x360 13-bf0xxx (i7-1250U) OpenCore EFI
 
+<p align="center">
+  <img src="media/info.png" alt="macOS Sequoia running on the HP ENVY x360 13-bf0xxx: About This Mac, Desktop and System Information" width="900">
+</p>
+
+<p align="center">
+  <em>macOS Sequoia 15.8.2 on the HP ENVY x360 13-bf0xxx — 2880×1800 OLED at
+  HiDPI “Looks like 1440 × 900”, Metal 2, native Wi-Fi.</em>
+</p>
+
 A reproducible OpenCore EFI for macOS Sequoia on the **HP ENVY x360 2-in-1
 13-bf0xxx** (Alder Lake-U, Iris Xe `8086:46AA`, 2880×1800 OLED), built around
 WhateverXe.
