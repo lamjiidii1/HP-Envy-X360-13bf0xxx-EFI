@@ -10,23 +10,33 @@ The machine was downgraded from Tahoe 26.7.2 to **macOS Sequoia 15.8.2
 
 | Half | Version | Why |
 |---|---|---|
-| EFI kext | WhateverXe 0.6.0, `adlp-edp` branch, patch series 54, published binary `197da23b…`; `make build` applies the 24H232 Sequoia constant | only build that parses this VBT and drives this panel |
-| Installed package | WhateverXe Graphics 0.3.1 (`AppleIntelTGLCompat` 0.6.0) | must match 0.6.0; already installed on the machine |
+| EFI kext (default) | WhateverXe 0.6.0, `adlp-edp` branch, patch series 54, published binary `197da23b…`; `make build` applies the 24H232 Sequoia constant | Proven base driver; parses this VBT and drives internal OLED |
+| EFI kext (0.8.0 port) | WhateverXe 0.8.0, `adlp-0.8.0` branch, binary `2b64ebc0…` (`gpu-wex080-adlp`) | Upstream 0.8.0 rebase; resolves MMIO dynamically without binary patching; masks unprobed Type-C routes to drive internal OLED |
+| Installed package | WhateverXe Graphics 0.3.1 (`AppleIntelTGLCompat` 0.6.0) | Installed on machine; compatible with both 0.6.0 and 0.8.0-adlp |
 
-WhateverXe picks its MMIO protection routine by OS family
+WhateverXe 0.6.0 picks its MMIO protection routine by OS family
 (`tglPrepareMMIOUC()` dispatches to `…TahoeMMIOUC`, `…SequoiaMMIOUC`,
 `…SonomaMMIOUC`, …). The Tahoe patch therefore never ran here. Sequoia has its
 own build-matched check, and **24H232 does not match the constant in either
-WhateverXe 0.6.0 or 0.6.1**, so the published binary still cannot start the
-accelerator. The default build rewrites the one stale byte in the built kext;
-the pinned payload in `efi/variants` stays as published.
+WhateverXe 0.6.0 or 0.6.1**, so the published 0.6.0 binary cannot start the
+accelerator without patching. The default build rewrites the one stale byte in
+the built kext; the pinned payload in `efi/variants` stays as published.
+On **WhateverXe 0.8.0-adlp**, MMIO protection is resolved dynamically at
+runtime (`TGLMMIOStrongUCRouted = Yes`), requiring zero binary patching on
+24H232 or future point updates.
 
-What to check after the first Sequoia boot:
+What to check after booting Sequoia:
 
 ```sh
-ioreg -lw0 | grep -o '"TGLSequoiaMMIOGuard" = <[^>]*>'   # guard[19] must be 01
-ioreg -lw0 | grep -o '"WhateverXeFirmwarePorts" = <[^>]*>'
+# On 0.6.0: guard[19] must be 01
+ioreg -lw0 | grep -o '"TGLSequoiaMMIOGuard" = <[^>]*>'
+
+# On 0.8.0: dynamic MMIO route must be active (Yes)
 ioreg -lw0 | grep -o '"TGLMMIOStrongUCRouted" = [^<]*'
+
+# Both variants: internal panel route and link training hooks
+ioreg -lw0 | grep -o '"WEXDisplay13ComboDPReady" = [^<]*'
+ioreg -lw0 | grep -o '"WEXDisplay13TrainingReady" = [^<]*'
 ioreg -rc IntelAccelerator | head -1                     # must print a match
 system_profiler SPDisplaysDataType | grep -i metal
 ```
@@ -330,6 +340,11 @@ upstream and building the kext from source on macOS, then re-testing the panel
 path. That is a larger project than the downgrade, and is not needed to get a
 usable machine.
 
+In November 2026, WhateverXe 0.8.0 was released with dynamic MMIO resolution.
+The `adlp-edp` logic was ported to 0.8.0 as `efi/variants/gpu-wex080-adlp`,
+resolving the VBT conflict, adding the fixed Combo A DP route, and fixing a
+Display 13 Type-C conflict described below.
+
 ## The stack
 
 macOS has no driver for Alder Lake Iris Xe (`8086:46AA`). WhateverXe makes
@@ -344,17 +359,59 @@ Apple's **Tiger Lake** driver accept it:
 | `AppleIntelTGLGraphicsVADriver.bundle` | `/Library/GPUBundles` | Hardware video decode (optional) |
 | `AMFIPass.kext` (Mod) | EFI | Lets the signed Xe bundles load without disabling AMFI globally |
 
-The two halves must match, version for version: the package installs
-`AppleIntelTGLCompat` with the same version number as the WhateverXe release it
-was built for, and the patched Apple bundles link against that ABI.
+The two halves must match ABI compatibility: the package installs
+`AppleIntelTGLCompat` providing the symbols required by WhateverXe and the
+patched Apple drivers.
 
-| EFI kext | Required package | `AppleIntelTGLCompat` |
-|---|---|---|
-| WhateverXe 0.6.0 + `adlp-edp` (default) | WhateverXe Graphics 0.3.1 | 0.6.0 |
-| upstream WhateverXe 0.7.0 (`EFI-wex070`) | WhateverXe Graphics 0.4.0 | 0.7.0 |
+| EFI kext | Required package | `AppleIntelTGLCompat` | Status |
+|---|---|---|---|
+| WhateverXe 0.6.0 + `adlp-edp` (default) | WhateverXe Graphics 0.3.1 | 0.6.0 | Verified working (requires 24H232 build-time patch) |
+| WhateverXe 0.8.0 + `adlp-edp` (`EFI-wex080-adlp`) | WhateverXe Graphics 0.3.1 | 0.6.0 ABI compatible | Verified working (native dynamic MMIO, zero patching) |
+| upstream WhateverXe 0.7.0 (`EFI-wex070`) | WhateverXe Graphics 0.4.0 | 0.7.0 | Control experiment (internal panel dark) |
 
-Do not mix them. Installing 0.4.0 while the 0.6.0 kext is in the EFI (or the
-reverse) gives a GPU that probes and then refuses every surface.
+Do not install Graphics 0.4.0 with WhateverXe 0.6.0 or vice versa.
+WhateverXe 0.8.0 maintains backward ABI compatibility with Compat 0.6.0,
+so it runs directly against Graphics 0.3.1 without needing userspace package
+reinstallation.
+
+### WhateverXe 0.8.0-adlp: Dynamic MMIO and the Type-C conflict fix
+
+The `wex080-adlp` port incorporates the `adlp-edp` patchset (first-child-wins
+VBT parsing, Combo A DP route) into WhateverXe 0.8.0 and addresses two key
+areas:
+
+1. **Native Dynamic MMIO Resolution (`TGLMMIOStrongUCRouted = Yes`)**:
+   Upstream 0.8.0 resolves MMIO cache mode pointers dynamically in memory
+   rather than checking rigid OS-build byte patterns. On macOS Sequoia 15.8.2
+   (24H232), MMIO UC is routed cleanly at boot with no binary patching or
+   `scripts/macos/patch-wex-sequoia-mmio.sh` required.
+
+2. **Display 13 Type-C Conflict & Black Screen Fix**:
+   Upstream 0.8.0 introduced automatic DP-alt Type-C port routing in
+   `display13Fixed()` (`kern_display13_firmware.hpp`). On the HP Envy VBT,
+   Thunderbolt 4 / USB-C ports are declared on DDIs 3–6. This added `0x78` to
+   `board.dp` and `board.typeC`, causing `adlnOutputWiring.selected()` to return
+   `0x79` (Combo A `0x01` + Type-C `0x78`).
+   In `kern_xe.cpp`, line 5598 gates Display 13 link training:
+   ```cpp
+   if (display13PanelDP && (adlnOutputWiring.dp & 3) && !(adlnOutputWiring.selected() & 0x78))
+   ```
+   Because `selected() & 0x78` was non-zero, `display13ComboDPReady` was never set,
+   `processDisplay13Training()` never attached, and
+   `AppleIntelFramebuffer::allocateBootDisplayResources` failed with error
+   `0xe00002bc` (`FB0: Resources allocation failed` / `FB0: Failed to commit boot display resources`),
+   leaving the OLED panel completely dark.
+
+   **The Fix**: In `display13BoardWiring`, when `-wex-adlp-edp` (`display13PanelDP`)
+   is active, speculative Type-C routes are explicitly cleared:
+   ```cpp
+   if (display13PanelDP) {
+       board.dp &= ~0x78U;
+       board.typeC = 0;
+   }
+   ```
+   This ensures `selected() == 0x01` (Combo A OLED), allowing link training and
+   modeset commit to succeed immediately.
 
 ## What the logs show
 
@@ -701,9 +758,10 @@ reinstall.
 | `-wex-pm` | XE-PM CPU profile: HWP units and the idle table on hybrid Alder Lake. On this kernel its HWP route does not install, so it does not change CPU power; see the note below |
 | `-v`, `debug=0x100` | `--debug` builds only |
 
-All five `-wex-*` arguments belong to the fork and are deliberately **absent**
+All five `-wex-*` arguments belong to the `adlp-edp` patchset (supported in
+both the 0.6.0 fork and `wex080-adlp`) and are deliberately **absent**
 from the `EFI-wex070` build, because its parsing is intended to be the upstream
-one. Do not copy them across without knowing which of the two is under test.
+one. Do not copy them across without knowing which of the variants is under test.
 
 Do not add `-wex-noaccel`: it deliberately disables the accelerator and would
 guarantee the 19 MB fallback.
@@ -748,6 +806,25 @@ tuning does. CPU power and heat are managed with XCPM low power mode instead:
    patch a stick that was assembled elsewhere.
 4. Check the Sequoia MMIO verdict and acceleration with the commands in
    *Verify after the reboot* and in *Current state* above.
+
+### Running WhateverXe 0.8.0-adlp
+
+1. Build `build/EFI-wex080-adlp`:
+   ```sh
+   ./scripts/build_efi.py --gpu wex080-adlp --out build/EFI-wex080-adlp --force
+   ```
+2. Copy `build/EFI-wex080-adlp` over the ESP of your boot disk or USB stick.
+3. Boot into macOS. No Graphics package change is needed: WhateverXe 0.8.0-adlp
+   maintains ABI compatibility with the installed Graphics 0.3.1.
+4. Confirm dynamic MMIO and panel bringup:
+   ```sh
+   ioreg -lw0 | grep -o '"VersionInfo" = [^<]*'            # REL-080-...
+   ioreg -lw0 | grep -o '"TGLMMIOStrongUCRouted" = [^<]*'  # Yes
+   ioreg -lw0 | grep -o '"WEXDisplay13ComboDPReady" = [^<]*' # Yes
+   ioreg -rc IntelAccelerator | head -1                     # present
+   system_profiler SPDisplaysDataType | grep -i metal       # Metal 2
+   ```
+   No binary patching or MMIO script execution is required.
 
 ### Testing upstream 0.7.0 instead
 

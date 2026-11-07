@@ -55,7 +55,7 @@ GPU_VARIANTS = {
             "-wex-pm",
         ],
         "sequoia_mmio_patch": False,
-        "description": "WhateverXe 0.8.0 + adlp-edp (native dynamic MMIO, Graphics 0.4.0/0.4.1)",
+        "description": "WhateverXe 0.8.0 + adlp-edp (native dynamic MMIO, verified with Graphics 0.3.1)",
     },
     "wex070": {
         "path": VARIANTS / "gpu-wex070" / "WhateverXe.kext",

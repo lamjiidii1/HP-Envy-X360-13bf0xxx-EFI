@@ -147,22 +147,25 @@ Checks, in order:
    | EFI variant | WhateverXe | Graphics package | Compat |
    |---|---|---|---|
    | `hp-adlp-edp` (default) | 0.6.0 | 0.3.1 | 0.6.0 |
+   | `wex080-adlp` (0.8.0 port) | 0.8.0 | 0.3.1 | 0.6.0 ABI compatible |
    | `wex070` (control) | 0.7.0 | 0.4.0 | 0.7.0 |
 
    ```sh
    kextstat | grep -Ei 'whateverxe|tgl'
-   # org.b00t0x.WhateverXe (0.6.x)
+   # org.b00t0x.WhateverXe (0.6.x or 0.8.x)
    # org.b00t0x.AppleIntelTGLCompat (0.6.x)
    ```
 
    A 0.6.0 kext with Compat 0.7.0 (or the reverse) will load but not start.
+   `wex080-adlp` is backward compatible with Compat 0.6.0 / Graphics 0.3.1.
    The `wex070` variant is only a control; it cannot parse this unit's VBT and
    is expected to leave the panel dark.
 
 2. **Boot arguments match the kext.** `-wex-adlp-edp`,
    `-wex-reset-restore`, `-wex-no-multicontext`, `-wex-scanout-coherent` and
-   `-wex-pm` exist only in the 0.6.0 fork. The `wex070` build must not carry
-   them; the build script adds them only for `--gpu hp-adlp-edp`. An unknown
+   `-wex-pm` belong to the `adlp-edp` patchset and are injected for both
+   `--gpu hp-adlp-edp` and `--gpu wex080-adlp`. The `wex070` build must not carry
+   them; the build script adds them only for the `adlp-edp` variants. An unknown
    `-wex-*` argument is ignored, but a *partial* set is a sign that the config
    and kext were mixed by hand.
 
@@ -199,9 +202,11 @@ Checks, in order:
    - if the value changed after a macOS update, decode entry 16 and use the
      script rather than editing bytes by hand.
 
-   The Tahoe-era properties (`TGLMMIOStrongUCRouted`, `TGLTahoeMMIOGuard`) do
-   not apply here; the Tahoe patch script modifies bytes that Sequoia never
-   executes. Do not run the Tahoe script on Sequoia and expect a change.
+   The Tahoe-era properties (`TGLTahoeMMIOGuard`) do
+   not apply on Sequoia. Note that on WhateverXe 0.8.0 (`wex080-adlp`), MMIO is
+   resolved dynamically at runtime without rigid kernel byte checks. `TGLSequoiaMMIOGuard`
+   is obsolete on 0.8.0; instead confirm `"TGLMMIOStrongUCRouted" = Yes`. No binary
+   patching is needed.
 
 5. **The panel record is not the problem.** `WhateverXeFirmwarePanel` is
    `[0, 0, 9, 0, 0]` on this unit because the VBT sets `panel_type = 0xFF`
@@ -209,13 +214,16 @@ Checks, in order:
    admits the Combo A DP route without a panel record. Do not chase the
    placeholder `LFP_PanelName` strings; WhateverXe does not read them.
 
-6. **Try the other driver variant**, with the same config otherwise:
+6. **Try the other driver variants**, with the same config otherwise:
 
    ```sh
+   ./scripts/build_efi.py --gpu wex080-adlp --out build/EFI-wex080-adlp --force
    ./scripts/build_efi.py --gpu wex070 --out build/EFI-wex070 --force
    ```
 
-   Install Graphics **0.4.0** before booting it, and expect a dark internal
+   `wex080-adlp` runs with the installed WhateverXe Graphics 0.3.1 and drives
+   the internal OLED panel with native dynamic MMIO.
+   `wex070` requires Graphics **0.4.0** before booting, and expect a dark internal
    panel: upstream 0.7.0 rejects this VBT (`Status::Conflict`). If the panel
    lights with 0.7.0 anyway, that is new information worth recording; if it
    stays dark while an external display works, the fork's parser is confirmed
@@ -247,6 +255,13 @@ panel qualification fails. Record `WEXDisplay13BootReady`,
 `WEXDisplay13TCBootPorts` and `WEXADLPPanelDP`, then report upstream. The
 Type-C port table being all zero is expected on a laptop with no Type-C
 display output wired through the iGPU.
+
+On WhateverXe 0.8.0, speculative Type-C routes in upstream `display13Fixed()`
+can cause `adlnOutputWiring.selected() & 0x78` to be non-zero, preventing
+`display13ComboDPReady` from setting and failing link training with
+`FB0: Resources allocation failed (0xe00002bc)`. The `wex080-adlp` variant masks
+these speculative Type-C routes (`board.dp &= ~0x78U; board.typeC = 0;`),
+allowing internal OLED panel bringup to complete normally.
 
 ### Backlight
 

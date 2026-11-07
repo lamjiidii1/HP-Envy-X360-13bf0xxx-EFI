@@ -46,8 +46,10 @@ scratch with every payload pinned and hashed.
 > hang and dynamic wallpaper). Both gates accept only the exact build 24H32;
 > this machine is 24H232.
 >
-> **Boot-tested on 15.8.2 from this repository (2026-11-03).** The built stick
-> boots to the desktop, `TGLSequoiaMMIOGuard` entry 19 is `01`,
+> **Boot-tested on 15.8.2 from this repository (2026-11-03 / 0.8.0 verified 2026-11-07).**
+> The built stick boots to the desktop with either the 0.6.0 default or the
+> WhateverXe 0.8.0-adlp variant (`build/EFI-wex080-adlp`). On 0.8.0, MMIO is
+> resolved dynamically (`TGLMMIOStrongUCRouted = Yes`) without binary patching.
 > `IntelAccelerator` is present, `VRAM (Dynamic, Max)` is 1536 MB and
 > `system_profiler` reports **Metal 2**. The internal 2880×1800 OLED is online
 > at **Looks like 1440 × 900** HiDPI. The remaining known limits are Metal 2
@@ -137,6 +139,7 @@ was made — it is not a claim that the feature fails.
 ```
 efi/base/                 OpenCore 1.0.8, 12 ACPI tables, common kexts, resources
 efi/variants/gpu-hp-adlp-edp/     WhateverXe 0.6.0 + adlp-edp patches (default)
+efi/variants/gpu-wex080-adlp/     WhateverXe 0.8.0 + adlp-edp (native dynamic MMIO)
 efi/variants/gpu-wex070/          WhateverXe 0.7.0 upstream (control experiment)
 efi/variants/wifi-airportitlwm/   AirportItlwm 2.4.0, Sequoia build (native menu, default)
 efi/variants/wifi-itlwm/          itlwm 2.3.0 + HeliPort (fallback)
@@ -188,14 +191,16 @@ make verify
 Other combinations:
 
 ```sh
-./scripts/build_efi.py --gpu wex070 --out build/EFI-wex070   # upstream control
+./scripts/build_efi.py --gpu wex080-adlp --out build/EFI-wex080-adlp # 0.8.0 native dynamic MMIO
+./scripts/build_efi.py --gpu wex070 --out build/EFI-wex070         # upstream control
 ./scripts/build_efi.py --wifi itlwm --out build/EFI-itlwm
-./scripts/build_efi.py --debug --out build/EFI-debug     # -v, debug=0x100
+./scripts/build_efi.py --debug --out build/EFI-debug           # -v, debug=0x100
 ```
 
 | Build | GPU driver | Wi-Fi | When to use |
 |---|---|---|---|
-| `build/EFI` (default) | WhateverXe 0.6.0 + adlp-edp | AirportItlwm 2.4.0 (Sequoia) | The only driver that parses this VBT and drives this panel |
+| `build/EFI` (default) | WhateverXe 0.6.0 + adlp-edp | AirportItlwm 2.4.0 (Sequoia) | Proven 0.6.0 driver (requires 24H232 binary patch applied by `make build`) |
+| `build/EFI-wex080-adlp` | WhateverXe 0.8.0 + adlp-edp | AirportItlwm 2.4.0 (Sequoia) | WhateverXe 0.8.0 port; dynamic MMIO resolution without binary patching; internal OLED verified |
 | `build/EFI-itlwm` | WhateverXe 0.6.0 + adlp-edp | itlwm + HeliPort | Fallback if AirportItlwm does not attach |
 | `build/EFI-wex070` | WhateverXe 0.7.0 | AirportItlwm 2.4.0 (Sequoia) | Control experiment; needs Graphics 0.4.0 and is expected to leave the internal panel dark |
 | `build/EFI-debug` | WhateverXe 0.6.0 + adlp-edp | AirportItlwm 2.4.0 (Sequoia) | Verbose boot and kernel logging while debugging |
@@ -334,6 +339,25 @@ only path that gets this panel past detection. 0.7.0 therefore ships on the
 stick as `EFI-wex070` for a control experiment, not as the default. Reaching
 0.7.0 would mean rebasing those two behaviours onto upstream and building from
 source.
+
+### WhateverXe 0.8.0 port (`wex080-adlp`)
+
+In November 2026, WhateverXe 0.8.0 was released by upstream introducing native
+dynamic MMIO resolution (`TGLMMIOStrongUCRouted = Yes`), which removes the need
+for kernel byte comparisons and binary patches across macOS updates.
+
+The `adlp-edp` patchset was ported to 0.8.0 (`wex080-adlp`) with an essential
+fix for Alder Lake: upstream 0.8.0 introduced automatic DP-alt Type-C port
+enumeration in Display 13. On the HP Envy VBT (which defines Thunderbolt 4 /
+USB-C ports on DDIs 3–6), this populated speculative Type-C routes that caused
+internal eDP link training to be skipped (`selected() & 0x78` non-zero), resulting
+in `FB0: Resources allocation failed (0xe00002bc)` and a black screen. Masking
+speculative Type-C routes during panel bringup (`board.dp &= ~0x78U; board.typeC = 0;`)
+restores Combo A link training and brings up the 2880×1800 OLED panel cleanly.
+
+The port is binary compatible with the installed WhateverXe Graphics 0.3.1
+(`AppleIntelTGLCompat` 0.6.0 ABI). Full Metal 2 acceleration and internal OLED
+output have been verified live on macOS Sequoia 15.8.2.
 
 ## What changed compared with the previous EFI
 

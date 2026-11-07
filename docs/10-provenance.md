@@ -77,6 +77,7 @@ executable. `-` means the bundle has no executable (a pure plist injector).
 | `Lilu.kext` | 1.7.2 | [acidanthera/Lilu](https://github.com/acidanthera/Lilu) | `ff98508b40a1eb5fb477029db8886412520f8e39965279ea331c99e3d2e3b274` | none |
 | `AMFIPass.kext` | 1.4.1 | [dhinakg/AMFIPass](https://github.com/dhinakg/AMFIPass) | `2d36aeca1740b258e6bb0b66844b5bfb59a0edb7cdd9ef78206689e5d223d8dc` | "Mod" build from WhateverXe Graphics: trust anchor changed for Xe bundles |
 | `WhateverXe.kext` | 0.6.0 | b00t0x + [retropineaple adlp-edp](https://github.com/retropineaple/WhateverXe/tree/adlp-edp), prebuilt in [whateverxe-hp-envy-x360](https://github.com/retropineaple/whateverxe-hp-envy-x360) commit `8100282` | `197da23bbe5a09731ef9517a0a6f9dabe52ab1f9b0c885a841a064190770288c` | unmodified published binary (patch series 54); the build applies the 24H232 Sequoia constant (§5); **default** (variant `gpu-hp-adlp-edp`) |
+| `WhateverXe.kext` | 0.8.0 | b00t0x + [adlp-edp port](https://github.com/lamjiidii1/HP-Envy-X360-13bf0xxx-EFI/tree/wex080-adlp) | `2b64ebc02afca386b47497006d3bf245a6d097b1d62e01b220a5f03fd7ec0518` | Dynamic MMIO; first-child-wins VBT parsing; fixed Combo A DP route; masked speculative Type-C routes for OLED link training (variant `gpu-wex080-adlp`) |
 | `WhateverXe.kext` | 0.7.0 | [b00t0x/WhateverXe](https://github.com/b00t0x/WhateverXe) | `ea156ad48ce7e29b2b409232b4d0623abd492935428b43da79239899fa2b0f3f` | none; control only, rejects this VBT (variant `gpu-wex070`) |
 | `VirtualSMC.kext` | 1.3.9 | [acidanthera/VirtualSMC](https://github.com/acidanthera/VirtualSMC) | `bf91e9542b86c20acaf210353a93742291c49328e2d14b03fa0fa4fc52b3b5ce` | none |
 | `SMCProcessor.kext` | 1.3.9 | acidanthera/VirtualSMC | `dcf738671431721692f752e3df43acaaa02c93788ae7b21153504b07db01be32` | none |
@@ -233,6 +234,7 @@ The release archives used to populate the repository:
 |---|---|---|
 | `OpenCore-1.0.8-RELEASE.zip` | `2011e8b7216ecb2645d97ea710df965947edd406846e92050b9bc4190be6d27b` | OpenCore, drivers, resources |
 | WhateverXe 0.7.0 RELEASE zip | `5548c78f687134580913b9f600fb8b0f16bb49f7d430bcc82de7fa9761d4f62b` | `efi/variants/gpu-wex070` (control) |
+| `WhateverXe.kext` (0.8.0-adlp) | `2b64ebc02afca386b47497006d3bf245a6d097b1d62e01b220a5f03fd7ec0518` | `efi/variants/gpu-wex080-adlp` (built from branch `adlp-0.8.0`) |
 | `AirportItlwm-Sequoia-v2.4.0-RELEASE-alpha-7204c69.zip` | `263d35e5954808f43bde17b9695b675aefc2f6d4cded71306b1b6575aea61a82` | `efi/variants/wifi-airportitlwm` |
 | `WhateverXe-Graphics-0.3.1.pkg` | `bd8b449431b1bf3815f9011ad3e13c7038012d17aed54dfb2aecfce6b9089623` | installed separately, not in Git |
 | `WhateverXe-Graphics-0.4.0.pkg` | `7a1b5015b3e6e8b522f26c25df85c313471c9142564a0b57356cddd2c88b9510` | control only; installed for the 0.7.0 test, not in Git |
@@ -244,6 +246,10 @@ binary, with no local modification in Git; the default build patches its
 24H232 Sequoia constant as described in §5. The older commit `9809987` shipped
 `c090b9dd…`; that is the binary the previous EFI used, and it remains in Git
 history of this repository.
+
+The 0.8.0 `adlp-edp` binary is built from the `adlp-0.8.0` branch of WhateverXe,
+incorporating the `adlp-edp` patchset and the Display 13 Type-C speculative route
+mask. It is pinned by its executable hash `2b64ebc0…`.
 
 The other kexts were taken from their named upstream releases; their
 individual hashes in `payloads.tsv` are the authority.

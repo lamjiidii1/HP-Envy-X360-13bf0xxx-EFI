@@ -81,8 +81,9 @@ The `1,88 GHz` that macOS shows is the invariant TSC, not the core clock; see
 Other variants are optional:
 
 ```sh
+./scripts/build_efi.py --gpu wex080-adlp --out build/EFI-wex080-adlp --force   # 0.8.0 native dynamic MMIO
 ./scripts/build_efi.py --wifi itlwm --out build/EFI-itlwm --force
-./scripts/build_efi.py --gpu wex070 --out build/EFI-wex070 --force   # control only
+./scripts/build_efi.py --gpu wex070 --out build/EFI-wex070 --force             # control only
 ./scripts/build_efi.py --debug --out build/EFI-debug --force
 ```
 

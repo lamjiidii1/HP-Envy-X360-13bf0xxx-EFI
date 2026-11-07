@@ -43,7 +43,8 @@ or the SMBIOS is blank.
 For the other variants:
 
 ```sh
-./scripts/build_efi.py --gpu wex070 --out build/EFI-wex070 --force  # upstream 0.7.0 control
+./scripts/build_efi.py --gpu wex080-adlp --out build/EFI-wex080-adlp --force  # 0.8.0 native dynamic MMIO
+./scripts/build_efi.py --gpu wex070 --out build/EFI-wex070 --force          # upstream 0.7.0 control
 ./scripts/build_efi.py --debug --out build/EFI-debug --force
 ```
 
