@@ -13,32 +13,59 @@
 # Usage:
 #   bash battery-watch.sh                 # 10 s interval, CSV under LOGS/
 #   INTERVAL=5 bash battery-watch.sh
+#   SAMPLES=6 bash battery-watch.sh       # stop after 6 samples (for a test)
 #
 # No sudo.  Stop with Ctrl-C for a summary.  Plugging the charger back in is
 # fine: charging samples are recorded but excluded from the discharge average.
+#
+# ioreg prints a negative InstantAmperage as an unsigned 64-bit value
+# (e.g. -1925 mA becomes 18446744073709550691).  val() normalises that back to
+# a signed number; without it every sample looks like a huge charge rate.
 
 set -u
 
 INTERVAL=${INTERVAL:-10}
+SAMPLES=${SAMPLES:-0}
 REPO=$(cd "$(dirname "$0")/../.." && pwd)
 OUT=${OUT:-"$REPO/LOGS/battery-watch-$(date +%Y%m%d-%H%M%S).csv"}
 
 say() { printf '%s\n' "$*"; }
 
+# Exact 64-bit signed conversion.  awk/bash arithmetic goes through a double
+# for values this large, which loses the low bits; python3 keeps it exact and
+# is already a build dependency of this repository.
+signed64() {
+    python3 -c 'import sys
+v = int(sys.argv[1])
+print(v - (1 << 64) if v >= (1 << 63) else v)' "$1"
+}
+
 val() {
-    ioreg -rn AppleSmartBattery -l 2>/dev/null \
-        | awk -v k="\"$1\"" '$1 == k { print $3; exit }'
+    local raw
+    raw=$(ioreg -rn AppleSmartBattery -l 2>/dev/null \
+        | awk -v k="\"$1\"" '$1 == k { print $3; exit }')
+    [ -n "$raw" ] || return 0
+    case $raw in
+        ''|*[!0-9]*) printf '%s\n' "$raw" ;;
+        *) signed64 "$raw" ;;
+    esac
 }
 
 summary() {
     say ""
     say "== summary =="
     awk -F, '
-        NR > 1 && $7 == "No" && $5 + 0 < 0 { s += $5; n++; if (n == 1 || $5 < mn) mn = $5 }
+        NR > 1 { total++ }
+        NR > 1 && $7 == "No" && $6 == "No" && $5 + 0 < 0 {
+            s += $5; n++; if (n == 1 || $5 < mn) mn = $5
+        }
         NR > 1 && $8 != "" { h += $8; hn++ }
         END {
-            if (n) printf "discharge: %d samples, average %.2f W (peak %.2f W)\n", n, s / n, mn
-            else   print "discharge: no samples (was the charger still connected?)"
+            if (n)
+                printf "discharge: %d of %d samples, average %.2f W draw (peak %.2f W)\n",
+                       n, total, -s / n, -mn
+            else
+                print "discharge: no samples (was the charger still connected?)"
             if (hn) printf "projected runtime: %.2f h average\n", h / hn
         }
     ' "$OUT"
@@ -47,9 +74,14 @@ summary() {
 
 printf 'timestamp,percent,mA,mV,watts,charging,external,projected_hours\n' > "$OUT"
 say "logging to $OUT every ${INTERVAL}s"
-say "Unplug the charger and use the machine normally. Ctrl-C prints a summary."
+if [ "$SAMPLES" -gt 0 ] 2>/dev/null; then
+    say "stopping after ${SAMPLES} samples"
+else
+    say "Unplug the charger and use the machine normally. Ctrl-C prints a summary."
+fi
 trap 'summary; exit 0' INT TERM
 
+i=0
 while :; do
     ts=$(date '+%Y-%m-%dT%H:%M:%S')
     ma=$(val InstantAmperage)
@@ -75,5 +107,10 @@ while :; do
     printf '%s  %s%%  %s mA  %.2f W%s\n' \
         "$ts" "$pct" "$ma" "$w" "${hours:+  ~${hours} h left}"
 
+    i=$((i + 1))
+    if [ "$SAMPLES" -gt 0 ] 2>/dev/null && [ "$i" -ge "$SAMPLES" ]; then
+        summary
+        exit 0
+    fi
     sleep "$INTERVAL"
 done

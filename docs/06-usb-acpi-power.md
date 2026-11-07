@@ -131,6 +131,18 @@ Unplug the charger and use the machine normally; Ctrl-C prints the discharge
 average and projected hours. The CSV is written under `LOGS/`. Charging samples
 are recorded but excluded from the average. No root is needed.
 
+For a quick sanity check without leaving it running:
+
+```sh
+SAMPLES=3 INTERVAL=2 bash scripts/macos/battery-watch.sh
+```
+
+One implementation note: `ioreg` prints a negative `InstantAmperage` as an
+unsigned 64-bit number (`-1925 mA` becomes `18446744073709550691`). An early
+version of this script treated that as a huge charge rate and reported
+`no samples`; `val()` now converts it back to signed with exact integer
+arithmetic, and the summary prints the draw as a positive number.
+
 Do not judge the profile with a benchmark taken under the OpenCode desktop.
 Its helper and renderer processes keep roughly two cores busy, so Geekbench
 then measures the agent UI rather than the laptop; the same load also makes the

@@ -351,7 +351,11 @@ INTERVAL=10 bash scripts/macos/battery-watch.sh        # real discharge watts
 
 `battery-watch.sh` needs no root and writes a CSV under `LOGS/`. Use it with
 the charger unplugged and the machine in **normal use**; the projected runtime
-is useless while a heavy UI process is running.
+is useless while a heavy UI process is running. `SAMPLES=3 INTERVAL=2` runs a
+short sanity check instead of waiting for Ctrl-C.
+
+The script converts `ioreg`'s unsigned 64-bit `InstantAmperage` back to signed;
+without that, a discharging battery looks like a huge charge rate.
 
 Do not benchmark under the OpenCode desktop: its helper and renderer keep two
 cores busy, and a Geekbench run then measures the agent, not the laptop. See
