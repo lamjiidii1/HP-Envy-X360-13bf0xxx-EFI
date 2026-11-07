@@ -9,9 +9,11 @@ ALC245 codec  →  Intel Smart Sound Technology controller (8086:51CC)
 ```
 
 macOS has no driver for the CS35L41 amplifiers, so **the speakers cannot
-work**. Headphone output and the internal microphone do work. This is a
+work**. Headphone output and USB-C output work. The internal microphone is
+untested: the codec exposes an input device and the DSP patch prevents the
+known panic, but recording has not been verified on this unit. This is a
 hardware limitation, not a configuration problem, and the reference laptop
-reports the same.
+reports the same speaker behaviour.
 
 ## What runs on Sequoia today
 
@@ -21,7 +23,7 @@ Tahoe-only pieces are present in the config but do not load:
 | Component | Setting | Effect on Sequoia 15.8.2 |
 |---|---|---|
 | `SimpleHDA.kext` 1.0.0 | `MinKernel 25.0.0`, `MaxKernel 25.99.99` | **Not injected.** OpenCore skips it on Darwin 24; it exists only for a future Tahoe boot |
-| `AppleALC.kext` 1.9.8 (patched) | `alcid=11` | ALC245 layout 11 on the native `AppleHDA`; headphone + mic work |
+| `AppleALC.kext` 1.9.8 (patched) | `alcid=11` | ALC245 layout 11 on the native `AppleHDA`; headphone output works, mic untested |
 | `DeviceProperties` `PciRoot(0x0)/Pci(0x1F,0x3)` | `device-id = C8510000` | AppleALC's controller table lacks `0x51CC`; `0x51C8` is the same controller family |
 | boot arg | `shda-lang=en` | Inert here (it belongs to SimpleHDA); harmless, kept so the same config can still boot Tahoe |
 

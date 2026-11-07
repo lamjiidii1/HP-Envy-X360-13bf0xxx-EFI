@@ -78,7 +78,8 @@ provided because both are known to work on this generation; see
 
 - Codec: Realtek ALC245.
 - Speaker amplifiers: Cirrus Logic CS35L41 (no macOS driver — speakers stay
-  silent; the headphone jack and the internal microphone work).
+  silent; the headphone jack and USB-C output work, and the internal microphone
+  is untested).
 - The config uses AppleALC layout 11 (`alcid=11`) plus `SimpleHDA.kext`.
 - AppleALC is locally patched to remove layout 11's DSP chain, which panics in
   `coreaudiod` on this machine. See [docs/05-audio.md](05-audio.md).
@@ -87,10 +88,10 @@ provided because both are known to work on this generation; see
 
 | Device | ID | State |
 |---|---|---|
-| Card reader | Realtek RTS5288 `10ec:5228` | no macOS driver; not supported |
-| Camera | USB HD camera | not working yet (reference also reports this) |
-| Touchscreen | I2C HID | not working yet |
-| Touchpad | I2C HID | dead in hardware on this unit (does not work in Windows/Linux either) |
+| Card reader | Realtek RTS5288 `10ec:5228` | no macOS driver; not tested physically |
+| Camera | Intel Alder Lake IPU6 `8086:465d` (MIPI, not USB) | no macOS driver; not attempted |
+| Touchscreen | I2C HID | physically broken glass on this unit; does not work in Windows either |
+| Touchpad | I2C HID | **works**: precision trackpad with gestures via `VoodooI2C` + `VoodooI2CHID` |
 
 ## How this inventory was collected
 

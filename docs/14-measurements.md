@@ -9,13 +9,23 @@ Environment: macOS Sequoia 15.8.2 (24H232), i7-1250U (2P + 8E, 12 threads),
 16 GB, 2880×1800 OLED. All CPU numbers are the Intel energy-model estimate from
 `powermetrics` (`CPUs+GT+SA`), not a wall-meter reading.
 
-## 1. XCPM, the cap, and the cosmetic clock
+## 1. XCPM, the cap, and the 1.88 GHz label
 
 `machdep.xcpm.hard_plimit_max_100mhz_ratio = 47` and the `CPUPStates` table
-cover **4700 → 400 MHz**. `hw.cpufrequency` and `hw.cpufrequency_max` still
-read `1880000000`, and About This Mac shows `1,88 GHz`, because macOS copies
-SMBIOS type 4. The build therefore sets `ProcessorSpeed = 4700`; it changes the
-label only.
+cover **4700 → 400 MHz**. `hw.cpufrequency` still reads `1880000000`, and About
+This Mac shows `1,88 GHz`, but that is the **invariant TSC**, not the core
+clock:
+
+```text
+CPUID leaf 0x15: crystal 38.4 MHz, numerator 98, denominator 2
+                 38.4 * 98 / 2 = 1881.6 MHz
+machdep.tsc.frequency = 1881600000
+```
+
+OpenCore 1.0.8 has no key for this. `PlatformInfo/Generic/ProcessorSpeed` is
+not in the Generic or SMBIOS schema and was silently ignored; it has been
+removed from the build. Do not "correct" the number by changing the TSC — that
+is the kernel's time source. The real clock is visible in `powermetrics`.
 
 `lowpowermode 1` is the real lever. XCPM holds the package to
 `IOPlatformPowerProfile`'s `lpm_ratio` (`0x18` = 2.4 GHz ceiling) instead of
@@ -113,18 +123,18 @@ See [08-troubleshooting.md](08-troubleshooting.md#cpu-name-and-thread-count).
 
 The bootable OpenCore EFI on this machine is on the USB stick
 (`/Volumes/MACUSB/EFI/OC/config.plist`). `disk0s1` is the HP/Windows ESP and
-contains no `EFI/OC`. This matters for every "patch the ESP" instruction:
+contains no `EFI/OC`. This matters for every "patch the ESP" instruction: patch
+the config the machine actually boots, and back it up first.
+
+The dead `ProcessorSpeed` key was removed from that file with PlistBuddy;
+afterwards the live config is byte-identical to `build/EFI`:
 
 ```sh
-# patch the config the machine really boots
-bash scripts/macos/apply-efi-cpu-speed.sh \
-  --config /Volumes/MACUSB/EFI/OC/config.plist
-
-# or, if you really do boot from disk0s1
-sudo bash scripts/macos/apply-efi-cpu-speed.sh --disk disk0s1
+CFG=/Volumes/MACUSB/EFI/OC/config.plist
+cp -p "$CFG" "$CFG.bak-$(date +%Y%m%d-%H%M%S)"
+/usr/libexec/PlistBuddy -c 'Delete :PlatformInfo:Generic:ProcessorSpeed' "$CFG"
+plutil -lint "$CFG"
 ```
-
-After the patch the live config is byte-identical to `build/EFI`.
 
 ## 7. Reproducing these measurements
 

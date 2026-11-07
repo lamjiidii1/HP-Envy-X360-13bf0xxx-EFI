@@ -540,7 +540,8 @@ Do not add Broadcom/OCLP blockers (`IOSkywalkFamily`,
 ## 4. Audio
 
 Speakers are silent by design: the CS35L41 amplifiers have no macOS driver.
-Headphones and the internal microphone are the working paths.
+The 3.5 mm jack and USB-C output work; the internal microphone has not been
+verified on this unit.
 
 | Symptom | Check |
 |---|---|
@@ -561,9 +562,9 @@ audio disappear even though the codec is correct.
 | USB ports dead after wake | `SSDT-USB-Reset.aml` + `SSDT-USBW.aml` present; `USBToolBox.kext` + `UTBMap.kext` loaded |
 | Some ports missing | The map is board-specific (`8A28`); regenerate with USBToolBox instead of editing |
 | USB installer not visible | `HfsPlus.efi` (or `OpenHfsPlus.efi`) loaded |
-| Touchpad dead | Expected on this unit: the I2C touchpad is dead in hardware (Windows/Linux too) |
-| Touchscreen dead | Known; VoodooI2C attaches but the panel is not calibrated/supported |
-| Camera dead | Known on this platform; check `system_profiler SPCameraDataType` and USB topology before changing kexts |
+| Touchpad dead | Not expected: the I2C touchpad works and enumerates as "Magic Trackpad 2". Check `VoodooI2C`/`VoodooI2CHID`, `SSDT-GPI0.aml` and the GPI0 `_STA` patch |
+| Touchscreen dead | Hardware: the panel glass is cracked on this unit and touch fails in Windows too; nothing to fix in macOS |
+| Camera dead | Expected: the camera is IPU6 `8086:465d` on MIPI, not USB UVC, and macOS has no driver. `system_profiler SPCameraDataType` is empty and it is absent from the USB tree |
 | Keyboard works, trackpad does not | VoodooPS2 trackpad plugin is for the PS/2 path; the I2C touchpad needs VoodooI2C and working GPIO |
 
 `SSDT-GPI0.aml` and the four ACPI patches (GPI0 `_STA`, PNLF, `_OSI`, brightness
@@ -683,43 +684,43 @@ The default boot arguments now carry `revpatch=sbvmm,cpuname`. The earlier
 `revpatch=cpuname` overrode the NVRAM value and silently disabled `sbvmm`,
 which keeps OTA updates working on an unsupported model. Keep both words.
 
-### CPU speed display is cosmetic
+### CPU speed display shows 1.88 GHz
 
 `hw.cpufrequency`, `hw.cpufrequency_min`, and `hw.cpufrequency_max` all read
-`1880000000`, and About This Mac shows `1,88 GHz`, but that number comes only
-from SMBIOS type 4 (`Max Speed` and `Current Speed` are both 1880 MHz). XCPM
-never uses it:
+`1880000000`, and About This Mac shows `1,88 GHz`. That is **not the core
+clock**. It is the invariant TSC frequency:
+
+```sh
+sysctl -n machdep.tsc.frequency          # 1881600000
+# CPUID leaf 0x15: crystal 38.4 MHz, numerator 98, denominator 2
+#                  38.4 * 98 / 2 = 1881.6 MHz
+```
+
+OpenCore 1.0.8 has **no** key for this. In particular
+`PlatformInfo/Generic/ProcessorSpeed` does not exist in the Generic or SMBIOS
+schema; OpenCore silently ignores unknown keys, and an earlier attempt to use
+it changed nothing. `strings OpenCore.efi` has no such symbol, and the SMBIOS
+type 4 record still says 1880 MHz.
+
+Do not "fix" the number by lying about the TSC: `machdep.tsc.frequency` is the
+kernel's time source, and changing it corrupts timers. The real CPU range is
 
 ```sh
 sysctl -n machdep.xcpm.hard_plimit_max_100mhz_ratio   # 47 -> 4.7 GHz
 sysctl -n machdep.xcpm.hard_plimit_min_100mhz_ratio   # 4  -> 400 MHz
 ```
 
-The real `CPUPStates` table runs 4700 → 400 MHz in 100 MHz steps. Idle cores
-sitting between 400 and 900 MHz are behaving correctly even while System
-Information claims 1.88 GHz. In practice the P-cores sustain about 3.6 GHz
-under a single-thread load on this firmware (`CPU LIMIT ICCMAX/PL4/OTHER`), so
-the top of the table is not reachable for long; the measured power figures are
-in [§ 6](06-usb-acpi-power.md#measured-effect-2026-11-05).
+The `CPUPStates` table runs 4700 → 400 MHz in 100 MHz steps. Idle cores between
+400 and 900 MHz are behaving correctly even while System Information says
+1.88 GHz. In practice the P-cores sustain about 3.6 GHz under a single-thread
+load on this firmware (`CPU LIMIT ICCMAX/PL4/OTHER`), so the top of the table
+is not reachable for long; the measured power figures are in
+[§ 6](06-usb-acpi-power.md#measured-effect-2026-11-05).
 
-`scripts/build_efi.py` now sets `PlatformInfo/Generic/ProcessorSpeed = 4700`,
-so a rebuilt EFI reports `4,7 GHz` — the top of the XCPM table. For reference,
-Intel rates the i7-1250U at 1.1 GHz P-core base and 0.7 GHz E-core base; those
-are sustained-clock floors, not the peak the UI is describing.
-
-On this machine the live OpenCore EFI is the one on the USB stick
-(`/Volumes/MACUSB/EFI`), not `disk0s1`. `disk0s1` is the HP/Windows ESP and
-has no `EFI/OC` at all, so do not patch it. Apply the cosmetic value to the
-live config with:
-
-```sh
-bash scripts/macos/apply-efi-cpu-speed.sh \
-  --config /Volumes/MACUSB/EFI/OC/config.plist
-```
-
-The script backs up the config next to itself, sets only that key, lints the
-result, and checks the serial/MLB/UUID/ROM keys are still present. Reboot for
-About This Mac to show `4,7 GHz`.
+For reference, Intel rates the i7-1250U at 1.1 GHz P-core base and 0.7 GHz
+E-core base; those are sustained-clock floors. The number in About This Mac is
+a platform timer value, not evidence of throttling. Read
+`powermetrics` if you want the real frequency.
 
 `Intel(R) TGL Unknown` in `system_profiler SPDisplaysDataType` is the **GPU**
 fallback name, not the CPU; see

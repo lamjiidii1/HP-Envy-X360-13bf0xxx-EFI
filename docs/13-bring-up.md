@@ -12,6 +12,30 @@ The shorter per-topic pages remain authoritative for the *why*:
 [07-install.md](07-install.md), [08-troubleshooting.md](08-troubleshooting.md).
 This page is the ordered path through them.
 
+## 0. What you get
+
+The authoritative table is in the [README](../README.md#status-what-works).
+Short version for this exact hardware:
+
+**Works:** boot/install, CPU (2 P + 8 E / 12 threads), internal OLED at
+**Looks like 1440 × 900** + Metal 2, Wi-Fi, Bluetooth, all USB-A/USB-C data
+ports and USB-C charging, trackpad with gestures, keyboard, audio out over
+3.5 mm and USB-C, battery reporting and the Battery pane (after the
+`impostor` fix), App Store/Quick Look (after the `TGLVA` fix), XCPM power
+profiles.
+
+**Does not work:** internal speakers (CS35L41 smart amps, no driver), camera
+(IPU6 `8086:465d` on MIPI, no driver), microSD reader (RTS5288, no driver),
+touchscreen (physically broken glass; fails in Windows too), sleep/wake (HP
+firmware limit).
+
+**Untested:** internal microphone, HDMI/USB-C video output, Thunderbolt/USB4
+alt modes, fan/board sensors.
+
+Do not treat the last group as failures, and do not spend time on the first
+group of failures: each is a hardware or firmware limit, not a configuration
+mistake.
+
 ---
 
 ## 1. What you need
@@ -49,8 +73,10 @@ already contains:
 - OpenCore 1.0.8 and the 12 ACPI tables;
 - WhateverXe 0.6.0 + `-wex-adlp-edp` and the 24H232 MMIO constant;
 - AirportItlwm 2.4.0 (Sequoia build);
-- `ProcessorSpeed = 4700` for About This Mac (cosmetic, see §10);
 - `revcpu=1`, `revpatch=sbvmm,cpuname` for the CPU name and OTA updates.
+
+The `1,88 GHz` that macOS shows is the invariant TSC, not the core clock; see
+§10.4. There is no OpenCore key for it.
 
 Other variants are optional:
 
@@ -264,9 +290,9 @@ logged; those denials are expected and harmless.
   install HeliPort. See [04-wifi-bluetooth.md](04-wifi-bluetooth.md).
 - **Bluetooth:** works from the same AX211; see
   [04-wifi-bluetooth.md](04-wifi-bluetooth.md#bluetooth).
-- **Audio:** the headphone jack and internal microphone work; the internal
-  CS35L41 speakers do not. `alcid=11` plus the patched AppleALC is required or
-  recording panics. See [05-audio.md](05-audio.md).
+- **Audio:** 3.5 mm and USB-C output work; the internal CS35L41 speakers do not.
+  `alcid=11` plus the patched AppleALC is required or recording panics. The
+  internal microphone is untested. See [05-audio.md](05-audio.md).
 
 ## 10. Power and thermal
 
@@ -333,18 +359,16 @@ cores busy, and a Geekbench run then measures the agent, not the laptop. See
 
 ### 10.4 About This Mac shows 1.88 GHz
 
-`ProcessorSpeed = 4700` is already in `make build` output. To patch an
-already-deployed EFI without replacing it:
+That is the invariant TSC (`machdep.tsc.frequency = 1881600000`, i.e. CPUID
+leaf 0x15: 38.4 MHz × 98 / 2), not the CPU clock. OpenCore 1.0.8 has no key
+for it: `PlatformInfo/Generic/ProcessorSpeed` is not in the schema and is
+silently ignored. Do not change the TSC to make the label prettier; it is the
+kernel's time source.
 
-```sh
-bash scripts/macos/apply-efi-cpu-speed.sh \
-  --config /Volumes/MACUSB/EFI/OC/config.plist
-```
-
-It backs up the config, sets only that key, lints it, and checks the identity
-keys are still present. The value is cosmetic: XCPM already exposes the full
-4700→400 MHz table, and powermetrics is the source of truth. Reboot to see
-`4,7 GHz`.
+The real range is XCPM 4700→400 MHz, and the P-cores sustain about 3.6 GHz
+under load because of the firmware power limit. Verify with `powermetrics`, not
+with About This Mac. Full explanation:
+[docs/08](08-troubleshooting.md#cpu-speed-display-shows-188-ghz).
 
 ## 11. Final verification
 
@@ -391,8 +415,8 @@ Healthy signs:
 - **Sleep does not wake.** It is a firmware limit; the repo disables sleep
   rather than pretending. See [06](06-usb-acpi-power.md#sleep--known-broken-on-this-platform).
 - **Metal 2, not Metal 3**, and the GPU is named `Intel(R) TGL Unknown`.
-- **Internal speakers are silent** (no CS35L41 support). Headphones and the
-  microphone work.
+- **Internal speakers are silent** (no CS35L41 driver). Headphone and USB-C
+  output work; the internal microphone has not been verified.
 - **No fan control**: there is no `SMCSuperIO` kext, so the cap and display
   settings are the only heat levers.
 - **P-cores sustain about 3.6 GHz**, not the 4.7 GHz in the XCPM table, because

@@ -50,6 +50,58 @@ scratch with every payload pinned and hashed.
 > and
 > [docs/08-troubleshooting.md](docs/08-troubleshooting.md#app-store-hangs-on-screenshots-or-quick-look-tglva-guard).
 
+## Status: what works
+
+Tested on this exact unit unless marked otherwise. "Untested" means no attempt
+was made — it is not a claim that the feature fails.
+
+### Working
+
+| Area | Notes |
+|---|---|
+| Boot and install | OpenCore 1.0.8, macOS Sequoia 15.8.2 (24H232) |
+| CPU | 2 P-cores + 8 E-cores / 12 threads, XCPM 400–4700 MHz |
+| Graphics | Internal 2880×1800 OLED, HiDPI **Looks like 1440×900**, Metal 2, hardware HEVC/HEIC decode |
+| Wi-Fi | Intel AX211 via `AirportItlwm` 2.4.0, native menu |
+| Bluetooth | Intel AX211 via `IntelBluetoothFirmware` |
+| USB | USB-A and USB-C data; USB-C charging |
+| Trackpad | I2C precision trackpad, full gestures (`VoodooI2C` + `VoodooI2CHID`) |
+| Keyboard | Works, including brightness keys (`BrightnessKeys`) |
+| Audio out | 3.5 mm jack and USB-C output both work |
+| Battery | Charge/percentage/health and the Battery settings pane (after the `impostor.dylib` fix) |
+| App Store / Quick Look | HEIC/HEVC previews and screenshots work (after the `TGLVA` fix) |
+| Power management | XCPM P-states, `balanced`/`battery`/`performance` profiles |
+
+### Not working
+
+| Area | Cause | Status |
+|---|---|---|
+| **Internal speakers** | Cirrus Logic **CS35L41** smart amplifiers have no macOS driver. `AppleALC` layout 11 drives the ALC245 codec for the jack, not the speaker amps. | Hardware limitation; not attempted |
+| **Camera** | The camera sits behind the Intel **Alder Lake Imaging Signal Processor** (`8086:465d`, IPU6) with a MIPI sensor. macOS has no IPU6/MIPI camera driver, and it is not a USB UVC device, so there is no fallback. | Not attempted; owner does not need it |
+| **microSD card reader** | Realtek **RTS5288** PCIe SD UHC-I controller (`10ec:5228`) has no macOS driver. | Not attempted; not tested physically |
+| **Touchscreen** | The panel glass is physically broken and touch does not work in Windows either. This is a hardware fault, not a macOS/driver problem. | Cannot be tested |
+| **Sleep / wake** | HP firmware limit: the machine enters sleep but never wakes ("Sleep Wake failure in EFI"). Sleep is disabled rather than faked. | Known limit, see [docs/06](docs/06-usb-acpi-power.md#sleep--known-broken-on-this-platform) |
+
+### Untested / partial
+
+| Area | Notes |
+|---|---|
+| Internal microphone | The codec exposes an input device, but recording has not been verified on this unit |
+| HDMI / external display | No cable test was recorded; USB-C video output is also untested |
+| Thunderbolt / USB4 | The USB-C ports work as USB and for charging; Thunderbolt/USB4 alt modes are untested |
+| Sensors | CPU temperature/voltage are exposed by `SMCProcessor`; fan RPM and board sensors are not (no `SMCSuperIO`), and the ambient-light stub is not a real sensor |
+| Fingerprint / IR login | No fingerprint reader appears in the macOS USB/I2C inventory, and Windows Hello IR is unavailable for the same IPU6 reason as the camera. Not tested |
+
+### Two numbers that look wrong but are not
+
+- **`1,88 GHz`** in About This Mac is the invariant TSC (CPUID leaf 0x15:
+  38.4 MHz × 98 / 2 = 1881.6 MHz), not the core clock. OpenCore 1.0.8 has no
+  key for it, and changing it would break timekeeping. The CPU really runs
+  400–4700 MHz; see [docs/08](docs/08-troubleshooting.md#cpu-speed-display-shows-188-ghz).
+- **`2 Cores, 12 Threads`** in Geekbench is CpuTopologyRebuild's SMT spoof, not
+  a missing-core bug. All 12 threads are online and SMBIOS reports 10 physical
+  cores; see [docs/14](docs/14-measurements.md#5-hybrid-topology-looks-wrong-but-is-intentional).
+
 ## Hardware
 
 | Component | Model |
@@ -96,7 +148,6 @@ scripts/macos/power-profile.sh           apply balanced/battery/performance pmse
 scripts/macos/install-power-daemon.sh    re-apply the power profile at every boot
 scripts/macos/power-audit.sh             measure CPU package power and XCPM state
 scripts/macos/battery-watch.sh           real discharge watts and projected runtime
-scripts/macos/apply-efi-cpu-speed.sh     set SMBIOS ProcessorSpeed on a live EFI
 scripts/macos/install-boot-capture.sh    black-screen boot capture daemon
 scripts/macos/restore-opencode-migration.sh  restore chat + repo on macOS
 scripts/migrate-to-macos.sh              build the Linux → macOS migration bundle
@@ -188,7 +239,9 @@ These are the problems that appear only after acceleration works.
 | **App Store** hangs on screenshots/Quick Look; HEIC previews spin | `sudo bash scripts/macos/patch-va-tglva.sh --test` | The VA shim also gates on 24H32, so HEIC/HEVC decode never starts |
 | Safari video freezes or Metal archive errors | `sudo bash scripts/macos/install-metal-archive-workaround.sh` (optional) | Same build-gate class |
 | Hot, laggy normal use | HiDPI mode + both shims + power profile | 1× mode redraws 5.2 MP; a thrashing shim burns CPU |
-| About This Mac shows 1.88 GHz | `bash scripts/macos/apply-efi-cpu-speed.sh --config /Volumes/MACUSB/EFI/OC/config.plist` | SMBIOS type 4 only; XCPM already runs 4700→400 MHz |
+
+The `1,88 GHz` line in About This Mac is not a bug and has no fix: it is the
+invariant TSC, not the core clock. See **Two numbers that look wrong** above.
 
 The scripts back up what they replace. The patch scripts support `--status`
 and `--rollback`; the daemon installer supports `--uninstall`; the MMIO
@@ -270,7 +323,7 @@ provenance and removes dead weight, but the driver stack is the real variable.
   `SSDT-EC.aml`).
 - Removed the 13 disabled sample `Kernel/Patch` entries, the two disabled
   `ReservedMemory` entries, OpenCore's sample tools/entries, and
-  `-vi2c-force-polling` (the touchpad is dead in hardware anyway).
+  `-vi2c-force-polling` (the touchpad works without extra polling).
 - Removed the inert `rps-control` device property; kept the proven
   `framebuffer-stolenmem 0000c003` + `-igfxdvmt` pair for the 60 MB DVMT BIOS.
 - Kext order now follows the reference: Lilu → AMFIPass → WhateverXe → …

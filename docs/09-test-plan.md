@@ -127,10 +127,10 @@ Do not run T05.7 during the graphics A/B; it adds a second variable.
 | ID | Step | Pass criterion |
 |---|---|---|
 | T06.1 | `system_profiler SPAudioDataType` | output devices include Headphones; input includes Internal Microphone |
-| T06.2 | Play audio through the 3.5 mm jack | clean output, both channels |
-| T06.3 | Record 10 s with QuickTime/Voice Memos | no panic in `EupDSP::ConfigParamInt`; file is audible |
+| T06.2 | Play audio through the 3.5 mm jack **and a USB-C output** | clean output, both channels on both |
+| T06.3 | Record 10 s with QuickTime/Voice Memos | no panic in `EupDSP::ConfigParamInt`; file is audible. Not yet verified on this unit |
 | T06.4 | Change volume and mute | works |
-| T06.5 | Optional: built-in speakers | expected silent (CS35L41); record, do not chase |
+| T06.5 | Optional: built-in speakers | expected silent (CS35L41 smart amps have no macOS driver); record, do not chase |
 | T06.6 | `log show --last 5m \| grep -i applealc` | no repeating errors |
 
 Recording is the critical step: the unpatched layout 11 panics the kernel, and
@@ -144,9 +144,10 @@ a successful recording proves the DSP patch is in the built kext.
 | T07.2 | Plug a USB-A stick and a USB-C device | both mount |
 | T07.3 | Sleep/wake is not required for this test; hot-plug instead | devices appear/disappear cleanly |
 | T07.4 | Keyboard (internal) | all keys, brightness keys included |
-| T07.5 | Trackpad | expected dead on this unit; touchscreen may also be dead |
-| T07.6 | Camera | known issue; record `SPCameraDataType` and whether any app sees it |
-| T07.7 | SD card reader | expected unsupported (RTS5288); record |
+| T07.5 | Trackpad | **works**: precision movements, tap, two-finger scroll, gestures; enumerates as "Magic Trackpad 2" |
+| T07.6 | Touchscreen | cannot be tested: the glass is cracked and touch fails in Windows too. Record the hardware fault, do not chase a driver |
+| T07.7 | Camera | expected dead: IPU6 `8086:465d` on MIPI, not USB. `SPCameraDataType` is empty and it is absent from the USB tree |
+| T07.8 | SD card reader | expected unsupported (RTS5288 `10ec:5228`); record, do not chase |
 
 ## Phase 8 — Power, battery, thermals
 

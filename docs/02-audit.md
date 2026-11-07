@@ -176,7 +176,7 @@ copied. Commits are the ones actually inspected.
 | Ship the Metal archive LaunchAgent as an opt-in tool | It is only needed after the accelerator starts on 24H232; installing it by default would mask the difference between "Metal absent" and "Metal crashing on archives" |
 | Two Wi-Fi variants | `AirportItlwm` 2.4.0 (Sequoia build) is the default; `itlwm` + HeliPort stays as the proven, OS-independent fallback if the alpha build does not attach. Build-time choice avoids two kexts fighting |
 | Keep `-igfxdvmt` + `framebuffer-stolenmem 0000c003` | BIOS leaves 60 MB DVMT; both the reference and this unit need the pair |
-| Drop `-vi2c-force-polling` | Only affects VoodooI2C; the touchpad is dead in hardware, and the reference does not use it |
+| Drop `-vi2c-force-polling` | Only affects VoodooI2C; the reference does not use it, and the touchpad works without the extra polling |
 | Drop `rps-control` | Extra property relative to the working reference; not needed and can alter RPS behaviour |
 | Add USB-Reset + USBW | Part of the reference's 12-table set; fixes USB behaviour after wake |
 | OpenCanopy + `Resolution Max` + `UIScale 2` | Reference-proven on the 2880×1800 panel; nicer and avoids text-mode scaling |
