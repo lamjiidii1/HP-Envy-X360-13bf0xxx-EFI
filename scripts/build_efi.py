@@ -67,13 +67,12 @@ WIFI_VARIANTS = {
     },
 }
 
-# SMBIOS type 4 "Max Speed" / "Current Speed", in MHz.  Without this OpenCore
-# copies a CPUID-derived 1880 MHz, which macOS turns into hw.cpufrequency and
-# "Processor Speed: 1,88 GHz" in About This Mac, even though XCPM's table runs
-# 4700..400 MHz.  Real Macs show one speed here; the peak turbo ratio is the
-# honest upper bound and matches the table the driver actually drives.  The
-# CPU's Intel base clock (1.1 GHz) is noted in docs/08-troubleshooting.md.
-PROCESSOR_SPEED_MHZ = 4700
+# NOTE: there is no OpenCore 1.0.8 key for SMBIOS type 4 processor speed.
+# `PlatformInfo/Generic/ProcessorSpeed` is not in the Generic or SMBIOS
+# schema; OpenCore silently ignores it.  The 1.88 GHz shown by macOS is the
+# invariant TSC (CPUID leaf 0x15: 38.4 MHz * 98 / 2 = 1881.6 MHz), not the
+# core clock, and changing it would break timekeeping.  The real range is
+# XCPM 4700..400 MHz; see docs/08-troubleshooting.md.
 
 BASE_ARGS = [
     "-allow3d",
@@ -236,7 +235,6 @@ def main() -> int:
     for key in IDENTITY_FIELDS:
         if key in identity:
             generic[key] = identity[key]
-    generic["ProcessorSpeed"] = PROCESSOR_SPEED_MHZ
 
     # 0x0701 is AppleProcessorTypeCorei7Type1, a dual-core Sandy Bridge era
     # type.  On Sequoia an Alder Lake CPU with this type renders as
@@ -277,7 +275,6 @@ def main() -> int:
         "gpu_patches": gpu_patches,
         "wifi": args.wifi,
         "wifi_description": wifi["description"],
-        "processor_speed_mhz": PROCESSOR_SPEED_MHZ,
         "debug": args.debug,
         "boot_args": " ".join(boot_args),
         "identity_injected": bool(identity),
@@ -296,7 +293,7 @@ def main() -> int:
     elif gpu.get("sequoia_mmio_patch"):
         print("  GPU fix : Sequoia MMIO patch SKIPPED (--skip-sequoia-mmio-patch)")
     print(f"  Wi-Fi   : {args.wifi} - {wifi['description']}")
-    print(f"  CPU     : SMBIOS max speed {PROCESSOR_SPEED_MHZ} MHz (XCPM runs 4700..400 MHz)")
+    print("  CPU     : 12th Gen Intel Core i7-1250U (XCPM 4700..400 MHz; UI reports TSC 1.88 GHz)")
     print(f"  Debug   : {'yes' if args.debug else 'no'}")
     print(f"  Identity: {'injected' if identity else 'BLANK (do not boot yet)'}")
     if args.wifi == "itlwm":

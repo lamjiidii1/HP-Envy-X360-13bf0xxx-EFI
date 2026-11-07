@@ -5,9 +5,9 @@
 #
 # Why this exists
 # ---------------
-# `hw.cpufrequency` is cosmetic: SMBIOS type 4 reports 1880 MHz, and macOS
-# copies that into hw.cpufrequency / About This Mac.  The real XCPM table is
-# 4700..400 MHz.  To see what the CPU actually does we have to read the
+# `hw.cpufrequency` is the invariant TSC (CPUID leaf 0x15, 1881.6 MHz), not
+# the core clock, and macOS shows it in About This Mac.  The real XCPM table
+# is 4700..400 MHz.  To see what the CPU actually does we have to read the
 # package energy counters and the XCPM frequency ratio from powermetrics,
 # which needs root.
 #
