@@ -108,6 +108,25 @@ Caveat: the SMC updates `InstantAmperage` about once every 50 s, so the 81
 rows contain only ~17 independent changes. The average is still valid, but the
 row count overstates the statistical power.
 
+### What the cap is worth on light use
+
+The run above used `balanced` (`lowpowermode 1`). To price the cap, repeat it
+with the cap removed and compare against the 7.93 W baseline:
+
+```sh
+bash scripts/macos/battery-cap-compare.sh
+```
+
+The script refuses to start on AC, holds the panel awake, runs 14 minutes with
+`lowpowermode 0`, prints the delta against this baseline, and restores
+`lowpowermode 1` on every exit path. Quit OpenCode first: its helper and
+renderer keep roughly two cores busy, so a measurement taken with the desktop
+open would be a measurement of the agent.
+
+Record the output here when the run is done. The expected shape is a small
+positive delta at idle (the cap mostly limits burst clocks) and a large one
+under sustained load, where the AC audit already showed 19.9 W → 10.3 W.
+
 ### Load dominates the projection
 
 During Geekbench run 3 the battery fell **83 % → 75 % in 8 min 10 s** (about

@@ -357,6 +357,16 @@ short sanity check instead of waiting for Ctrl-C.
 The script converts `ioreg`'s unsigned 64-bit `InstantAmperage` back to signed;
 without that, a discharging battery looks like a huge charge rate.
 
+To measure what the cap is worth on light use, run the same session with
+`lowpowermode 0` and compare against the recorded 7.93 W baseline:
+
+```sh
+bash scripts/macos/battery-cap-compare.sh     # 14 min, restores balanced at exit
+```
+
+It needs the charger unplugged and about 15 minutes. Quit OpenCode first; its
+helper and renderer keep two cores busy and would dominate the delta.
+
 Do not benchmark under the OpenCode desktop: its helper and renderer keep two
 cores busy, and a Geekbench run then measures the agent, not the laptop. See
 [14-measurements.md](14-measurements.md#3-geekbench-7-the-runs-and-why-most-were-invalid).

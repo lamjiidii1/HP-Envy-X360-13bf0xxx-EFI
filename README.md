@@ -148,6 +148,7 @@ scripts/macos/power-profile.sh           apply balanced/battery/performance pmse
 scripts/macos/install-power-daemon.sh    re-apply the power profile at every boot
 scripts/macos/power-audit.sh             measure CPU package power and XCPM state
 scripts/macos/battery-watch.sh           real discharge watts and projected runtime
+scripts/macos/battery-cap-compare.sh     cap-off run vs the recorded balanced baseline
 scripts/macos/install-boot-capture.sh    black-screen boot capture daemon
 scripts/macos/restore-opencode-migration.sh  restore chat + repo on macOS
 scripts/migrate-to-macos.sh              build the Linux → macOS migration bundle

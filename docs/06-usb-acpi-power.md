@@ -143,6 +143,19 @@ version of this script treated that as a huge charge rate and reported
 `no samples`; `val()` now converts it back to signed with exact integer
 arithmetic, and the summary prints the draw as a positive number.
 
+To quantify what the cap buys on **light** battery use, run the same kind of
+session with `lowpowermode 0` and compare it with the recorded 7.93 W baseline:
+
+```sh
+bash scripts/macos/battery-cap-compare.sh          # 14 min, then restores balanced
+bash scripts/macos/battery-cap-compare.sh --analyze LOGS/battery-cap-off-*.csv
+```
+
+It refuses to start on AC, keeps the panel awake for the run (the `balanced`
+timer sleeps it after 5 s), and restores `lowpowermode 1` on every exit path.
+Quit OpenCode first: with the desktop running the delta you measure is the
+agent's CPU use, not the cap's.
+
 Do not judge the profile with a benchmark taken under the OpenCode desktop.
 Its helper and renderer processes keep roughly two cores busy, so Geekbench
 then measures the agent UI rather than the laptop; the same load also makes the
