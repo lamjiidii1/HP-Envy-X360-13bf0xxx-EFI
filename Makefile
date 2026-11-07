@@ -23,10 +23,11 @@ verify:
 
 variants:
 	$(PYTHON) scripts/build_efi.py --identity $(IDENTITY) --gpu hp-adlp-edp --wifi airportitlwm --out build/EFI --force
+	$(PYTHON) scripts/build_efi.py --identity $(IDENTITY) --gpu wex080-adlp --wifi airportitlwm --out build/EFI-wex080-adlp --force
 	$(PYTHON) scripts/build_efi.py --identity $(IDENTITY) --gpu hp-adlp-edp --wifi itlwm --out build/EFI-itlwm --force
 	$(PYTHON) scripts/build_efi.py --identity $(IDENTITY) --gpu wex070 --wifi airportitlwm --out build/EFI-wex070 --force
 	$(PYTHON) scripts/build_efi.py --identity $(IDENTITY) --debug --out build/EFI-debug --force
-	@for dir in build/EFI build/EFI-itlwm build/EFI-wex070 build/EFI-debug; do \
+	@for dir in build/EFI build/EFI-wex080-adlp build/EFI-itlwm build/EFI-wex070 build/EFI-debug; do \
 		$(PYTHON) scripts/verify_efi.py $(VERIFY_FLAGS) $$dir || exit 1; \
 	done
 

@@ -45,6 +45,18 @@ GPU_VARIANTS = {
         "sequoia_mmio_patch": True,
         "description": "WhateverXe 0.6.0 + adlp-edp patch series 54 (default, Graphics 0.3.1)",
     },
+    "wex080-adlp": {
+        "path": VARIANTS / "gpu-wex080-adlp" / "WhateverXe.kext",
+        "args": [
+            "-wex-adlp-edp",
+            "-wex-reset-restore",
+            "-wex-no-multicontext",
+            "-wex-scanout-coherent",
+            "-wex-pm",
+        ],
+        "sequoia_mmio_patch": False,
+        "description": "WhateverXe 0.8.0 + adlp-edp (native dynamic MMIO, Graphics 0.4.0/0.4.1)",
+    },
     "wex070": {
         "path": VARIANTS / "gpu-wex070" / "WhateverXe.kext",
         "args": [],
