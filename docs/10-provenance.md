@@ -28,11 +28,14 @@ release **1.0.8**, archive
 | `OC/Drivers/ResetNvramEntry.efi` | `3c34cd3a6cdfbbaf9c548c59058e9537dbd527f8e9b82261153386e49329879d` | none |
 | `OC/Drivers/ext4_x64.efi` | `1e0d1597f162593f2e12b07724cc3979ac9496dae7504234b3165cd10021f27f` | none |
 | `OC/Drivers/OpenLinuxBoot.efi` | `41427ae9f78dbd53dcfbf9021d77f4675092c5774bffd533a46928d73ddf3adb` | none |
+| `OC/Drivers/btrfs_x64.efi` | `d675d680eab57ddf8822527e950aada47ba0ddbb101e4a62f8493f4425c72b70` | none; rEFInd 0.14.1 btrfs filesystem driver |
 | `OC/Drivers/HfsPlus.efi` | `a55b5fff36578864ba6792c4c6369c71f6f35b61dd5a853ddf8583cd36c31d8f` | none |
 
 `HfsPlus.efi` comes from
 [acidanthera/OcBinaryData](https://github.com/acidanthera/OcBinaryData), not
-from the OpenCore archive.
+from the OpenCore archive. `btrfs_x64.efi` comes from rEFInd 0.14.1
+(`RefindPkg/filesystems/btrfs`), not from OpenCorePkg, and keeps rEFInd's
+GPL-3.0 license.
 
 The old EFI shipped a `ResetNvramEntry.efi` that did not match any official
 1.0.8 build. That is why this repository rebuilds the OpenCore layer from the
@@ -247,9 +250,12 @@ binary, with no local modification in Git; the default build patches its
 `c090b9dd…`; that is the binary the previous EFI used, and it remains in Git
 history of this repository.
 
-The 0.8.0 `adlp-edp` binary is built from the `adlp-0.8.0` branch of WhateverXe,
-incorporating the `adlp-edp` patchset and the Display 13 Type-C speculative route
-mask. It is pinned by its executable hash `2b64ebc0…`.
+The 0.8.0 `adlp-edp` binary is built from commit `51798c0` of the `adlp-0.8.0`
+branch of WhateverXe, incorporating the `adlp-edp` patchset and the Display 13
+Type-C speculative route mask. It is pinned by its executable hash `2b64ebc0…`.
+Later source commits restore the released three-argument `supportedWiring`
+contract and harden tests; they do not change the enabled Combo-A panel route,
+so the hardware-validated binary is kept as the shipped payload.
 
 The other kexts were taken from their named upstream releases; their
 individual hashes in `payloads.tsv` are the authority.

@@ -11,6 +11,7 @@ they have.
 | `OpenCore.efi`, `BOOTx64.efi`, `OpenRuntime.efi`, `OpenCanopy.efi`, `ResetNvramEntry.efi` | [acidanthera/OpenCorePkg](https://github.com/acidanthera/OpenCorePkg) 1.0.8 | BSD-3-Clause | none |
 | `HfsPlus.efi` | [acidanthera/OcBinaryData](https://github.com/acidanthera/OcBinaryData) | Apple binary, redistributed by Acidanthera | none |
 | `ext4_x64.efi`, `OpenLinuxBoot.efi` | OpenCorePkg 1.0.8 | BSD-3-Clause | none |
+| `btrfs_x64.efi` | rEFInd 0.14.1 `RefindPkg/filesystems/btrfs` | GPL-3.0 | none; used as a UEFI filesystem driver by OpenLinuxBoot |
 | `Lilu.kext` | [acidanthera/Lilu](https://github.com/acidanthera/Lilu) 1.7.2 | BSD-3-Clause | none (hash matches release) |
 | `VirtualSMC.kext`, `SMCProcessor.kext`, `SMCBatteryManager.kext` | [acidanthera/VirtualSMC](https://github.com/acidanthera/VirtualSMC) 1.3.9 | BSD-3-Clause | none |
 | `AppleALC.kext` | [acidanthera/AppleALC](https://github.com/acidanthera/AppleALC) 1.9.8 | BSD-3-Clause | ALC245 layout 11 DSP removal, see `tools/patches` |
@@ -19,6 +20,7 @@ they have.
 | `BrightnessKeys.kext` | [acidanthera/BrightnessKeys](https://github.com/acidanthera/BrightnessKeys) 1.0.4 | BSD-3-Clause | none |
 | `VoodooPS2Controller.kext` | [acidanthera/VoodooPS2](https://github.com/acidanthera/VoodooPS2) 2.3.8 | BSD-3-Clause | none |
 | `AMFIPass.kext` | [dhinakg/AMFIPass](https://github.com/dhinakg/AMFIPass) 1.4.1, "Mod" build from WhateverXe Graphics | BSD-3-Clause | trust anchor changed for Xe bundles |
+| `WhateverXe.kext` (0.8.0) | b00t0x 0.8.0 + [adlp-edp port](https://github.com/lamjiidii1/WhateverXe/tree/adlp-0.8.0) | BSD-3-Clause | dynamic MMIO, first-child-wins VBT, fixed Combo A DP route; variant `gpu-wex080-adlp` |
 | `WhateverXe.kext` (0.7.0) | [b00t0x/WhateverXe](https://github.com/b00t0x/WhateverXe) 0.7.0 | BSD-3-Clause | none; control variant only |
 | `WhateverXe.kext` (0.6.0) | b00t0x 0.6.0 + [retropineaple adlp-edp patches](https://github.com/retropineaple/WhateverXe/tree/adlp-edp), prebuilt in [retropineaple/whateverxe-hp-envy-x360](https://github.com/retropineaple/whateverxe-hp-envy-x360) | BSD-3-Clause | 54 adlp-edp patches; stored binary unmodified, but `make build` applies the 24H232 Sequoia MMIO constant (one byte) to the output — see `docs/03-graphics.md` |
 | `AirportItlwm.kext` | [laobamac/itlwm](https://github.com/laobamac/itlwm) `v2.4.0-alpha`, `AirportItlwm-Sequoia` build; project upstream [OpenIntelWireless/itlwm](https://github.com/OpenIntelWireless/itlwm) | GPL-2.0 | none; not an official OpenIntelWireless release, see `docs/10-provenance.md` |
