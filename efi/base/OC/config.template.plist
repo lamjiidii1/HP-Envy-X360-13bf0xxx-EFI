@@ -1026,7 +1026,14 @@
 	<key>Misc</key>
 	<dict>
 		<key>BlessOverride</key>
-		<array/>
+		<array>
+			<string>\EFI\fedora\shimx64.efi</string>
+			<string>\EFI\fedora\grubx64.efi</string>
+			<string>\EFI\systemd\systemd-bootx64.efi</string>
+			<string>\EFI\arch\grubx64.efi</string>
+			<string>\EFI\ubuntu\shimx64.efi</string>
+			<string>\EFI\debian\shimx64.efi</string>
+		</array>
 		<key>Boot</key>
 		<dict>
 			<key>ConsoleAttributes</key>
@@ -1422,6 +1429,20 @@
 				<key>Arguments</key>
 				<string></string>
 				<key>Comment</key>
+				<string>btrfs driver for OpenLinuxBoot</string>
+				<key>Enabled</key>
+				<true/>
+				<key>HideVerbose</key>
+				<false/>
+				<key>LoadEarly</key>
+				<false/>
+				<key>Path</key>
+				<string>btrfs_x64.efi</string>
+			</dict>
+			<dict>
+				<key>Arguments</key>
+				<string></string>
+				<key>Comment</key>
 				<string>OpenLinuxBoot.efi</string>
 				<key>Enabled</key>
 				<true/>
@@ -1565,7 +1586,7 @@
 			<key>TscSyncTimeout</key>
 			<integer>0</integer>
 			<key>UnblockFsConnect</key>
-			<false/>
+			<true/>
 		</dict>
 		<key>ReservedMemory</key>
 		<array/>
