@@ -413,6 +413,12 @@ areas:
    This ensures `selected() == 0x01` (Combo A OLED), allowing link training and
    modeset commit to succeed immediately.
 
+   **Trade-off:** clearing the speculative Type-C routes also removes external
+   DisplayPort over USB-C from the fixed wiring while `-wex-adlp-edp` is active.
+   USB data and USB-C charging are unaffected. The internal OLED is the priority
+   for this variant; keeping USB-C video would require probing for an external
+   sink before masking the routes.
+
 ## What the logs show
 
 From `LOGS/macOS_Logs_20261030_180840` (macOS 26.7.2, build 25G332):
