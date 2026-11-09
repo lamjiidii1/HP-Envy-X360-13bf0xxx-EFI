@@ -973,9 +973,9 @@
 				<key>BundlePath</key>
 				<string>SimpleHDA.kext</string>
 				<key>Comment</key>
-				<string>SimpleHDA disabled in favor of AppleALC + CirrusAudioFixup + TGLDmic</string>
+				<string>SimpleHDA 1.0.0 (AppleHDA stack provider for macOS Tahoe 25.x)</string>
 				<key>Enabled</key>
-				<false/>
+				<true/>
 				<key>ExecutablePath</key>
 				<string>Contents/MacOS/SimpleHDA</string>
 				<key>MaxKernel</key>
