@@ -4,84 +4,75 @@
 
 ```
 ALC245 codec  →  Intel Smart Sound Technology controller (8086:51CC)
-              →  headphone jack / internal microphone
-              →  CS35L41 smart amplifiers  →  speakers
+              →  headphone jack (Node 0x21) / internal microphone (Node 0x19)
+              →  2x Cirrus Logic CS35L41 smart amplifiers (I2C1: 0x40 Left, 0x41 Right)
+              →  stereo internal speakers (Node 0x17 via DAC 0x03)
 ```
 
-macOS has no driver for the CS35L41 amplifiers, so **the speakers cannot
-work**. Headphone output and USB-C output work. The internal microphone is
-untested: the codec exposes an input device and the DSP patch prevents the
-known panic, but recording has not been verified on this unit. This is a
-hardware limitation, not a configuration problem, and the reference laptop
-reports the same speaker behaviour.
+Both internal stereo speakers, headphone output, and internal microphone are fully supported and functional on macOS Sequoia 15.8.2.
 
-## What runs on Sequoia today
+---
 
-Sequoia still ships `AppleHDA`, so audio uses the normal AppleALC path. The
-Tahoe-only pieces are present in the config but do not load:
+## Architecture & Driver Stack
 
-| Component | Setting | Effect on Sequoia 15.8.2 |
+On this laptop, audio output to the physical speaker cones is driven by two smart amplifiers rather than the Realtek codec's analog stage. This requires three coordinated components:
+
+| Component | Version / Setting | Function |
 |---|---|---|
-| `SimpleHDA.kext` 1.0.0 | `MinKernel 25.0.0`, `MaxKernel 25.99.99` | **Not injected.** OpenCore skips it on Darwin 24; it exists only for a future Tahoe boot |
-| `AppleALC.kext` 1.9.8 (patched) | `alcid=11` | ALC245 layout 11 on the native `AppleHDA`; headphone output works, mic untested |
-| `DeviceProperties` `PciRoot(0x0)/Pci(0x1F,0x3)` | `device-id = C8510000` | AppleALC's controller table lacks `0x51CC`; `0x51C8` is the same controller family |
-| boot arg | `shda-lang=en` | Inert here (it belongs to SimpleHDA); harmless, kept so the same config can still boot Tahoe |
+| **`AppleALC.kext`** | 1.9.8 (`alcid=13`) | Routes PCM audio stream through ALC245 Node `0x17` (DAC `0x03`) for speakers, Node `0x21` for headphones, and Node `0x19` for the microphone. |
+| **`CirrusAudioFixup.kext`** | 1.2.1 | Initializes the CS35L41 amplifiers: asserts Intel Alder Lake PCH GPIO hardware reset (pin 305), parses EFI calibration (exact silicon UID match), loads DSP protective firmware (`halo_cspl_RAM_revB2_29.63.1.wmfw`), loads HP Envy tuning coefficients, configures internal boost converter (1000nH / 4100mA / 24µF), and tracks codec power/volume events. |
+| **`VoodooI2C.kext`** | 2.9.2 | Core I2C controller driver with Alder Lake-LP (`0x51e88086&0xFFFCFFFF`) personality and `transferI2CToAddress` platform bridge. Bundles `VoodooGPIOTigerLakeLP` (`INTC1055`) to ensure simultaneous, glitch-free operation of both the I2C trackpad (`SYNA32CF`) and the I2C audio amplifiers (`SPKR`). |
 
-Two consequences of the downgrade:
+---
 
-- There is **no** `SimpleHDA` step to perform on Sequoia, and no `shda-lang`
-  effect to verify. If audio is broken, the fault is in AppleALC, the layout,
-  or the controller `device-id` — not in the missing Tahoe shim.
-- The `SimpleHDA` entry can be disabled in `Kernel/Add` with no effect today. It
-  is left enabled on purpose so one EFI can boot both OS families; OpenCore's
-  `MinKernel`/`MaxKernel` gate is what makes that safe.
+## Layout 13 Routing
 
-## The AppleALC patch (important)
+We use AppleALC Layout 13 (`alcid=13`):
 
-Stock AppleALC layout 11 routes the microphone through Apple's
-noise-reduction DSP (`DspNoiseReduction` / `EupDSP`). On this laptop that path
-reads a missing parameter and **panics the kernel in `EupDSP::ConfigParamInt`
-inside `coreaudiod` the moment anything records**.
+* **Internal Speakers**: Node `0x17` pincap (`0x0000001c`, non-EAPD), fed by DAC `0x03`. PCM audio is passed to the dual CS35L41 amplifiers over I2C/I2S.
+* **Headphone Jack**: Node `0x21` with automatic jack sense. Plugging in headphones smoothly redirects audio from speakers to headphones.
+* **Internal Microphone**: Node `0x19`.
 
-The shipped `AppleALC.kext` has every `SignalProcessing` block removed from
-layout 11:
+---
 
-- Headphone output is unchanged.
-- Recording works.
-- The DSP processing is gone (acceptable: it was crashing anyway).
+## Hardware Calibration
 
-The patch is reproducible. Applying
-`tools/patches/patch-applealc-alc245-layout11.py` to upstream AppleALC 1.9.8
-RELEASE produces exactly the shipped binary:
+Each HP Envy unit contains factory-measured speaker DC resistance ($R_0$) stored in an EFI NVRAM variable table.
+`CirrusAudioFixup` reads the hardware silicon UIDs from the chips and automatically matches them to the EFI calibration records:
 
-```
-ee5ed2952138f819e4cd679649e3c3a042ed0796d4782c296fade2982e02849d
-```
+* **Left Speaker (`0x40`)**: $R_0 = 10398$
+* **Right Speaker (`0x41`)**: $R_0 = 10201$
+* **Status**: `APPLIED_FROM_EFI_VARIABLE` (`reason=EXACT_SILICON_UID`)
 
-See `tools/patches/README.md` for the command. If AppleALC is updated, the
-patch must be re-verified — it relies on the compressed layout resource
-offsets of 1.9.8.
+Because factory calibration is applied directly from the system EFI variable, manual boot-argument calibration overrides are not required.
 
-## Verifying audio
+---
+
+## Verifying Audio & Amplifier Health
+
+Run in Terminal:
 
 ```sh
+# Verify sound devices recognized by macOS
 system_profiler SPAudioDataType
-# Output should list "Internal Speakers" (dead, CS35L41) and "Headphones"
-# Input should list "Internal Microphone"
 
-sudo dmesg | grep -i applealc
+# Check amplifier and DSP operational status
+ioreg -lw0 -p IOService -r -c CirrusAudioFixup | grep -E "Cirrus_Amplifier_Status|Cirrus_Calibration|Cirrus_DSP|Cirrus_Driver_Verdict"
 ```
 
-Play something through the jack, then record a few seconds with QuickTime or
-`voice-memos` to confirm the mic does not panic.
+Expected output:
+* `Cirrus_Amplifier_Status = "READY"`
+* `Cirrus_DSP_BOOT_VERDICT_i2c0 = "HEALTHY"`
+* `Cirrus_DSP_BOOT_VERDICT_i2c1 = "HEALTHY"`
+* `Cirrus_Driver_Verdict = "READY_DSP"`
+* `Cirrus_Calibration_Status_i2c0 = "APPLIED_FROM_EFI_VARIABLE"`
+* `Cirrus_Calibration_Status_i2c1 = "APPLIED_FROM_EFI_VARIABLE"`
 
-## Common mistakes
+---
 
-- **Do not** add `alcid=13` or `layout-id` in `DeviceProperties` at the same
-  time as `alcid=11`; the boot argument wins and the property is confusing.
-- **Do not** use the unpatched AppleALC: recording will panic.
-- **Do not** expect speakers. No amount of layout changes fixes missing
-  CS35L41 support.
-- `SimpleHDA` and a future native `AppleHDA` must not both be enabled. On
-  Sequoia the `MinKernel`/`MaxKernel` gate already prevents that; if the gate is
-  ever removed, disable `SimpleHDA` before booting 15.x.
+## Controls
+
+* **F5**: Mute / Unmute
+* **F6**: Volume Down
+* **F7**: Volume Up
+* **Menu Bar**: Native macOS volume slider responds smoothly.
