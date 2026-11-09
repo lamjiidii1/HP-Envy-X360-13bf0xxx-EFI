@@ -84,7 +84,7 @@ was made — it is not a claim that the feature fails.
 | Keyboard | Works, including brightness keys (`BrightnessKeys`) and audio volume keys (F5/F6/F7) |
 | Internal speakers | Stereo speakers fully working via Cirrus Logic **CS35L41** dual smart amps (`CirrusAudioFixup` 1.2.1 + `VoodooI2C` 2.9.2, layout-id 13) |
 | Audio out / Switching | 3.5 mm combo jack, USB-C audio, and automatic speaker-to-headphone switching |
-| Internal microphone | Dual digital DMIC array working crisp via Intel cAVS 2.5 DSP (`TGLDmic` 1.0.0 with signed `sof-adl.ri` + HAL driver) |
+| Internal microphone | Dual digital DMIC array working crisp via Intel cAVS 2.5 DSP ([`TGLDmic`](https://github.com/lamjiidii1/TGLDmic) 0.6.0 with signed `sof-adl.ri` + HAL driver) |
 | Battery | Charge/percentage/health and the Battery settings pane (after the `impostor.dylib` fix) |
 | App Store / Quick Look | HEIC/HEVC previews and screenshots work (after the `TGLVA` fix) |
 | Power management | XCPM P-states, `balanced`/`battery`/`performance` profiles |
