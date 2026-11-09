@@ -102,6 +102,14 @@
 				<key>Path</key>
 				<string>SSDT-USBW.aml</string>
 			</dict>
+			<dict>
+				<key>Comment</key>
+				<string>HP microphone mute F8 key and LED toggle</string>
+				<key>Enabled</key>
+				<true/>
+				<key>Path</key>
+				<string>SSDT-HP-MICMUTE.aml</string>
+			</dict>
 		</array>
 		<key>Delete</key>
 		<array/>
@@ -247,6 +255,45 @@
 				<key>Replace</key>
 				<data>
 				hl5eXi5HRlgwREQwMg==
+				</data>
+				<key>ReplaceMask</key>
+				<data>
+				</data>
+				<key>Skip</key>
+				<integer>0</integer>
+				<key>TableLength</key>
+				<integer>0</integer>
+				<key>TableSignature</key>
+				<data>
+				RFNEVA==
+				</data>
+			</dict>
+			<dict>
+				<key>Base</key>
+				<string></string>
+				<key>BaseSkip</key>
+				<integer>0</integer>
+				<key>Comment</key>
+				<string>EC0: _Q28 to XQ28 rename (HP Mic Mute F8 key)</string>
+				<key>Count</key>
+				<integer>1</integer>
+				<key>Enabled</key>
+				<true/>
+				<key>Find</key>
+				<data>
+				FEEGX1EyOAA=
+				</data>
+				<key>Limit</key>
+				<integer>0</integer>
+				<key>Mask</key>
+				<data>
+				</data>
+				<key>OemTableId</key>
+				<data>
+				</data>
+				<key>Replace</key>
+				<data>
+				FEEGWFEyOAA=
 				</data>
 				<key>ReplaceMask</key>
 				<data>
@@ -949,6 +996,24 @@
 				<true/>
 				<key>ExecutablePath</key>
 				<string>Contents/MacOS/CirrusAudioFixup</string>
+				<key>MaxKernel</key>
+				<string></string>
+				<key>MinKernel</key>
+				<string></string>
+				<key>PlistPath</key>
+				<string>Contents/Info.plist</string>
+			</dict>
+			<dict>
+				<key>Arch</key>
+				<string>Any</string>
+				<key>BundlePath</key>
+				<string>TGLDmic.kext</string>
+				<key>Comment</key>
+				<string>Intel Smart Sound Technology DMIC microphone support</string>
+				<key>Enabled</key>
+				<true/>
+				<key>ExecutablePath</key>
+				<string>Contents/MacOS/TGLDmic</string>
 				<key>MaxKernel</key>
 				<string></string>
 				<key>MinKernel</key>
