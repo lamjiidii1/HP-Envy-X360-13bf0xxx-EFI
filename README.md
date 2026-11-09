@@ -81,8 +81,10 @@ was made — it is not a claim that the feature fails.
 | Bluetooth | Intel AX211 via `IntelBluetoothFirmware` |
 | USB | USB-A and USB-C data; USB-C charging |
 | Trackpad | I2C precision trackpad, full gestures (`VoodooI2C` + `VoodooI2CHID`) |
-| Keyboard | Works, including brightness keys (`BrightnessKeys`) |
-| Audio out | 3.5 mm jack and USB-C output both work |
+| Keyboard | Works, including brightness keys (`BrightnessKeys`) and audio volume keys (F5/F6/F7) |
+| Internal speakers | Stereo speakers fully working via Cirrus Logic **CS35L41** dual smart amps (`CirrusAudioFixup` 1.2.1 + `VoodooI2C` 2.9.2, layout-id 13) |
+| Audio out / Switching | 3.5 mm combo jack, USB-C audio, and automatic speaker-to-headphone switching |
+| Internal microphone | Dual digital DMIC array working crisp via Intel cAVS 2.5 DSP (`TGLDmic` 1.0.0 with signed `sof-adl.ri` + HAL driver) |
 | Battery | Charge/percentage/health and the Battery settings pane (after the `impostor.dylib` fix) |
 | App Store / Quick Look | HEIC/HEVC previews and screenshots work (after the `TGLVA` fix) |
 | Power management | XCPM P-states, `balanced`/`battery`/`performance` profiles |
@@ -91,7 +93,6 @@ was made — it is not a claim that the feature fails.
 
 | Area | Cause | Status |
 |---|---|---|
-| **Internal speakers** | Cirrus Logic **CS35L41** smart amplifiers have no macOS driver. `AppleALC` layout 11 drives the ALC245 codec for the jack, not the speaker amps. | Hardware limitation; not attempted |
 | **Camera** | The camera sits behind the Intel **Alder Lake Imaging Signal Processor** (`8086:465d`, IPU6) with a MIPI sensor. macOS has no IPU6/MIPI camera driver, and it is not a USB UVC device, so there is no fallback. | Not attempted; owner does not need it |
 | **microSD card reader** | Realtek **RTS5288** PCIe SD UHC-I controller (`10ec:5228`) has no macOS driver. | Not attempted; not tested physically |
 | **Touchscreen** | The panel glass is physically broken and touch does not work in Windows either. This is a hardware fault, not a macOS/driver problem. | Cannot be tested |
@@ -101,7 +102,6 @@ was made — it is not a claim that the feature fails.
 
 | Area | Notes |
 |---|---|
-| Internal microphone | The codec exposes an input device, but recording has not been verified on this unit |
 | HDMI / external display | No cable test was recorded; USB-C video output is also untested |
 | Thunderbolt / USB4 | The USB-C ports work as USB and for charging; Thunderbolt/USB4 alt modes are untested |
 | Sensors | CPU temperature/voltage are exposed by `SMCProcessor`; fan RPM and board sensors are not (no `SMCSuperIO`), and the ambient-light stub is not a real sensor |
@@ -393,7 +393,7 @@ Full reasoning: [docs/02-audit.md](docs/02-audit.md) and
 | [docs/02-audit.md](docs/02-audit.md) | Old EFI audit, reference-repo audit, config diff |
 | [docs/03-graphics.md](docs/03-graphics.md) | Current Sequoia state, VBT/parser evidence, Tahoe history |
 | [docs/04-wifi-bluetooth.md](docs/04-wifi-bluetooth.md) | Both Wi-Fi variants, Bluetooth |
-| [docs/05-audio.md](docs/05-audio.md) | ALC245 layout 11, the DSP patch, SimpleHDA |
+| [docs/05-audio.md](docs/05-audio.md) | ALC245 layout 13, CS35L41 dual smart amplifiers, Intel cAVS DMIC internal microphone, controls and LEDs |
 | [docs/06-usb-acpi-power.md](docs/06-usb-acpi-power.md) | USB map, ACPI tables, power management |
 | [docs/07-install.md](docs/07-install.md) | Backup, build, install, upgrade, rollback |
 | [docs/08-troubleshooting.md](docs/08-troubleshooting.md) | Symptom → cause → action |

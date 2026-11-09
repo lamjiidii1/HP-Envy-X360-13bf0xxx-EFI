@@ -33,9 +33,9 @@ On this laptop, audio output to physical speaker cones is driven by two smart am
 | **`AppleALC.kext`** | 1.9.8 (`alcid=13`) | Routes PCM audio stream through ALC245 Node `0x17` (DAC `0x03`) for speakers, Node `0x21` for headphones, and Node `0x19` for external headset mic. |
 | **`CirrusAudioFixup.kext`** | 1.2.1 | Initializes the CS35L41 amplifiers: asserts Intel Alder Lake PCH GPIO hardware reset (pin 305), parses EFI calibration (exact silicon UID match), loads DSP protective firmware (`halo_cspl_RAM_revB2_29.63.1.wmfw`), loads HP Envy tuning coefficients, configures internal boost converter (1000nH / 4100mA / 24µF), and tracks codec power/volume events. |
 | **`VoodooI2C.kext`** | 2.9.2 | Core I2C controller driver with Alder Lake-LP (`0x51e88086&0xFFFCFFFF`) personality and `transferI2CToAddress` platform bridge. Bundles `VoodooGPIOTigerLakeLP` (`INTC1055`) to ensure simultaneous operation of both the I2C trackpad (`SYNA32CF`) and I2C audio amplifiers (`SPKR`). |
-| **`TGLDmic.kext`** | 0.5.0 (`-tgldmic`) | Boots Intel-signed Sound Open Firmware (SOF v2.2) on the Intel cAVS 2.5 DSP (`8086:51C8`/`8086:51CC`). Sets up 2-channel 48 kHz S32_LE DMA capture pipeline 10 (`DMIC0.IN -> EQIIR10.0 -> Dmic0 -> PCM6C`) and exposes ring buffer via IOKit UserClient. Dynamic power gating keeps the DSP off until an application records audio. |
-| **`TGLDmic.driver`** | 0.5.0 (HAL plug-in) | Core Audio AudioServerPlugIn in `/Library/Audio/Plug-Ins/HAL/`. Maps the kernel ring buffer, synchronizes timestamps to the DSP clock, and exposes **"Internal Microphone (TGLDmic)"** with stereo 48 kHz input and software gain control. |
-| **`SSDT-HP-MICMUTE.aml`** | 1.0.0 (`_Q28 -> XQ28`) | Hooks EC query method `_Q28` for the F8 function key. Synchronously flips Embedded Controller register `MBMS` (controlling the orange indicator LED inside F8) and dispatches extended make/break scancode `e0 6b` (F20) to `PS2K`. |
+| **`TGLDmic.kext`** | 1.0.0 (`-tgldmic`) | Boots official Intel-signed Sound Open Firmware (`sof-adl.ri` v2.2 production release) on the Intel Alder Lake PCH cAVS 2.5 DSP (`8086:51CC`). Sets up 2-channel 48 kHz S32_LE DMA capture pipeline (`DMIC0.IN -> EQIIR10.0 -> Dmic0 -> PCM6C`) and exposes ring buffer via IOKit UserClient. Dynamic power gating keeps the DSP off until an application records audio. |
+| **`TGLDmic.driver`** | 1.0.0 (HAL plug-in) | Core Audio AudioServerPlugIn in `/Library/Audio/Plug-Ins/HAL/`. Maps the kernel ring buffer, synchronizes timestamps to the DSP clock, and exposes **"Internal Microphone (TGLDmic)"** with stereo 48 kHz input and software gain control. |
+| **`SSDT-HP-MICMUTE.aml`** | 1.0.0 (`_Q28 -> XQ28`) | Hooks EC query method `_Q28` for the F8 function key. Forwards call to `XQ28()` and dispatches scancode `0x036b` (F20) to `PS2K`. |
 
 ---
 
@@ -66,19 +66,26 @@ sudo ./scripts/macos/install-tgldmic-hal.sh
 
 ---
 
-## F8 Microphone Mute Key & Orange LED
+## F5 and F8 Mute Keys & Indicator LEDs
 
-The F8 function key on the HP Envy keyboard features an integrated orange indicator LED:
+### 1. F5 Speaker Mute & Orange LED
+* **Function**: Mutes and unmutes speaker/headphone audio output natively in macOS.
+* **Orange LED Hardware Control**: The orange LED embedded in the F5 key is controlled directly through the Realtek ALC245 HDA processing widget:
+  * **HDA Node**: `0x20`
+  * **Processing Coefficient**: Index `0x0b`, Bit 3 (`0x08`)
+  * **Turn ON**: `alc-verb 0x20 0x500 0x0b && alc-verb 0x20 0x400 0x08`
+  * **Turn OFF**: `alc-verb 0x20 0x500 0x0b && alc-verb 0x20 0x400 0x00`
+  * Requires OpenCore boot argument `alcverbs=1` (enabled by default across all EFI variants). A testing utility is provided in `scripts/macos/test-mute-leds.sh` (`./test-mute-leds.sh spk-on` / `spk-off`).
 
-1. **ACPI Event**: Pressing F8 triggers Embedded Controller query `_Q28`.
-2. **ACPI Patch (`_Q28 -> XQ28`)**: Renames OEM `_Q28` in DSDT.
-3. **`SSDT-HP-MICMUTE` Implementation**:
-   - Forwards to original `XQ28()` to maintain HP WMI state consistency.
-   - Toggles Embedded Controller field `\_SB.PC00.LPCB.EC0.MBMS` (`0x01` = LED on / muted; `0x00` = LED off / unmuted).
-   - Emits `Notify (\_SB.PC00.LPCB.PS2K, 0x046b)`, dispatching extended key `e0 6b` (F20) to `VoodooPS2Keyboard`.
-4. **macOS Integration**:
-   - The F8 key registers globally as key code **F20**.
-   - macOS Shortcuts, Discord, Zoom, Teams, and third-party mic utilities can bind to F20 to toggle system input mute simultaneously with the orange keycap LED.
+### 2. F8 Microphone Mute & LED Technical Findings
+* **ACPI Event**: Pressing F8 triggers Embedded Controller query `_Q28`.
+* **ACPI Patch (`_Q28 -> XQ28`)**: Renames OEM `_Q28` in DSDT.
+* **`SSDT-HP-MICMUTE` Implementation**:
+  * Calls original `XQ28()` to keep HP WMI firmware state consistent.
+  * Dispatches `Notify (PS2K, 0x036b)` to send scancode `0x6b` (mapped to **F20**) to `VoodooPS2Keyboard`.
+* **Microphone Mute Status**:
+  * Microphone input can be muted or unmuted cleanly in macOS System Settings > Sound > Input (or by lowering input volume).
+  * The physical orange LED on F8 is independent of the ALC245 codec (unlike F5) and is routed through the HP Embedded Controller / GPIO. Active experimentation on the F8 LED is parked for future development to preserve stability.
 
 ---
 
@@ -123,4 +130,4 @@ Expected output:
 * **F5**: Speaker Mute / Unmute (with LED)
 * **F6**: Speaker Volume Down
 * **F7**: Speaker Volume Up
-* **F8**: Microphone Mute / Unmute (emits F20 with synchronized orange LED)
+* **F8**: Microphone Key (emits F20; mute/unmute via macOS System Settings)
