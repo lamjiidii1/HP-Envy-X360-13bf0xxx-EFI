@@ -14,7 +14,7 @@ efi/base/OC/Kexts/RestrictEvents.kext	as.vit9696.RestrictEvents	1.1.7	8a244c6962
 efi/base/OC/Kexts/SMCBatteryManager.kext	ru.usrsse2.SMCBatteryManager	1.3.9	791d81018a5374ddc63b8d97ba976e03bab6d241fec08ec3487e4c4e74fc24e4
 efi/base/OC/Kexts/SMCProcessor.kext	as.vit9696.SMCProcessor	1.3.9	dcf738671431721692f752e3df43acaaa02c93788ae7b21153504b07db01be32
 efi/base/OC/Kexts/SimpleHDA.kext	cn.laobamac.SimpleHDA	1.0.0	f74c9dbddf43266c97c5f72cd76498bce1d6b5bd3731a947be62f1378b4c7954
-efi/base/OC/Kexts/TGLDmic.kext	com.labrouss.TGLDmic	0.5.0	334c5ca1bdcd3517e962e2a79584ab2b3a4154b7e5e299bbdd7ad95d8a4bda68
+efi/base/OC/Kexts/TGLDmic.kext	com.labrouss.TGLDmic	0.5.0	42ce2c8080e6e17d3300d84aa18445c851be05fd0be6a2d877413d4219aea9d2
 efi/base/OC/Kexts/USBToolBox.kext	com.dhinakg.USBToolBox.kext		c5c8dc205a079ee3f90b7875fb5ff622e4f15d32f29cf519123dab2822c422b7
 efi/base/OC/Kexts/UTBMap.kext	com.dhinakg.USBToolBox.map	1.1	-
 efi/base/OC/Kexts/VirtualSMC.kext	as.vit9696.VirtualSMC	1.3.9	bf91e9542b86c20acaf210353a93742291c49328e2d14b03fa0fa4fc52b3b5ce

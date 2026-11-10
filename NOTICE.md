@@ -34,6 +34,7 @@ they have.
 | `HoRNDIS.kext` | [jwise/HoRNDIS](https://github.com/jwise/HoRNDIS) | GPL-2.0 | none |
 | `VoodooI2C*.kext` | fork of [VoodooI2C](https://github.com/VoodooI2C/VoodooI2C) 2.9.2, [lamjiidii1/VoodooI2C](https://github.com/lamjiidii1/VoodooI2C) | GPL-2.0 | Alder Lake-LP I2C personality and `transferI2CToAddress` bridge so the trackpad and CS35L41 amplifiers share the controller |
 | `CirrusAudioFixup.kext` | [lamjiidii1/CirrusAudioFixup](https://github.com/lamjiidii1/CirrusAudioFixup) 1.2.1 (upstream author hoaugtr) | Cirrus Logic license, `Resources/LICENSE.cirrus` | HP Envy CS35L41 tuning and EFI calibration |
+| `TGLDmic.kext`, `TGLDmic.driver` | fork of [labrouss/TGLDmic](https://github.com/labrouss/TGLDmic) v0.6.0 source, [lamjiidii1/TGLDmic](https://github.com/lamjiidii1/TGLDmic) | see upstream | embedded Intel-signed `sof-adl.ri`; both bundles report 0.5.0 |
 | `CpuTopologyRebuild.kext` | b00t0x 2.0.2 | BSD-3-Clause | none |
 
 The Sequoia 24H232 MMIO diagnosis and the Metal-archive workaround are adapted
