@@ -85,13 +85,14 @@ executable. `-` means the bundle has no executable (a pure plist injector).
 | `VirtualSMC.kext` | 1.3.9 | [acidanthera/VirtualSMC](https://github.com/acidanthera/VirtualSMC) | `bf91e9542b86c20acaf210353a93742291c49328e2d14b03fa0fa4fc52b3b5ce` | none |
 | `SMCProcessor.kext` | 1.3.9 | acidanthera/VirtualSMC | `dcf738671431721692f752e3df43acaaa02c93788ae7b21153504b07db01be32` | none |
 | `SMCBatteryManager.kext` | 1.3.9 | acidanthera/VirtualSMC | `791d81018a5374ddc63b8d97ba976e03bab6d241fec08ec3487e4c4e74fc24e4` | none |
-| `AppleALC.kext` | 1.9.8 | [acidanthera/AppleALC](https://github.com/acidanthera/AppleALC) | `ee5ed2952138f819e4cd679649e3c3a042ed0796d4782c296fade2982e02849d` | ALC245 layout 11 DSP removal, see §6 |
+| `AppleALC.kext` | 1.9.8 | [acidanthera/AppleALC](https://github.com/acidanthera/AppleALC) | `ee5ed2952138f819e4cd679649e3c3a042ed0796d4782c296fade2982e02849d` | ALC245 layout 13 active; the 1.9.8 binary retains the layout 11 DSP removal, see §6 |
 | `RestrictEvents.kext` | 1.1.7 | [acidanthera/RestrictEvents](https://github.com/acidanthera/RestrictEvents) | `8a244c696234c4ae1dec7c318664c57b685f9d2501e8bb6649ec805b21e9fa3a` | none |
 | `NVMeFix.kext` | 1.1.4 | [acidanthera/NVMeFix](https://github.com/acidanthera/NVMeFix) | `d32c743220011f162ac104cdf73b1bce71cca77459a54553e461b89b9837a4d6` | none |
 | `BrightnessKeys.kext` | 1.0.4 | [acidanthera/BrightnessKeys](https://github.com/acidanthera/BrightnessKeys) | `f47210181030a6005ccb17c125dbe81b359c2c9fd74c12b99b860b8b5f44a72a` | none |
 | `VoodooPS2Controller.kext` | 2.3.8 | [acidanthera/VoodooPS2](https://github.com/acidanthera/VoodooPS2) | `be6f3aa9dc88954462e422df78d8d7d129cb91b8fd03c4018ef04cc9f472e8f0` | none |
 | `VoodooPS2Keyboard`/`Mouse`/`Trackpad` | 2.3.8 | same | see `payloads.tsv` | none |
-| `VoodooI2C.kext` | 2.9.1 | [VoodooI2C/VoodooI2C](https://github.com/VoodooI2C/VoodooI2C) | `dbb7865eec4eeb0ea4e303789407c8cbbbfa3a944780191bd9943279c64ebe9f` | none |
+| `VoodooI2C.kext` | 2.9.2 | [VoodooI2C/VoodooI2C](https://github.com/VoodooI2C/VoodooI2C), patched fork [lamjiidii1/VoodooI2C](https://github.com/lamjiidii1/VoodooI2C) | `28fa3a0cb332572c32ef0bce5ba6a53191dc4a819880cb39526c91e4be04d011` | Alder Lake-LP `0x51E8` personality and `transferI2CToAddress` bridge |
+| `CirrusAudioFixup.kext` | 1.2.1 | [lamjiidii1/CirrusAudioFixup](https://github.com/lamjiidii1/CirrusAudioFixup), upstream author hoaugtr | `1f0b6df9c01c9c7482e9677300d63216753c3771a2e3955239e7681e0b78ce99` | HP Envy CS35L41 DSP tuning and EFI calibration; Cirrus Logic license in the bundle |
 | `VoodooGPIO`/`I2CServices`/`Input`/`I2CHID` | bundled | same | see `payloads.tsv` | none |
 | `CpuTopologyRebuild.kext` | 2.0.2 | [b00t0x/CpuTopologyRebuild](https://github.com/b00t0x/CpuTopologyRebuild) | `0e36496ff627db53002ad04bd8e1e910909e083e587609fb9b472d5f2d7bde07` | none |
 | `SimpleHDA.kext` | 1.0.0 | [laobamac/SimpleHDA](https://github.com/laobamac/SimpleHDA) | `f74c9dbddf43266c97c5f72cd76498bce1d6b5bd3731a947be62f1378b4c7954` | none |
@@ -236,6 +237,9 @@ and patched only in the build output; see §5.)
   attribution from the same-model reference repository.
 - Effect: removes every `SignalProcessing` block from layout 11, avoiding a
   kernel panic in `EupDSP::ConfigParamInt` when recording.
+- Active layout: **13** (`alcid=13`). The stored binary still contains the
+  layout 11 patch, but that layout is no longer selected; the layout 13 path
+  does not use those DSP blocks.
 - Reproducible result: SHA-256
   `ee5ed2952138f819e4cd679649e3c3a042ed0796d4782c296fade2982e02849d`.
 - Tested only against 1.9.8; the patch depends on that release's compressed
