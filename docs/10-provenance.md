@@ -151,25 +151,41 @@ They are Apple/Intel-derived and are deliberately not vendored here.
 
 | Item | Value |
 |---|---|
-| Package | `WhateverXe-Graphics-0.3.1.pkg` (installed on this machine) |
-| Upstream | [b00t0x/WhateverXe-Graphics](https://github.com/b00t0x/WhateverXe-Graphics) release 0.3.1 |
-| SHA-256 | `bd8b449431b1bf3815f9011ad3e13c7038012d17aed54dfb2aecfce6b9089623` |
-| Pairs with | WhateverXe 0.6.0 (`adlp-edp` fork), `AppleIntelTGLCompat` 0.6.0 |
+| Package (installed) | `WhateverXe-Graphics-0.4.1.pkg`, installed 2026-11-09 |
+| Upstream | [b00t0x/WhateverXe-Graphics](https://github.com/b00t0x/WhateverXe-Graphics) release 0.4.1 (2026-11-07) |
+| SHA-256 | `7f7ce3b924ad421cff0c4f30534598858474b8c9539c4b889a461bc1d5fed02c` (matches upstream `SHA256SUMS`) |
+| Pairs with | WhateverXe 0.8.0-adlp (`wex080-adlp`), `AppleIntelTGLCompat` 0.8.0 |
 | Installs to | `/Library/Extensions` and `/Library/GPUBundles`, then AuxKC |
+| Payload | `AppleIntelTGLCompat` 0.8.0; Apple TGL kexts and GPUBundles `16.0.32` / `16.0.0` |
+| Rollback package | `WhateverXe-Graphics-0.3.1.pkg`, SHA-256 `bd8b449431b1bf3815f9011ad3e13c7038012d17aed54dfb2aecfce6b9089623`; pairs with the 0.6.0 default and Compat 0.6.0 |
 | Control package | `WhateverXe-Graphics-0.4.0.pkg`, SHA-256 `7a1b5015b3e6e8b522f26c25df85c313471c9142564a0b57356cddd2c88b9510` (95,200,795 bytes), pairs with WEX 0.7.0 / Compat 0.7.0 |
-| Pinned file | 0.4.0 `impostor.dylib` for Sequoia, SHA-256 `1cc38c7941333d3f4b88316795c78ca0095addf945fa35b6ff8634ecc93a1060`, from `payloads/Sequoia/Library/GPUBundles/AppleIntelTGLGraphicsMTLDriver.bundle/Contents/MacOS/` at tag `v0.4.0`; replaces the 0.3.1 shim (`53c93a6e…fb57b`) named in `scripts/macos/patch-mtl-impostor.sh` |
-| Pinned file | 0.4.0 `TGLVA` for Sequoia, SHA-256 `db879dbae1c708b5fcdb3c39e251e63e635016d19885e9186fdc6baca68414aa`, from `payloads/Sequoia/Library/GPUBundles/AppleIntelTGLGraphicsVADriver.bundle/Contents/MacOS/TGLVA` at tag `v0.4.0`; replaces the 0.3.1 shim (`0c4df393…e35ac`) named in `scripts/macos/patch-va-tglva.sh`. The adjacent `AppleIntelTGLGraphicsVADriver` is **not** replaced: its 0.4.0 build differs only in the PCI device-ID dispatch table |
+| Included shim | `impostor.dylib` for Sequoia, SHA-256 `1cc38c7941333d3f4b88316795c78ca0095addf945fa35b6ff8634ecc93a1060`, from `payloads/Sequoia/Library/GPUBundles/AppleIntelTGLGraphicsMTLDriver.bundle/Contents/MacOS/`; replaces the 0.3.1 shim (`53c93a6e…fb57b`) named in `scripts/macos/patch-mtl-impostor.sh` |
+| Included shim | `TGLVA` for Sequoia, SHA-256 `db879dbae1c708b5fcdb3c39e251e63e635016d19885e9186fdc6baca68414aa`, from `payloads/Sequoia/Library/GPUBundles/AppleIntelTGLGraphicsVADriver.bundle/Contents/MacOS/TGLVA`; replaces the 0.3.1 shim (`0c4df393…e35ac`) named in `scripts/macos/patch-va-tglva.sh`. The adjacent `AppleIntelTGLGraphicsVADriver` differs only in its PCI device-ID dispatch table |
 
-The same-model reference was tested with 0.3.1, and its installed
-`AppleIntelTGLCompat` is 0.6.0 (the identifier this machine's logs show).
-Graphics 0.3.2 ships Compat 0.6.1 and 0.4.0 ships Compat 0.7.0; neither is
-used with the 0.6.0 default. Do not mix the pairs. The two deliberate
-exceptions are the userspace shims `impostor.dylib` (Metal) and `TGLVA`
-(video): they are not part of the Compat/kext pair, and both are built to sit
-next to the otherwise unchanged 0.3.1 payload. `patch-mtl-impostor.sh` replaces
-only `impostor.dylib`; `patch-va-tglva.sh` replaces only `TGLVA`. The 0.6.0
-kernel stack, `descriptor.dylib`, `libigdmd.dylib` and
-`AppleIntelTGLGraphicsVADriver` stay untouched.
+0.4.1 was verified before installation rather than assumed from the version
+number. Its Compat reports `OSBundleCompatibleVersion = 0.5.0` and exports the
+same 14 symbols as 0.6.0. The two Apple TGL kexts and the Metal and VA bundle
+executables have byte-identical `__TEXT,__text` to the 0.3.1 payload installed
+here, so every hard-coded symbol offset WhateverXe validates is unchanged. The
+OpenGL driver was rebuilt in 0.4.0 for the extra GPU IDs. The package
+provenance lists source hashes that match this repository's fork exactly:
+`AppleIntelTGLCompat.cpp` `2a5f7622…`, `GraphicsPolicy.plist` `dd955549…`,
+`kern_xelp_os.hpp` `0a1e96c4…` and `kern_xelp_devices.hpp` `7df14948…`.
+
+The functional difference is the 0.4.0/0.4.1 servicing fix: Compat accepts
+compatible macOS kernel updates by OS family and ABI instead of an exact build
+string. The package also already contains the 0.4.0 Metal and VA shims, so
+`patch-mtl-impostor.sh` and `patch-va-tglva.sh` are only needed after a
+deliberate rollback to 0.3.1. Installation rebuilt the AuxKC with Compat 0.8.0
+(UUID `F6997294-0598-30BD-98B3-38E0EEB2FA7E`); the new version loads on the
+next reboot.
+
+Graphics 0.3.1 is no longer installed on the machine but is kept in
+`~/MacOS/PostInstall` for rollback. It remains the validated pair for the
+0.6.0 default; 0.4.1's identical ABI makes that pairing plausible, but it has
+not been boot-tested with 0.6.0 and is not claimed here. The 0.4.0 package
+remains the control for `EFI-wex070`. Do not mix a 0.7.0 kext with a 0.6.0 or
+0.8.0 package.
 
 **The stored payload is unmodified; the built kext is not.** The file in
 `efi/variants/gpu-hp-adlp-edp` is the published `197da23b…` binary. On Sequoia
@@ -239,8 +255,9 @@ The release archives used to populate the repository:
 | WhateverXe 0.7.0 RELEASE zip | `5548c78f687134580913b9f600fb8b0f16bb49f7d430bcc82de7fa9761d4f62b` | `efi/variants/gpu-wex070` (control) |
 | `WhateverXe.kext` (0.8.0-adlp) | `2b64ebc02afca386b47497006d3bf245a6d097b1d62e01b220a5f03fd7ec0518` | `efi/variants/gpu-wex080-adlp` (built from branch `adlp-0.8.0`) |
 | `AirportItlwm-Sequoia-v2.4.0-RELEASE-alpha-7204c69.zip` | `263d35e5954808f43bde17b9695b675aefc2f6d4cded71306b1b6575aea61a82` | `efi/variants/wifi-airportitlwm` |
-| `WhateverXe-Graphics-0.3.1.pkg` | `bd8b449431b1bf3815f9011ad3e13c7038012d17aed54dfb2aecfce6b9089623` | installed separately, not in Git |
-| `WhateverXe-Graphics-0.4.0.pkg` | `7a1b5015b3e6e8b522f26c25df85c313471c9142564a0b57356cddd2c88b9510` | control only; installed for the 0.7.0 test, not in Git |
+| `WhateverXe-Graphics-0.4.1.pkg` | `7f7ce3b924ad421cff0c4f30534598858474b8c9539c4b889a461bc1d5fed02c` | installed 2026-11-09; pairs with the 0.8.0-adlp port, not in Git |
+| `WhateverXe-Graphics-0.3.1.pkg` | `bd8b449431b1bf3815f9011ad3e13c7038012d17aed54dfb2aecfce6b9089623` | rollback for the 0.6.0 default, not in Git |
+| `WhateverXe-Graphics-0.4.0.pkg` | `7a1b5015b3e6e8b522f26c25df85c313471c9142564a0b57356cddd2c88b9510` | control only; pairs with 0.7.0, not in Git |
 
 The 0.6.0 `adlp-edp` binary is taken from the same-model reference
 (`retropineaple/whateverxe-hp-envy-x360` commit `8100282`, 2026-11-01) and

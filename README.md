@@ -23,8 +23,11 @@ scratch with every payload pinned and hashed.
 
 > **Status:** the machine now runs **macOS Sequoia 15.8.2 (24H232, Darwin
 > 24.6.0)**, and the EFI has been retargeted to it. Wi-Fi uses a Sequoia build
-> of `AirportItlwm`; the graphics half keeps the `adlp-edp` fork of WhateverXe
-> 0.6.0 with WhateverXe Graphics 0.3.1, because unmodified upstream WhateverXe
+> of `AirportItlwm`; the graphics half uses the `wex080-adlp` port of
+> WhateverXe 0.8.0 with WhateverXe Graphics 0.4.1 (`AppleIntelTGLCompat` 0.8.0),
+> installed 2026-11-09 and awaiting its first post-install reboot.
+> The repository's default 0.6.0 `adlp-edp` EFI remains available and pairs with
+> WhateverXe Graphics 0.3.1. Unmodified upstream WhateverXe
 > 0.7.0 and 0.8.0 — although they support Sequoia/Tahoe and no longer need a
 > build-matched MMIO constant — cannot drive this panel: they reject this
 > machine's VBT with `Status::Conflict` and the VBT carries
@@ -40,12 +43,10 @@ scratch with every payload pinned and hashed.
 > now applies that one-byte constant change to the **built** kext; the payload
 > in `efi/variants` stays the published `197da23b…` binary.
 > `scripts/macos/patch-wex-sequoia-mmio.sh` can repair a stick in place after a
-> macOS update. Two version-gated userspace shims also need replacing:
-> `scripts/macos/patch-mtl-impostor.sh` fixes the Graphics 0.3.1 Metal shim
-> (Battery pane and ControlCenter crash loop), and
-> `scripts/macos/patch-va-tglva.sh` fixes the VA shim (App Store/HEIC decode
-> hang and dynamic wallpaper). Both gates accept only the exact build 24H32;
-> this machine is 24H232.
+> macOS update. Graphics 0.4.1 already ships the fixed Metal (`impostor.dylib`)
+> and VA (`TGLVA`) shims; `scripts/macos/patch-mtl-impostor.sh` and
+> `scripts/macos/patch-va-tglva.sh` remain for a rollback to Graphics 0.3.1,
+> whose shims accept only build 24H32 (this machine is 24H232).
 >
 > **Boot-tested on 15.8.2 from this repository (2026-11-03 / 0.8.0 verified 2026-11-07).**
 > The built stick boots to the desktop with either the 0.6.0 default or the
@@ -58,8 +59,8 @@ scratch with every payload pinned and hashed.
 > shader compilation **works** through the OS-native AIR converter; the
 > `XeCompilerAdapter` sandbox denials in the log are expected and harmless.
 > The Battery pane, ControlCenter archive crashes and App Store HEIC hang are
-> **fixed** by the 0.4.0 `impostor.dylib` and `TGLVA` shims (verified
-> 2026-11-04/05). Two GPU
+> **fixed** by the Metal and VA shims included in Graphics 0.4.1 (first
+> verified 2026-11-04/05 as the 0.4.0 shims). Two GPU
 > resets were logged while App Store previews first loaded; that is being
 > watched separately. The desktop itself is GPU-composited. See
 > [docs/03-graphics.md](docs/03-graphics.md#heichevc-decode-and-the-tglva-guard)
@@ -150,10 +151,10 @@ scripts/payload_inventory.py      regenerates audit/payloads.tsv
 scripts/macos/patch-wex-tahoe-mmio.sh   repairs the 26.7.2 MMIO-UC signature
                                         (Tahoe history; not used on Sequoia)
 scripts/macos/patch-wex-sequoia-mmio.sh repairs the 15.8.2 (24H232) signature
-scripts/macos/patch-mtl-impostor.sh      installs the 0.4.0 impostor.dylib
-                                        (fixes Battery pane / ControlCenter)
-scripts/macos/patch-va-tglva.sh         installs the 0.4.0 TGLVA shim
-                                        (fixes App Store / HEIC decode hang)
+scripts/macos/patch-mtl-impostor.sh      installs the 0.4.x impostor.dylib
+                                        (needed only after a 0.3.1 rollback)
+scripts/macos/patch-va-tglva.sh         installs the 0.4.x TGLVA shim
+                                        (needed only after a 0.3.1 rollback)
 scripts/macos/test-metal-runtime-compile.sh  proves on-demand Metal compilation
                                         works despite XeCompilerAdapter denials
 scripts/macos/metal-archive-workaround.plist  Metal archive agent (experiment)
@@ -239,12 +240,15 @@ version.
 
 5. **Install macOS** with the OpenCore picker, then complete the first boot
    checks in [docs/13 §6](docs/13-bring-up.md#6-first-boot-checks):
-   WhateverXe/Compat **0.6.0**, real CPU name, 10 cores / 12 threads, panel at
-   **Looks like 1440 × 900**, Metal 2, `TGLSequoiaMMIOGuard` entry 19 = `01`.
+   WhateverXe/Compat **0.6.0/0.6.0** (default) or **0.8.0/0.8.0**
+   (`wex080-adlp`), real CPU name, 10 cores / 12 threads, panel at
+   **Looks like 1440 × 900**, Metal 2, `TGLSequoiaMMIOGuard` entry 19 = `01`
+   or `TGLMMIOStrongUCRouted = Yes`.
 
 6. **Install the matching userspace package**: WhateverXe Graphics **0.3.1**
-   (never 0.3.2/0.4.0 with this EFI), then restart. A fresh build already has
-   the 24H232 MMIO constant; repair an older stick with
+   for the `hp-adlp-edp` default, or **0.4.1** for `wex080-adlp` (never
+   0.3.2/0.4.0), then restart. A fresh build already has the 24H232 MMIO
+   constant; repair an older stick with
    `scripts/macos/patch-wex-sequoia-mmio.sh`.
 
 7. **Apply the post-install fixes** in the table below, in order.
@@ -255,10 +259,10 @@ These are the problems that appear only after acceleration works.
 
 | Symptom | Fix | Why |
 |---|---|---|
-| **Battery** pane crashes System Settings; ControlCenter crash-loops | `sudo bash scripts/macos/patch-mtl-impostor.sh --test` | The 0.3.1 Metal archive shim only enables on build 24H32; this install is 24H232 |
-| **App Store** hangs on screenshots/Quick Look; HEIC previews spin | `sudo bash scripts/macos/patch-va-tglva.sh --test` | The VA shim also gates on 24H32, so HEIC/HEVC decode never starts |
+| **Battery** pane crashes System Settings; ControlCenter crash-loops | Already fixed in Graphics 0.4.1; `patch-mtl-impostor.sh` only after a 0.3.1 rollback | The 0.3.1 Metal archive shim only enables on build 24H32; this install is 24H232 |
+| **App Store** hangs on screenshots/Quick Look; HEIC previews spin | Already fixed in Graphics 0.4.1; `patch-va-tglva.sh` only after a 0.3.1 rollback | The 0.3.1 VA shim also gates on 24H32, so HEIC/HEVC decode never starts |
 | Safari video freezes or Metal archive errors | `sudo bash scripts/macos/install-metal-archive-workaround.sh` (optional) | Same build-gate class |
-| Hot, laggy normal use | HiDPI mode + both shims + power profile | 1× mode redraws 5.2 MP; a thrashing shim burns CPU |
+| Hot, laggy normal use | HiDPI mode + fixed shims + power profile | 1× mode redraws 5.2 MP; a thrashing shim burns CPU |
 
 The `1,88 GHz` line in About This Mac is not a bug and has no fix: it is the
 invariant TSC, not the core clock. See **Two numbers that look wrong** above.
@@ -358,9 +362,11 @@ in `FB0: Resources allocation failed (0xe00002bc)` and a black screen. Masking
 speculative Type-C routes during panel bringup (`board.dp &= ~0x78U; board.typeC = 0;`)
 restores Combo A link training and brings up the 2880×1800 OLED panel cleanly.
 
-The port is binary compatible with the installed WhateverXe Graphics 0.3.1
-(`AppleIntelTGLCompat` 0.6.0 ABI). Full Metal 2 acceleration and internal OLED
-output have been verified live on macOS Sequoia 15.8.2.
+The port is binary compatible with the installed WhateverXe Graphics 0.4.1
+(`AppleIntelTGLCompat` 0.8.0 ABI; Graphics 0.3.1 remains the rollback pair).
+Full Metal 2 acceleration and internal OLED output have been verified live on
+macOS Sequoia 15.8.2 with the 0.3.1/0.6.0 stack; the 0.4.1 package is installed
+and awaits its first reboot test.
 
 ## What changed compared with the previous EFI
 

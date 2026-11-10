@@ -12,7 +12,7 @@ The machine was downgraded from Tahoe 26.7.2 to **macOS Sequoia 15.8.2
 |---|---|---|
 | EFI kext (default) | WhateverXe 0.6.0, `adlp-edp` branch, patch series 54, published binary `197da23b…`; `make build` applies the 24H232 Sequoia constant | Proven base driver; parses this VBT and drives internal OLED |
 | EFI kext (0.8.0 port) | WhateverXe 0.8.0, `adlp-0.8.0` branch, binary `2b64ebc0…` (`gpu-wex080-adlp`) | Upstream 0.8.0 rebase; resolves MMIO dynamically without binary patching; masks unprobed Type-C routes to drive internal OLED |
-| Installed package | WhateverXe Graphics 0.3.1 (`AppleIntelTGLCompat` 0.6.0) | Installed on machine; compatible with both 0.6.0 and 0.8.0-adlp |
+| Installed package | WhateverXe Graphics 0.4.1 (`AppleIntelTGLCompat` 0.8.0) | Installed 2026-11-09; pairs with the `wex080-adlp` EFI. Graphics 0.3.1 remains the rollback package for the 0.6.0 default |
 
 WhateverXe 0.6.0 picks its MMIO protection routine by OS family
 (`tglPrepareMMIOUC()` dispatches to `…TahoeMMIOUC`, `…SequoiaMMIOUC`,
@@ -24,6 +24,44 @@ the built kext; the pinned payload in `efi/variants` stays as published.
 On **WhateverXe 0.8.0-adlp**, MMIO protection is resolved dynamically at
 runtime (`TGLMMIOStrongUCRouted = Yes`), requiring zero binary patching on
 24H232 or future point updates.
+
+### Graphics package 0.4.1 (2026-11-09)
+
+The installed userspace half is now **WhateverXe Graphics 0.4.1**, released
+2026-11-07 with WhateverXe 0.8.0. It ships `AppleIntelTGLCompat` **0.8.0** and
+the same patched Apple TGL kernel drivers and Metal/VA bundles as 0.3.1 (the
+OpenGL driver was rebuilt for the extra GPU IDs). The upgrade was checked
+before installation:
+
+- `AppleIntelTGLCompat` 0.8.0 keeps `OSBundleCompatibleVersion = 0.5.0` and
+  exports the identical 14-symbol set as 0.6.0, so the `wex080-adlp` kext binds
+  without a rebuild.
+- `AppleIntelTGLGraphics`, `AppleIntelTGLGraphicsFramebuffer`, and the Metal
+  and VA bundle executables have **byte-identical `__TEXT,__text`** to the
+  installed 0.3.1 payload, so every hard-coded symbol offset WhateverXe
+  validates is unchanged. `GLDriver` was rebuilt in 0.4.0 for the extra GPU
+  IDs; it is userspace and contains none of those offsets.
+- The packaged Compat source hashes match this repository's fork exactly:
+  `AppleIntelTGLCompat.cpp` `2a5f7622…`, `GraphicsPolicy.plist` `dd955549…`,
+  `kern_xelp_os.hpp` `0a1e96c4…`, `kern_xelp_devices.hpp` `7df14948…`.
+- The 0.4.1 package rebuilds the AuxKC from `/Library/Extensions` and includes
+  the port's Compat 0.8.0, the framebuffer, the accelerator and the two
+  HighPoint kexts.
+
+The only change between 0.4.0 and 0.4.1 is the Compat fix: macOS kernel
+updates are accepted by OS family and ABI instead of an exact build string.
+Relative to 0.3.1, 0.4.0 also rebuilt the OpenGL driver for the extra GPU IDs
+and included the fixed Metal and VA shims, so
+`patch-mtl-impostor.sh` and `patch-va-tglva.sh` are no longer needed on 0.4.1;
+they remain for a 0.3.1 rollback. The package SHA-256 is
+`7f7ce3b924ad421cff0c4f30534598858474b8c9539c4b889a461bc1d5fed02c`, matching
+upstream `SHA256SUMS`.
+
+After the installer the on-disk versions were confirmed (`Compat 0.8.0`,
+Apple kexts `16.0.32` / `16.0.0`), the three binaries matched the package
+payload byte-for-byte, and `kmutil inspect` listed Compat 0.8.0
+(`F6997294-0598-30BD-98B3-38E0EEB2FA7E`) in the rebuilt AuxKC. **A reboot is
+required to load it; hardware verification is pending.**
 
 What to check after booting Sequoia:
 
@@ -96,11 +134,10 @@ KDK rather than guessing.
 
 ## Metal archives on 24H232
 
-Getting the accelerator to start is only the first half. Once
-`IntelAccelerator` is active, WhateverXe Graphics 0.3.1 can still crash on
-Apple's **precompiled Metal archives**, because its `impostor.dylib` shim only
-activates the archive hook on 24H32. This is not the MMIO guard: here Metal
-exists but mishandles an archive.
+Getting the accelerator to start is only the first half. WhateverXe Graphics
+0.3.1 could still crash on Apple's **precompiled Metal archives**, because its
+`impostor.dylib` shim only activated the archive hook on 24H32. This was not the
+MMIO guard: here Metal existed but mishandled an archive.
 
 Confirmed on 2026-11-03 on this machine:
 
@@ -124,7 +161,7 @@ first is this archive gate; on this machine the App Store hang turned out to be
 a second, independent VA-driver gate, covered in
 [§ HEIC/HEVC decode](#heichevc-decode-and-the-tglva-guard).
 
-### The `impostor.dylib` version gate and the 0.4.0 fix
+### The `impostor.dylib` version gate and the 0.4.x fix
 
 The bundle that WhateverXe installs beside Apple's TGL Metal driver is:
 
@@ -147,22 +184,26 @@ kern.osversion == "24H32"
 
 This machine is **24H232**, so the hook was never installed — which is why the
 launchd environment workaround could not help. WhateverXe Graphics **0.4.0**
-rebuilds only that shim and gates it on `kern.osrelease` 24.6.0+ (and 25.x);
-`descriptor.dylib` and `libigdmd.dylib` are byte-identical to 0.3.1. Applying
-it needs no EFI or kernel change:
+rebuilt only that shim and gated it on `kern.osrelease` 24.6.0+ (and 25.x);
+`descriptor.dylib` and `libigdmd.dylib` are byte-identical to 0.3.1. The
+installed **0.4.1** package contains the same shim
+(`1cc38c7941333d3f4b88316795c78ca0095addf945fa35b6ff8634ecc93a1060`), so no
+separate shim installation is required on the current package.
+
+For a 0.3.1 rollback, apply the shim with:
 
 ```sh
 sudo bash scripts/macos/patch-mtl-impostor.sh --test
 ```
 
-The script pins the 0.4.0 SHA-256
+The script pins the 0.4.x SHA-256
 `1cc38c7941333d3f4b88316795c78ca0095addf945fa35b6ff8634ecc93a1060`, backs up
 the whole driver bundle first, verifies signatures, clears the user Metal
 caches and restarts System Settings/ControlCenter. Verified on this machine on
 2026-11-04: the Battery pane opened at 21:09 and ControlCenter stayed up with no
 `MTLLoader` errors. `--status` reports the installed shim, `--rollback` restores
-the newest bundle backup. Reinstalling WhateverXe Graphics overwrites the shim,
-so rerun the script afterwards.
+the newest bundle backup. Only reinstall the shim if you deliberately roll the
+package back to 0.3.1; 0.4.1 already ships it.
 
 The earlier per-user LaunchAgent (`RB_USE_BINARY_ARCHIVE=0`,
 `MTL_DEBUG_IGNORE_PRECOMPILED_BINARIES=1`, `MTL_DEBUG_IGNORE_PSO_FAIL_ON_MISS=1`)
@@ -214,16 +255,20 @@ caller waits forever. That is the App Store "hang": no crash, just a spinner.
 The same guard breaks the dynamic wallpaper and video conferencing
 (`avconferenced` also logs it).
 
-Graphics 0.4.0 rebuilds `TGLVA` with an OS-family guard keyed on
+Graphics 0.4.0 rebuilt `TGLVA` with an OS-family guard keyed on
 `kern.osrelease` (`24.6.0` here). Its `AppleIntelTGLGraphicsVADriver` differs
-from 0.3.1 only in the PCI device-ID dispatch table, so replacing only `TGLVA`
-is sufficient on this machine:
+from 0.3.1 only in the PCI device-ID dispatch table. The installed **0.4.1**
+package ships the same fixed `TGLVA`
+(`db879dbae1c708b5fcdb3c39e251e63e635016d19885e9186fdc6baca68414aa`), so no
+separate VA patch is needed.
+
+For a 0.3.1 rollback, install the shim with:
 
 ```sh
 sudo bash scripts/macos/patch-va-tglva.sh --test
 ```
 
-The script pins the 0.4.0 SHA-256
+The script pins the 0.4.x SHA-256
 `db879dbae1c708b5fcdb3c39e251e63e635016d19885e9186fdc6baca68414aa`, backs up
 the whole VA bundle, restarts `VTDecoderXPCService` / `WallpaperVideoExtension`
 / `avconferenced`, and runs a HEIC decode through `sips` with a 15 s timeout.
@@ -237,7 +282,8 @@ The simplest manual reproduction, and the regression test, is:
 sips -s format png "/System/Library/Desktop Pictures/.thumbnails/Valley Light.heic" --out /tmp/t.png
 ```
 
-With the 0.3.1 shim this hangs indefinitely; with 0.4.0 it finishes at once.
+With the 0.3.1 shim this hangs indefinitely; with the 0.4.x shim it finishes at
+once.
 
 > **GPU resets after enabling decode.** On 2026-11-05, while the App Store was
 > first loading many HEIC previews, the kernel logged two GPU resets ten
@@ -272,7 +318,8 @@ false and the WhateverXe compiler bundle can never be mapped into the sandboxed
 service. `XeCompilerAdapter.bundle` also has no `Info.plist` and reports
 `bundle format unrecognized` to `codesign`, but that is not what blocks it.
 
-**This does not disable shader compilation.** WhateverXe Graphics 0.3.1 already
+**This does not disable shader compilation.** WhateverXe Graphics 0.3.1 and
+0.4.1 already
 changed the path to the OS-native AIR converter, so after the plugin load fails
 `MTLCompilerService` converts the AIR itself. Measured on 2026-11-05 with a
 Swift program that called `device.makeLibrary(source:)` and then
@@ -366,14 +413,18 @@ patched Apple drivers.
 | EFI kext | Required package | `AppleIntelTGLCompat` | Status |
 |---|---|---|---|
 | WhateverXe 0.6.0 + `adlp-edp` (default) | WhateverXe Graphics 0.3.1 | 0.6.0 | Verified working (requires 24H232 build-time patch) |
-| WhateverXe 0.8.0 + `adlp-edp` (`EFI-wex080-adlp`) | WhateverXe Graphics 0.3.1 | 0.6.0 ABI compatible | Verified working (native dynamic MMIO, zero patching) |
+| WhateverXe 0.8.0 + `adlp-edp` (`EFI-wex080-adlp`) | WhateverXe Graphics 0.4.1 | 0.8.0 | Installed 2026-11-09; ABI verified, reboot pending (native dynamic MMIO, zero patching) |
 | upstream WhateverXe 0.7.0 (`EFI-wex070`) | WhateverXe Graphics 0.4.0 | 0.7.0 | Control experiment (internal panel dark) |
 | upstream WhateverXe 0.8.0 | WhateverXe Graphics 0.4.1 | 0.8.0 | Control experiment (Tahoe only; internal panel dark) |
 
-Do not install Graphics 0.4.0/0.4.1 with WhateverXe 0.6.0 or vice versa.
-WhateverXe 0.8.0 maintains backward ABI compatibility with Compat 0.6.0,
-so the 0.8.0-adlp port runs directly against Graphics 0.3.1 without needing
-userspace package reinstallation.
+The 0.5.0 compatibility floor is what matters. Compat 0.6.0, 0.7.0 and 0.8.0
+all accept clients that request 0.5.0, but only a matching package installs the
+Apple kexts the kext was built and tested against. Graphics 0.4.1 keeps the
+same `__TEXT,__text` in the two Apple TGL kexts and the Metal/VA bundles as
+0.3.1 (only the OpenGL driver changed), so the `wex080-adlp` port runs
+unchanged; the 0.6.0 default has the same ABI but has
+not been re-tested with 0.4.1. If you boot the default, keep the 0.3.1 package
+or record a fresh boot test before changing the table above.
 
 ### WhateverXe 0.8.0-adlp: Dynamic MMIO and the Type-C conflict fix
 
@@ -869,8 +920,9 @@ tuning does. CPU power and heat are managed with XCPM low power mode instead:
    ./scripts/build_efi.py --gpu wex080-adlp --out build/EFI-wex080-adlp --force
    ```
 2. Copy `build/EFI-wex080-adlp` over the ESP of your boot disk or USB stick.
-3. Boot into macOS. No Graphics package change is needed: WhateverXe 0.8.0-adlp
-   maintains ABI compatibility with the installed Graphics 0.3.1.
+3. Boot into macOS. The matching userspace package is WhateverXe Graphics
+   0.4.1 (`AppleIntelTGLCompat` 0.8.0); it is installed on this machine. The
+   port also remains ABI-compatible with Graphics 0.3.1 if you need to compare.
 4. Confirm dynamic MMIO and panel bringup:
    ```sh
    ioreg -lw0 | grep -o '"VersionInfo" = [^<]*'            # REL-080-...
@@ -895,14 +947,21 @@ machine is not accelerated in between:
    useful outcome of the experiment is the IORegistry evidence
    (`WhateverXeFirmwarePorts` status, `TGLSequoiaMMIOGuard`) and external
    HDMI/USB-C output, not a picture on the laptop panel.
-4. To go back, restore the default EFI and reinstall Graphics 0.3.1.
+4. To go back, restore the default or `wex080-adlp` EFI. Restore Graphics
+   0.3.1 only if the EFI you go back to is the 0.6.0 default; keep 0.4.1 for
+   the 0.8.0-adlp port.
 
 ## Rollback
 
 The previous EFI is preserved at `mine/EFI` (local, not in Git). Copying it
-back to the ESP restores the exact previous state. Reinstalling Graphics 0.3.1
-restores the matching Compat/patched Apple kexts if 0.4.0 was installed for a
-0.7.0 test.
+back to the ESP restores the exact previous state. The graphics rollback is
+`WhateverXe-Graphics-0.3.1.pkg`
+(SHA-256 `bd8b449431b1bf3815f9011ad3e13c7038012d17aed54dfb2aecfce6b9089623`),
+which restores Compat 0.6.0 and the 0.3.1 shims. The 0.4.1 install was
+preceded by a verified copy of `/Library/Extensions`, `/Library/GPUBundles`
+and `AuxiliaryKernelExtensions.kc` in
+`~/MacOS/Backups/Graphics-0.3.1-pre-0.4.1-20261109/`; use it only if the
+installer rollback is unavailable, and rebuild the AuxKC afterwards.
 
 ## Optional: disable the VA bundle
 

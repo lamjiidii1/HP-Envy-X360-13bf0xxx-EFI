@@ -46,8 +46,8 @@ mistake.
 | USB stick, 16 GB+ | macOS installer + OpenCore EFI |
 | Second USB stick or the internal ESP | A bootable backup of the EFI you are about to replace |
 | macOS Sequoia installer | Use Apple's `createinstallmedia`; this repo does not ship an installer |
-| `WhateverXe-Graphics-0.3.1.pkg` | Must match WhateverXe 0.6.0; see [03-graphics.md](03-graphics.md) |
-| The 0.4.0 shims | `patch-mtl-impostor.sh` and `patch-va-tglva.sh` download them, or pass `--from FILE` |
+| `WhateverXe-Graphics-0.4.1.pkg` | Pairs with the `wex080-adlp` 0.8.0 port (`AppleIntelTGLCompat` 0.8.0). The 0.6.0 default uses `WhateverXe-Graphics-0.3.1.pkg`; see [03-graphics.md](03-graphics.md) |
+| The 0.4.x shims | Already included in Graphics 0.4.1; only needed when rolling back to 0.3.1 (`patch-mtl-impostor.sh`, `patch-va-tglva.sh`) |
 | Your own SMBIOS values | Serial, MLB, UUID, ROM. Never reuse someone else's and never commit them |
 
 Do **not** copy the identity from the example file or from another machine.
@@ -166,7 +166,7 @@ and change one variable at a time.
 ## 6. First boot checks
 
 ```sh
-kmutil showloaded | grep -i whateverxe        # expect 0.6.0
+kmutil showloaded | grep -i whateverxe        # 0.6.0 (default) or 0.8.0 (wex080-adlp)
 system_profiler SPHardwareDataType | grep -E 'Processor Name|Total Number of Cores'
 system_profiler SPDisplaysDataType | grep -E 'Resolution|UI Looks like|Metal'
 ioreg -l | grep -o '"TGLSequoiaMMIOGuard" = <[^>]*>'
@@ -175,12 +175,14 @@ ioreg -rc IntelAccelerator | head
 
 Expected on this machine:
 
-- `WhateverXe` **0.6.0**, `AppleIntelTGLCompat` **0.6.0** after the package
-  below;
+- `WhateverXe` **0.6.0** with `AppleIntelTGLCompat` **0.6.0**, or
+  `WhateverXe` **0.8.0** with `AppleIntelTGLCompat` **0.8.0** after the package
+  below; never a mismatched pair;
 - `Processor Name: 12th Gen Intel(R) Core(TM) i7-1250U`;
 - `Total Number of Cores: 10` (12 threads online);
 - internal panel online at **Looks like 1440 × 900**;
-- `TGLSequoiaMMIOGuard` entry 19 = `01`;
+- `TGLSequoiaMMIOGuard` entry 19 = `01` on 0.6.0; `TGLMMIOStrongUCRouted = Yes`
+  on 0.8.0-adlp;
 - `Metal 2`, not Metal 3.
 
 `hw.physicalcpu = 2` while `hw.ncpu = 12` is expected: CpuTopologyRebuild's
@@ -190,17 +192,27 @@ SMT spoof folds the E-cores into the P-cores. Geekbench therefore prints
 
 ## 7. Graphics package and MMIO
 
-Order matters: **boot with the WEX 0.6.0 EFI first, then install the matching
-userspace package.**
+Order matters: **boot with the selected WEX EFI first, then install the
+matching userspace package.**
 
 ```sh
+# 0.8.0-adlp port (this machine)
+shasum -a 256 WhateverXe-Graphics-0.4.1.pkg
+sudo installer -pkg WhateverXe-Graphics-0.4.1.pkg -target /
+# restart
+
+# 0.6.0 default
 shasum -a 256 WhateverXe-Graphics-0.3.1.pkg
 sudo installer -pkg WhateverXe-Graphics-0.3.1.pkg -target /
 # restart
 ```
 
-Do not install Graphics 0.3.2 or 0.4.0 with this EFI: they ship Compat 0.6.1
-and 0.7.0, and the kext/package versions must match exactly.
+Do not install Graphics 0.3.2 or 0.4.0 with either EFI: 0.3.2 ships Compat
+0.6.1 and 0.4.0 ships Compat 0.7.0. Graphics 0.4.1 ships Compat 0.8.0, keeps
+the 0.5.0 compatibility floor and has identical Apple kernel driver text
+(Metal/VA bundles too) to 0.3.1; only the OpenGL driver was rebuilt. It is the
+validated package for the 0.8.0-adlp port. The 0.6.0 default remains paired
+with 0.3.1 until a boot test with 0.4.1 is recorded.
 
 A fresh `make build` already carries the 24H232 MMIO signature. If you copied
 an older stick, or entry 19 reads `00`, repair it in place:
@@ -221,18 +233,27 @@ Apply them in this order and restart between graphics-stack changes.
 
 | Symptom | Fix | Why |
 |---|---|---|
-| System Settings crashes when opening **Battery**; ControlCenter crash-loops | `patch-mtl-impostor.sh` | The 0.3.1 `impostor.dylib` only enables its Metal archive hook on build 24H32; this install is 24H232 |
-| App Store hangs on screenshots/Quick Look; HEIC previews spin | `patch-va-tglva.sh` | The VA shim accepts only 24H32, so HEIC/HEVC decode never starts |
+| System Settings crashes when opening **Battery**; ControlCenter crash-loops | Already fixed in Graphics 0.4.1; use `patch-mtl-impostor.sh` only after a 0.3.1 rollback | The 0.3.1 `impostor.dylib` only enables its Metal archive hook on build 24H32; this install is 24H232 |
+| App Store hangs on screenshots/Quick Look; HEIC previews spin | Already fixed in Graphics 0.4.1; use `patch-va-tglva.sh` only after a 0.3.1 rollback | The 0.3.1 VA shim accepts only 24H32, so HEIC/HEVC decode never starts |
 | Safari video freezes or apps abort with archive errors | Metal archive workaround, optional | Same build-gate class as the Battery pane |
-| Chocolate/overheating under normal use | Display HiDPI + both shims + power profile | 1× mode redraws 5.2 MP, and a thrashing shim burns CPU |
+| Overheating under normal use | Display HiDPI + fixed shims + power profile | 1× mode redraws 5.2 MP, and a thrashing shim burns CPU |
 
 ### 8.1 Battery pane and ControlCenter
+
+Graphics 0.4.1 already ships the fixed shim. Confirm it:
+
+```sh
+shasum -a 256 /Library/GPUBundles/AppleIntelTGLGraphicsMTLDriver.bundle/Contents/MacOS/impostor.dylib
+# 1cc38c79…a1060
+```
+
+Only after a deliberate rollback to 0.3.1, install it with:
 
 ```sh
 sudo bash scripts/macos/patch-mtl-impostor.sh --test
 ```
 
-`--test` installs the 0.4.0 shim and opens the Battery pane. The old bundle is
+`--test` installs the 0.4.x shim and opens the Battery pane. The old bundle is
 backed up next to itself; `--rollback` restores the newest backup. Verify:
 
 ```sh
@@ -244,12 +265,14 @@ Details and the crash signature:
 
 ### 8.2 App Store, HEIC and Quick Look
 
+Graphics 0.4.1 already ships the fixed `TGLVA`. Only after a rollback to 0.3.1:
+
 ```sh
 sudo bash scripts/macos/patch-va-tglva.sh --test
 bash scripts/macos/patch-va-tglva.sh --status
 ```
 
-`--test` installs the 0.4.0 `TGLVA` shim and decodes a sample image. If the
+`--test` installs the 0.4.x `TGLVA` shim and decodes a sample image. If the
 machine has no network yet, copy the files from the support stick and use
 `--from FILE`.
 
@@ -409,7 +432,8 @@ pmset -g therm
 Healthy signs:
 
 - processor name is the real i7-1250U, 10 cores / 12 threads;
-- `WhateverXe` and `Compat` both 0.6.0;
+- `WhateverXe` and `Compat` match: 0.6.0/0.6.0 on the default, or 0.8.0/0.8.0
+  on the `wex080-adlp` port;
 - Metal 2, `Looks like 1440 × 900`, MMIO entry 19 = `01`;
 - battery `lowpowermode 1`, AC `lowpowermode 0`;
 - `CPU_Speed_Limit = 100`, no thermal warning.

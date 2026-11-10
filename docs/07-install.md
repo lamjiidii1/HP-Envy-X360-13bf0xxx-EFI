@@ -79,27 +79,39 @@ Keep the folder structure exactly `EFI/BOOT/BOOTx64.efi` and
 
 ## 4. Boot the new EFI, then check the matching graphics package
 
-Order matters: **boot the target macOS with the WEX 0.6.0 EFI first, then make
-sure Graphics 0.3.1 is installed.** The EFI provides the WEX binary; the package
-provides Compat 0.6.0 and the patched Apple kexts. The default `make build`
-already carries the 24H232 Sequoia MMIO constant, so a fresh `build/EFI` needs
-no manual byte patch. A stick copied from an older build does; see step 4.
+Order matters: **boot the target macOS with the selected WEX EFI first, then
+install the matching graphics package.** The EFI provides the WEX binary; the
+package provides `AppleIntelTGLCompat` and the patched Apple kexts. The default
+`make build` already carries the 24H232 Sequoia MMIO constant, so a fresh
+`build/EFI` needs no manual byte patch. A stick copied from an older build
+does; see step 4.
 
-1. Copy `build/EFI` to the ESP/USB and boot macOS from it (§3 and §5).
-   Confirm the injected driver:
+1. Copy `build/EFI` (0.6.0 default) or `build/EFI-wex080-adlp` (0.8.0 port) to
+   the ESP/USB and boot macOS from it (§3 and §5). Confirm the injected driver:
    ```sh
-   kmutil showloaded | grep -i whateverxe    # expect 0.6.0
-   kmutil showloaded | grep -i tglcompat     # expect 0.6.0
+   kmutil showloaded | grep -i whateverxe    # 0.6.0 default, 0.8.0 port
+   kmutil showloaded | grep -i tglcompat     # must match the kext
    ```
-2. If `AppleIntelTGLCompat` is not **0.6.0**, install **WhateverXe Graphics
-   0.3.1** (the package matching the `adlp-edp` fork). Do **not** install
-   0.3.2 or 0.4.0: 0.3.2 ships Compat 0.6.1 and 0.4.0 ships Compat 0.7.0, and
-   the kext/package versions must match exactly.
+2. If the Compat version does not match, install the paired package:
+   **WhateverXe Graphics 0.3.1** for the 0.6.0 default, or **0.4.1** for the
+   `wex080-adlp` port. Do **not** install 0.3.2 or 0.4.0: 0.3.2 ships Compat
+   0.6.1 and 0.4.0 ships Compat 0.7.0.
 
 ```sh
+# 0.8.0-adlp port
+shasum -a 256 WhateverXe-Graphics-0.4.1.pkg
+sudo installer -pkg WhateverXe-Graphics-0.4.1.pkg -target /
+
+# 0.6.0 default
 shasum -a 256 WhateverXe-Graphics-0.3.1.pkg
 sudo installer -pkg WhateverXe-Graphics-0.3.1.pkg -target /
 ```
+
+Graphics 0.4.1 keeps the 0.5.0 compatibility floor and ships the same Apple
+kernel driver text (and Metal/VA bundle text) as 0.3.1, so the 0.8.0-adlp port
+runs unchanged; only the OpenGL driver was rebuilt for the extra GPU IDs. The
+0.6.0 default remains documented with 0.3.1 until 0.4.1 is boot-tested against
+it.
 
 3. The package rebuilds the Auxiliary Kernel Collection. **Restart** after it
    succeeds.

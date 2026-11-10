@@ -57,16 +57,17 @@ later is honest.
 
 ## Phase 3 — Graphics: the primary experiment
 
-Prerequisite: `WhateverXe Graphics 0.3.1` (Compat 0.6.0) is installed and the
-`hp-adlp-edp` EFI is on the ESP. The default `make build` already carries the
+Prerequisite: WhateverXe Graphics **0.3.1** (Compat 0.6.0) for the `hp-adlp-edp`
+default, or **0.4.1** (Compat 0.8.0) for the `wex080-adlp` port, and the
+matching EFI on the ESP. The default `make build` already carries the
 24H232 Sequoia MMIO constant; T00.5/T00.6 prove it before boot. A stick copied
 from an older build must be repaired with
 `scripts/macos/patch-wex-sequoia-mmio.sh` or rebuilt.
 
 | ID | Step | Pass criterion |
 |---|---|---|
-| T03.1 | `kmutil showloaded \| grep -Ei 'whateverxe\|tgl'` | `WhateverXe (0.6.0)` and `AppleIntelTGLCompat (0.6.0)` |
-| T03.2 | `ioreg -l \| grep -o '"TGLSequoiaMMIOGuard" = <[^>]*>'` | entry 19 = `01` |
+| T03.1 | `kmutil showloaded \| grep -Ei 'whateverxe\|tgl'` | matching pair: `WhateverXe (0.6.0)` + `AppleIntelTGLCompat (0.6.0)`, or `WhateverXe (0.8.0)` + `AppleIntelTGLCompat (0.8.0)` |
+| T03.2 | `ioreg -l \| grep -o '"TGLSequoiaMMIOGuard" = <[^>]*>'` | entry 19 = `01` on 0.6.0; on 0.8.0-adlp use `TGLMMIOStrongUCRouted = Yes` |
 | T03.3 | `ioreg -l \| grep -o '"TGLSequoiaMMIOInspection" = <[^>]*>'` | present; record the bytes |
 | T03.4 | `ioreg -l \| grep N97NativeStartAllowed` | `Yes` |
 | T03.5 | `ioreg -rc AppleIntelFramebuffer` | count ≥ 1 |
@@ -102,7 +103,7 @@ Each step changes exactly one thing and records the same evidence bundle.
 | T04.3 | Capture `WhateverXeVBTRaw` + port records + `TGLSequoiaMMIOGuard` | complete report for upstream |
 | T04.4 | If the patched 0.6.0 still shows entry 19 = `00`, record the real bytes at `_IOProtectCacheMode + 0xCA` with `patch-wex-sequoia-mmio.sh --kernel` | evidence for the next point-update constant |
 | T04.5 | Report upstream with BIOS F.35, macOS 24H232, the VBT and the guard | issue contains the evidence listed in [08](08-troubleshooting.md#11-reporting-a-graphics-bug-upstream) |
-| T04.6 | Revert to the default EFI and reinstall Graphics 0.3.1 | machine boots and is usable |
+| T04.6 | Revert to the default EFI and reinstall Graphics 0.3.1; for the 0.8.0-adlp port keep 0.4.1 | machine boots and is usable |
 
 If neither variant accelerates, do not try NootedGreen as a quick fix. It is a
 different driver with a different support matrix, and mixing investigations
@@ -210,10 +211,10 @@ Keep a simple log next to the evidence bundle:
 date:
 BIOS:            F.35 (2025-11-17)
 macOS:           15.8.2 (24H232, Darwin 24.6.0)
-EFI variant:     hp-adlp-edp / airportitlwm / debug=no
-WhateverXe:      0.6.0  197da23b…
-Compat:          0.6.0
-Graphics pkg:    0.3.1
+EFI variant:     hp-adlp-edp / wex080-adlp / airportitlwm / debug=no
+WhateverXe:      0.6.0  197da23b…  or  0.8.0  2b64ebc0…
+Compat:          0.6.0  or  0.8.0
+Graphics pkg:    0.3.1  or  0.4.1
 T03.2 Guard[19]: 01
 T03.4 StartAllowed: Yes
 T03.5 AIFB:      1

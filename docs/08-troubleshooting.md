@@ -147,19 +147,22 @@ Checks, in order:
    | EFI variant | WhateverXe | Graphics package | Compat |
    |---|---|---|---|
    | `hp-adlp-edp` (default) | 0.6.0 | 0.3.1 | 0.6.0 |
-   | `wex080-adlp` (0.8.0 port) | 0.8.0 | 0.3.1 | 0.6.0 ABI compatible |
+   | `wex080-adlp` (0.8.0 port) | 0.8.0 | 0.4.1 | 0.8.0 |
    | `wex070` (control) | 0.7.0 | 0.4.0 | 0.7.0 |
 
    ```sh
    kextstat | grep -Ei 'whateverxe|tgl'
    # org.b00t0x.WhateverXe (0.6.x or 0.8.x)
-   # org.b00t0x.AppleIntelTGLCompat (0.6.x)
+   # org.b00t0x.AppleIntelTGLCompat (0.6.x or 0.8.x)
    ```
 
-   A 0.6.0 kext with Compat 0.7.0 (or the reverse) will load but not start.
-   `wex080-adlp` is backward compatible with Compat 0.6.0 / Graphics 0.3.1.
-   The `wex070` variant is only a control; it cannot parse this unit's VBT and
-   is expected to leave the panel dark.
+   Mixing a 0.7.0 kext with the 0.6.0 or 0.8.0 package is the combination that
+   fails to start. Compat 0.8.0 keeps the 0.5.0 compatibility floor and the
+   same exports as 0.6.0, so the 0.8.0-adlp port runs unchanged against
+   Graphics 0.4.1, and remains ABI-compatible with Graphics 0.3.1. The 0.6.0
+   default is still documented with 0.3.1 because 0.4.1 has not been
+   boot-tested against it. The `wex070` variant is only a control; it cannot
+   parse this unit's VBT and is expected to leave the panel dark.
 
 2. **Boot arguments match the kext.** `-wex-adlp-edp`,
    `-wex-reset-restore`, `-wex-no-multicontext`, `-wex-scanout-coherent` and
@@ -290,7 +293,7 @@ Typical evidence:
 
 Cause: the WhateverXe Graphics 0.3.1 `impostor.dylib` shim, which is supposed
 to intercept `newBinaryArchiveWithDescriptor:error:` and return a normal
-`NSError`, enables its hook only when
+`NSError`, enabled its hook only when
 
 ```text
 kern.osversion == "24H32"
@@ -313,10 +316,11 @@ painting. Upstream lists both "some image-conversion operations can crash
 applications" and "App Store video can freeze the GPU on Sequoia" as known
 issues for this generation of the package.
 
-**Fix (confirmed 2026-11-04):** WhateverXe Graphics 0.4.0 ships a rebuilt
-`impostor.dylib` that enables the same hook on `kern.osrelease` 24.6.0+ (and
-25.x); its `descriptor.dylib` and `libigdmd.dylib` are byte-identical to 0.3.1,
-so only that one file needs replacing. Run:
+**Fix:** WhateverXe Graphics 0.4.0 rebuilt `impostor.dylib` to enable the same
+hook on `kern.osrelease` 24.6.0+ (and 25.x); its `descriptor.dylib` and
+`libigdmd.dylib` are byte-identical to 0.3.1. Graphics **0.4.1**, installed on
+this machine on 2026-11-09, already contains that shim, so nothing further is
+needed. For a deliberate 0.3.1 rollback, apply it with:
 
 ```sh
 sudo bash scripts/macos/patch-mtl-impostor.sh --test
@@ -382,11 +386,12 @@ breaks the dynamic wallpaper, Quick Look and video conferencing.
 The guard is in WhateverXe's VA shim
 `/Library/GPUBundles/AppleIntelTGLGraphicsVADriver.bundle/Contents/MacOS/TGLVA`.
 The 0.3.1 build requires the exact build string `24H32`; this machine is
-24H232. Graphics 0.4.0 rebuilds `TGLVA` with an OS-family check on
-`kern.osrelease` (24.6.0 here). Only `TGLVA` needs replacing — the adjacent
+24H232. Graphics 0.4.0 rebuilt `TGLVA` with an OS-family check on
+`kern.osrelease` (24.6.0 here), and Graphics **0.4.1** installed on 2026-11-09
+ships the same fixed shim. Only `TGLVA` differs — the adjacent
 `AppleIntelTGLGraphicsVADriver` is identical except for its device-ID table.
 
-Fix and regression test:
+For a 0.3.1 rollback, apply and test the shim with:
 
 ```sh
 sudo bash scripts/macos/patch-va-tglva.sh --test
@@ -825,18 +830,20 @@ The battery data itself is sane (`BatteryInstalled = Yes`,
 `CycleCount = 0`), and `pmset -g batt` works while the pane is closed. This is
 the same failure class as the ControlCenter archive crash
 ([§ Metal apps crash](#metal-apps-crash-or-safari-video-freezes-24h232)): the
-WhateverXe Graphics 0.3.1 `impostor.dylib` only enables its archive hook when
-the build string is exactly 24H32.
+WhateverXe Graphics 0.3.1 `impostor.dylib` only enabled its archive hook when
+the build string was exactly 24H32.
 
 There is **no EFI, SMBIOS, NVRAM or `-wex-*` change that fixes this**, and an
-SMC/NVRAM reset does not address it. The actual fix is the `impostor.dylib`
-replacement described in
-[§ Metal apps crash](#metal-apps-crash-or-safari-video-freezes-24h232):
+SMC/NVRAM reset does not address it. Graphics 0.4.1, installed on 2026-11-09,
+already ships the fixed shim. Confirm it is present:
 
-1. Install the 0.4.0 shim and reopen the pane:
+1. Check the installed shim or reopen the pane:
    ```sh
-   sudo bash scripts/macos/patch-mtl-impostor.sh --test
+   shasum -a 256 /Library/GPUBundles/AppleIntelTGLGraphicsMTLDriver.bundle/Contents/MacOS/impostor.dylib
+   # expect 1cc38c7941333d3f4b88316795c78ca0095addf945fa35b6ff8634ecc93a1060
    ```
+   For a 0.3.1 rollback only, install it with
+   `sudo bash scripts/macos/patch-mtl-impostor.sh --test`.
 2. If the pane still aborts, keep the collector running and capture the exact
    seconds:
    ```sh
@@ -856,7 +863,8 @@ the SMBIOS either; the pane fails inside Metal, before it reads battery data.
 
 **Verified 2026-11-04:** after installing the 0.4.0 `impostor.dylib`, the pane
 opened at 21:09 (`UISoC: 74`) and ControlCenter stayed up with no `MTLLoader`
-errors. The old bundle is kept at
+errors. Graphics 0.4.1 keeps that shim, so the result carries over. The old
+bundle is kept at
 `/Library/GPUBundles/AppleIntelTGLGraphicsMTLDriver.bundle.backup-20261104-210746`;
 `sudo bash scripts/macos/patch-mtl-impostor.sh --rollback` restores it. The
 0.3.1 behaviour remains the fallback if a future package replaces the shim.
@@ -870,14 +878,15 @@ The logs point at three separate costs, in order of impact:
    panel resolution and was the single biggest source of heat; it is fixed on
    the current install. Verify with `system_profiler SPDisplaysDataType`.
 2. **Metal archive mismatch.** On 24H232 the Graphics 0.3.1 shim was gated to
-   24H32, so archive-based apps aborted and retried. Apply the
-   `impostor.dylib` fix in the previous section and clear
-   `~/Library/Caches/com.apple.Metal*` once. The
+   24H32, so archive-based apps aborted and retried. Graphics 0.4.1 already
+   contains the fixed `impostor.dylib`; clear `~/Library/Caches/com.apple.Metal*`
+   once after upgrading. For a 0.3.1 rollback, apply the shim fix in the
+   previous section. The
    `XeCompilerAdapter.bundle` denials that remain are expected and harmless
    (see [above](#xecompileradapter-sandbox-denials-are-normal)); they do not
    make apps hang.
 3. **A hung app or GPU reset.** The App Store HEIC hang is fixed by the
-   `TGLVA` patch above; it no longer leaves a spinner. GPU resets are still
+   `TGLVA` shim that 0.4.1 ships; it no longer leaves a spinner. GPU resets are still
    possible under heavy decode: two were logged on 2026-11-05 while App Store
    previews first loaded (`VTDecoderXPCServ`, RCS ring hung), and an older one
    on 2026-11-03 happened while `DisplaysExt` was changing modes/colour. A GPU
