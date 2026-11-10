@@ -17,7 +17,7 @@ import plistlib
 import sys
 from pathlib import Path
 
-EXPECTED_ACPI = 12
+EXPECTED_ACPI = 13
 SCHEMA = Path(__file__).resolve().parent.parent / "audit" / "config-schema.json"
 FORBIDDEN_KEXTS = {"WhateverGreen.kext", "NootedGreen.kext", "NootedRed.kext", "AppleIntelTGLCompat.kext"}
 # Live `movl` immediate inside WhateverXe's Sequoia guard (four bytes).

@@ -94,6 +94,8 @@ BASE_ARGS = [
     "msgbuf=4194304",
     "shda-lang=en",
     "alcid=13",
+    "alcverbs=1",
+    "-tgldmic",
     # RestrictEvents: force the Intel brand-string patch and request the
     # cpuname patch.  Keep sbvmm as well: a boot-argument revpatch overrides
     # the NVRAM value, so listing only cpuname would silently drop the VMM
