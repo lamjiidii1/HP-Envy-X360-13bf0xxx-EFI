@@ -137,6 +137,16 @@ def sample_battery():
 
     pct = (current_cap_mah / max_cap_mah * 100.0) if max_cap_mah > 0 else 0.0
 
+    # Retrieve macOS UI smoothed percentage from pmset if available
+    ui_pct = None
+    try:
+        pm_out = subprocess.check_output(["pmset", "-g", "batt"], text=True)
+        m = re.search(r"(\d+)%", pm_out)
+        if m:
+            ui_pct = float(m.group(1))
+    except Exception:
+        pass
+
     return {
         "timestamp_dt": now,
         "timestamp_str": now.strftime("%Y-%m-%d %H:%M:%S"),
@@ -152,6 +162,7 @@ def sample_battery():
         "design_wh": design_wh,
         "power_w": power_w,
         "pct": pct,
+        "ui_pct": ui_pct if ui_pct is not None else pct,
         "state": state,
         "is_charging": is_charging,
         "external_connected": external_connected,
