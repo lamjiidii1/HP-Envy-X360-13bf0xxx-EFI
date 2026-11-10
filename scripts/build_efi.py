@@ -53,9 +53,11 @@ GPU_VARIANTS = {
             "-wex-no-multicontext",
             "-wex-scanout-coherent",
             "-wex-pm",
+            "-wex-mtl-poshfix",
+            "-wex-flip-dedupe",
         ],
         "sequoia_mmio_patch": False,
-        "description": "WhateverXe 0.8.0 + adlp-edp (native dynamic MMIO, verified with Graphics 0.3.1)",
+        "description": "WhateverXe 0.8.0 + adlp-edp + mtl-poshfix + flip-dedupe (verified with Graphics 0.3.1)",
     },
     "wex070": {
         "path": VARIANTS / "gpu-wex070" / "WhateverXe.kext",
