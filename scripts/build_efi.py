@@ -65,17 +65,23 @@ GPU_VARIANTS = {
 }
 
 WIFI_VARIANTS = {
+    "airportitlwm-tahoe": {
+        "path": VARIANTS / "wifi-airportitlwm-tahoe" / "AirportItlwm.kext",
+        "bundle": "AirportItlwm.kext",
+        "exec": "Contents/MacOS/AirportItlwm",
+        "description": "AirportItlwm 2.4.1 Tahoe build (tahoe-vtd-1, native Wi-Fi menu, default)",
+    },
+    "airportitlwm-sequoia": {
+        "path": VARIANTS / "wifi-airportitlwm" / "AirportItlwm.kext",
+        "bundle": "AirportItlwm.kext",
+        "exec": "Contents/MacOS/AirportItlwm",
+        "description": "AirportItlwm 2.4.0 Sequoia build (sequoia-vtd-1)",
+    },
     "itlwm": {
         "path": VARIANTS / "wifi-itlwm" / "itlwm.kext",
         "bundle": "itlwm.kext",
         "exec": "Contents/MacOS/itlwm",
-        "description": "itlwm 2.3.0 + HeliPort (fallback)",
-    },
-    "airportitlwm": {
-        "path": VARIANTS / "wifi-airportitlwm" / "AirportItlwm.kext",
-        "bundle": "AirportItlwm.kext",
-        "exec": "Contents/MacOS/AirportItlwm",
-        "description": "AirportItlwm 2.4.0 Sequoia build (native Wi-Fi menu, default)",
+        "description": "itlwm 2.3.0 + HeliPort (OS-independent fallback)",
     },
 }
 
@@ -96,6 +102,8 @@ BASE_ARGS = [
     "alcid=13",
     "alcverbs=1",
     "-tgldmic",
+    "-cirrusreset",
+    "-lilubetaall",
     # RestrictEvents: force the Intel brand-string patch and request the
     # cpuname patch.  Keep sbvmm as well: a boot-argument revpatch overrides
     # the NVRAM value, so listing only cpuname would silently drop the VMM
@@ -202,8 +210,8 @@ def copy_tree(src: Path, dst: Path) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--gpu", choices=sorted(GPU_VARIANTS), default="hp-adlp-edp")
-    parser.add_argument("--wifi", choices=sorted(WIFI_VARIANTS), default="airportitlwm")
+    parser.add_argument("--gpu", choices=sorted(GPU_VARIANTS), default="wex080-adlp")
+    parser.add_argument("--wifi", choices=sorted(WIFI_VARIANTS), default="airportitlwm-tahoe")
     parser.add_argument("--identity", type=Path, default=DEFAULT_IDENTITY)
     parser.add_argument("--out", type=Path, default=REPO / "build" / "EFI")
     parser.add_argument("--debug", action="store_true", help="verbose boot and debug logging")
