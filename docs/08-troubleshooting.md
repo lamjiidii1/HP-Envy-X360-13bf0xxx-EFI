@@ -146,8 +146,8 @@ Checks, in order:
 
    | EFI variant | WhateverXe | Graphics package | Compat |
    |---|---|---|---|
-   | `hp-adlp-edp` (default) | 0.6.0 | 0.3.1 | 0.6.0 |
-   | `wex080-adlp` (0.8.0 port) | 0.8.0 | 0.4.1 | 0.8.0 |
+   | `wex080-adlp` (default) | 0.8.0 | 0.4.1 | 0.8.0 |
+   | `hp-adlp-edp` (Sequoia build) | 0.6.0 | 0.3.1 | 0.6.0 |
    | `wex070` (control) | 0.7.0 | 0.4.0 | 0.7.0 |
 
    ```sh

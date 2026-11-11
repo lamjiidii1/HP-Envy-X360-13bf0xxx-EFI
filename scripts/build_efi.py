@@ -6,16 +6,18 @@ injects it from a private plist at build time, selects one GPU driver variant
 and one Wi-Fi stack, then writes a ready-to-copy EFI folder.
 
 Usage:
-    ./scripts/build_efi.py                         # hp-adlp-edp + airportitlwm, release
+    ./scripts/build_efi.py                         # wex080-adlp + airportitlwm-tahoe (macOS 26), release
+    ./scripts/build_efi.py --gpu hp-adlp-edp --wifi airportitlwm-sequoia  # macOS 15 pairing
     ./scripts/build_efi.py --gpu wex070            # upstream 0.7.0 (experimental)
     ./scripts/build_efi.py --wifi itlwm            # itlwm + HeliPort fallback
     ./scripts/build_efi.py --debug                 # verbose boot
     ./scripts/build_efi.py --out /run/media/.../EFI
     ./scripts/build_efi.py --skip-sequoia-mmio-patch   # boot another macOS build
 
-The default GPU variant gets a deterministic byte patch for the Sequoia
+The `hp-adlp-edp` GPU variant gets a deterministic byte patch for the Sequoia
 15.8.2 (24H232) MMIO signature; pass --skip-sequoia-mmio-patch when building
-for a different macOS build.  The pinned payload in efi/variants stays
+for a different macOS build.  The `wex080-adlp` default resolves MMIO
+dynamically and is never patched.  The pinned payloads in efi/variants stay
 untouched.
 """
 
@@ -43,7 +45,7 @@ GPU_VARIANTS = {
             "-wex-pm",
         ],
         "sequoia_mmio_patch": True,
-        "description": "WhateverXe 0.6.0 + adlp-edp patch series 54 (default, Graphics 0.3.1)",
+        "description": "WhateverXe 0.6.0 + adlp-edp patch series 54 (Sequoia build, Graphics 0.3.1)",
     },
     "wex080-adlp": {
         "path": VARIANTS / "gpu-wex080-adlp" / "WhateverXe.kext",
@@ -55,7 +57,7 @@ GPU_VARIANTS = {
             "-wex-pm",
         ],
         "sequoia_mmio_patch": False,
-        "description": "WhateverXe 0.8.0 + adlp-edp (native dynamic MMIO, verified with Graphics 0.3.1)",
+        "description": "WhateverXe 0.8.0 + adlp-edp (default, native dynamic MMIO, Graphics 0.4.1)",
     },
     "wex070": {
         "path": VARIANTS / "gpu-wex070" / "WhateverXe.kext",

@@ -77,12 +77,13 @@ provided because both are known to work on this generation; see
 ```
 
 - Codec: Realtek ALC245.
-- Speaker amplifiers: Cirrus Logic CS35L41 (no macOS driver — speakers stay
-  silent; the headphone jack and USB-C output work, and the internal microphone
-  is untested).
-- The config uses AppleALC layout 11 (`alcid=11`) plus `SimpleHDA.kext`.
-- AppleALC is locally patched to remove layout 11's DSP chain, which panics in
-  `coreaudiod` on this machine. See [docs/05-audio.md](05-audio.md).
+- Speaker amplifiers: Cirrus Logic CS35L41, driven by `CirrusAudioFixup` 1.2.1
+  and the patched `VoodooI2C` 2.9.2 fork.
+- Internal microphone: dual DMIC array through the Intel cAVS 2.5 DSP and
+  `TGLDmic` 0.6.0.
+- The config uses AppleALC layout 13 (`alcid=13`); `SimpleHDA.kext` provides
+  the AppleHDA stack on Tahoe.
+- See [docs/05-audio.md](05-audio.md).
 
 ## Other devices
 

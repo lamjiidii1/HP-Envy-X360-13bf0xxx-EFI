@@ -43,8 +43,9 @@ or the SMBIOS is blank.
 For the other variants:
 
 ```sh
-./scripts/build_efi.py --gpu wex080-adlp --out build/EFI-wex080-adlp --force  # 0.8.0 native dynamic MMIO
-./scripts/build_efi.py --gpu wex070 --out build/EFI-wex070 --force          # upstream 0.7.0 control
+./scripts/build_efi.py --gpu hp-adlp-edp --wifi airportitlwm-sequoia \
+  --out build/EFI-sequoia --force     # macOS 15.8.2 pairing
+./scripts/build_efi.py --gpu wex070 --out build/EFI-wex070 --force  # upstream 0.7.0 control
 ./scripts/build_efi.py --debug --out build/EFI-debug --force
 ```
 
@@ -82,27 +83,28 @@ Keep the folder structure exactly `EFI/BOOT/BOOTx64.efi` and
 Order matters: **boot the target macOS with the selected WEX EFI first, then
 install the matching graphics package.** The EFI provides the WEX binary; the
 package provides `AppleIntelTGLCompat` and the patched Apple kexts. The default
-`make build` already carries the 24H232 Sequoia MMIO constant, so a fresh
-`build/EFI` needs no manual byte patch. A stick copied from an older build
-does; see step 4.
+`build/EFI` uses the dynamic-MMIO 0.8.0 port and needs no byte patch. Only the
+Sequoia 0.6.0 build (`--gpu hp-adlp-edp`) applies the 24H232 MMIO constant, and
+it does so automatically. A stick copied from an older build does need the
+patch; see step 4.
 
-1. Copy `build/EFI` (0.6.0 default) or `build/EFI-wex080-adlp` (0.8.0 port) to
+1. Copy `build/EFI` (0.8.0 default) or `build/EFI-sequoia` (0.6.0 Sequoia) to
    the ESP/USB and boot macOS from it (§3 and §5). Confirm the injected driver:
    ```sh
-   kmutil showloaded | grep -i whateverxe    # 0.6.0 default, 0.8.0 port
+   kmutil showloaded | grep -i whateverxe    # 0.8.0 default, 0.6.0 Sequoia
    kmutil showloaded | grep -i tglcompat     # must match the kext
    ```
 2. If the Compat version does not match, install the paired package:
-   **WhateverXe Graphics 0.3.1** for the 0.6.0 default, or **0.4.1** for the
-   `wex080-adlp` port. Do **not** install 0.3.2 or 0.4.0: 0.3.2 ships Compat
-   0.6.1 and 0.4.0 ships Compat 0.7.0.
+   **WhateverXe Graphics 0.4.1** for the `wex080-adlp` default, or **0.3.1**
+   for the Sequoia `hp-adlp-edp` pairing. Do **not** install 0.3.2 or 0.4.0:
+   0.3.2 ships Compat 0.6.1 and 0.4.0 ships Compat 0.7.0.
 
 ```sh
-# 0.8.0-adlp port
+# 0.8.0-adlp default
 shasum -a 256 WhateverXe-Graphics-0.4.1.pkg
 sudo installer -pkg WhateverXe-Graphics-0.4.1.pkg -target /
 
-# 0.6.0 default
+# 0.6.0 Sequoia
 shasum -a 256 WhateverXe-Graphics-0.3.1.pkg
 sudo installer -pkg WhateverXe-Graphics-0.3.1.pkg -target /
 ```
@@ -110,14 +112,15 @@ sudo installer -pkg WhateverXe-Graphics-0.3.1.pkg -target /
 Graphics 0.4.1 keeps the 0.5.0 compatibility floor and ships the same Apple
 kernel driver text (and Metal/VA bundle text) as 0.3.1, so the 0.8.0-adlp port
 runs unchanged; only the OpenGL driver was rebuilt for the extra GPU IDs. The
-0.6.0 default remains documented with 0.3.1 until 0.4.1 is boot-tested against
-it.
+0.6.0 Sequoia pairing remains documented with 0.3.1 until 0.4.1 is boot-tested
+against it.
 
 3. The package rebuilds the Auxiliary Kernel Collection. **Restart** after it
    succeeds.
-4. On the next boot, check the Sequoia MMIO verdict and acceleration (§5).
-   A fresh default build is already patched. If you copied a stick made before
-   2026-11-03 (or the guard says `00`), repair it in place:
+4. On the next boot, check the OS-specific MMIO verdict and acceleration (§5).
+   The default 0.8.0 build resolves MMIO dynamically. If you built the 0.6.0
+   Sequoia variant from a stick made before 2026-11-03 (or the guard says
+   `00`), repair it in place:
    ```sh
    sudo scripts/macos/patch-wex-sequoia-mmio.sh \
      --kext /Volumes/EFI/EFI/OC/Kexts/WhateverXe.kext --dry-run
@@ -126,8 +129,9 @@ it.
    ```
 
 Do not install Graphics 0.3.2/0.4.0 with this EFI, and do not boot the
-`wex070` variant expecting a picture. The supported pair on this machine is
-WhateverXe 0.6.0 (`adlp-edp`) + Graphics 0.3.1.
+`wex070` variant expecting a picture. The supported pairings are WhateverXe
+0.8.0 (`wex080-adlp`) + Graphics 0.4.1 for Tahoe, and WhateverXe 0.6.0
+(`adlp-edp`) + Graphics 0.3.1 for Sequoia.
 
 ### Testing upstream 0.7.0 (optional control)
 
@@ -135,7 +139,8 @@ WhateverXe 0.6.0 (`adlp-edp`) + Graphics 0.3.1.
 2. Install `WhateverXe-Graphics-0.4.0.pkg` (on the support stick) and restart.
 3. Expect the internal panel to stay dark: upstream discards this VBT. The
    useful output is IORegistry evidence, not a working display.
-4. To revert, restore the default EFI and reinstall Graphics 0.3.1.
+4. To revert, restore the default EFI and reinstall Graphics 0.4.1 (or 0.3.1
+   for the Sequoia 0.6.0 build).
 
 ## 5. First boot
 
@@ -145,13 +150,15 @@ WhateverXe 0.6.0 (`adlp-edp`) + Graphics 0.3.1.
 3. Check the result:
    ```sh
    system_profiler SPDisplaysDataType
+   ioreg -l | grep -o '"TGLMMIOStrongUCRouted" = <[^>]*>'
    ioreg -l | grep -o '"TGLSequoiaMMIOGuard" = <[^>]*>'
    ioreg -rc AppleIntelFramebuffer | head
    ioreg -rc IntelAccelerator | head
    ```
-   On Sequoia, entry 19 of `TGLSequoiaMMIOGuard` must be `01` before expecting
-   Metal; `TGLMMIOStrongUCRouted` is the Tahoe-era property name and may be
-   absent. The default build patches the ninth comparison for 24H232; see
+   On the 0.8.0 default, `TGLMMIOStrongUCRouted` must report `Yes` (MMIO is
+   resolved dynamically). On the Sequoia 0.6.0 build, entry 19 of
+   `TGLSequoiaMMIOGuard` must be `01`; that build patches the ninth comparison
+   for 24H232 automatically, see
    [docs/03-graphics.md](03-graphics.md#the-24h232-mmio-signature).
 4. If ControlCenter crash-loops or Safari video freezes **after** Metal is
    reported, install the archive workaround from
@@ -162,10 +169,13 @@ WhateverXe 0.6.0 (`adlp-edp`) + Graphics 0.3.1.
 
 ## 6. Switching Wi-Fi stack
 
-The default build uses AirportItlwm 2.4.0 (Sequoia). If it does not attach on
-15.8.2, build the `itlwm` fallback and copy only the OC folder:
+The default build uses AirportItlwm 2.4.1 (Tahoe). On Sequoia 15.8.2 build the
+`airportitlwm-sequoia` variant instead; if either does not attach, build the
+`itlwm` fallback and copy only the OC folder:
 
 ```sh
+./scripts/build_efi.py --wifi airportitlwm-sequoia \
+  --out build/EFI-sequoia --force
 ./scripts/build_efi.py --wifi itlwm --out build/EFI-itlwm --force
 ```
 

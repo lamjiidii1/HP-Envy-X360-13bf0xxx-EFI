@@ -144,12 +144,13 @@ copied. Commits are the ones actually inspected.
   drop-in replacement here.
 - The HP reference was tested on **macOS 26.7.1 (25G241)**; at the time of the
   audit this machine ran **26.7.2 (25G332)**, and that difference was the Tahoe
-  kernel/MMIO problem (see `docs/03-graphics.md`). **The machine has since been
-  downgraded to Sequoia 15.8.2 (24H232)**. The Tahoe routine does not run
-  there, but Sequoia has its own build-matched check: 24H232 changed
+  kernel/MMIO problem (see `docs/03-graphics.md`). **The machine was later
+  downgraded to Sequoia 15.8.2 (24H232) and now also boots Tahoe 26.** The
+  default build targets Tahoe with the dynamic-MMIO 0.8.0 port; the 0.6.0
+  Sequoia build still has its own build-matched check: 24H232 changed
   `_IOProtectCacheMode+0xCA` by `+0x30`, so the published 0.6.0 constant is
-  stale. The default build patches it; the stored payload is unchanged. The
-  VBT evidence is unaffected: the captured VBT is byte-identical to the
+  stale. The `hp-adlp-edp` build patches it; the stored payload is unchanged.
+  The VBT evidence is unaffected: the captured VBT is byte-identical to the
   reference's fixture.
 - EliteBook840G8 runs WhateverXe 0.6.1 + Graphics 0.3.2 on Tahoe, so that pair
   is viable for Tiger Lake. It is not evidence for ADL-P eDP on this VBT, and
@@ -170,11 +171,11 @@ copied. Commits are the ones actually inspected.
 
 | Decision | Reason |
 |---|---|
-| Default GPU variant = WhateverXe 0.6.0 + `adlp-edp` | The firmware VBT has two internal DP children plus a duplicate DDI entry; upstream 0.6.1 **and 0.7.0** return `Status::Conflict` for it and cannot drive the panel. The 0.6.0 fork keeps the first child per DDI and is the only stack proven on this exact model |
-| Keep 0.7.0 as a control variant | It tests upstream behaviour on Sequoia and is the only build without the exact-build MMIO requirement; its parser was measured against this VBT and is not expected to reach the panel |
-| Patch the 24H232 Sequoia constant in the **build output**, not in Git | The published 0.6.0 binary is the only known driver for this panel, but its ninth Sequoia guard expects the 24H32 call. Patching the output keeps the payload hash meaningful and makes the change reproducible; `patch-wex-sequoia-mmio.sh` repairs a stick without rebuilding |
+| Default GPU variant = WhateverXe 0.8.0 + `adlp-edp` | The firmware VBT has two internal DP children plus a duplicate DDI entry; upstream 0.6.1, 0.7.0 **and 0.8.0** return `Status::Conflict` for it and cannot drive the panel. The `adlp-edp` patchset keeps the first child per DDI, and the 0.8.0 port applies it with dynamic MMIO resolution, so it is the default for Tahoe. The 0.6.0 fork remains the proven Sequoia pairing |
+| Keep 0.7.0 as a control variant | It tests upstream behaviour and is the only build without the exact-build MMIO requirement; its parser was measured against this VBT and is not expected to reach the panel |
+| Patch the 24H232 Sequoia constant in the **build output**, not in Git | The published 0.6.0 binary is the known driver for this panel on Sequoia, but its ninth Sequoia guard expects the 24H32 call. Patching the output keeps the payload hash meaningful and makes the change reproducible; `patch-wex-sequoia-mmio.sh` repairs a stick without rebuilding. The 0.8.0 default resolves MMIO dynamically and is never patched |
 | Ship the Metal archive LaunchAgent as an opt-in tool | It is only needed after the accelerator starts on 24H232; installing it by default would mask the difference between "Metal absent" and "Metal crashing on archives" |
-| Two Wi-Fi variants | `AirportItlwm` 2.4.0 (Sequoia build) is the default; `itlwm` + HeliPort stays as the proven, OS-independent fallback if the alpha build does not attach. Build-time choice avoids two kexts fighting |
+| Three Wi-Fi variants | `AirportItlwm` 2.4.1 (Tahoe build) is the default on macOS 26; 2.4.0 (Sequoia build) is selected explicitly for macOS 15; `itlwm` + HeliPort stays as the proven, OS-independent fallback if the alpha build does not attach. Build-time choice avoids two kexts fighting |
 | Keep `-igfxdvmt` + `framebuffer-stolenmem 0000c003` | BIOS leaves 60 MB DVMT; both the reference and this unit need the pair |
 | Drop `-vi2c-force-polling` | Only affects VoodooI2C; the reference does not use it, and the touchpad works without the extra polling |
 | Drop `rps-control` | Extra property relative to the working reference; not needed and can alter RPS behaviour |

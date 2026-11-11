@@ -16,9 +16,9 @@ step once and capture the evidence described in
 | T00.1 | `make build` | exits 0; `checked build/EFI` ends with `result : OK` |
 | T00.2 | `python3 scripts/verify_efi.py --allow-blank-identity build/EFI` on a checkout without the private identity | `result : OK` (CI mode) |
 | T00.3 | `make inventory` and `git diff --exit-code audit/payloads.tsv` | no diff: pinned payloads are unchanged |
-| T00.4 | `shasum -a 256 efi/variants/gpu-hp-adlp-edp/WhateverXe.kext/Contents/MacOS/WhateverXe` | `197da23b…770288c` — the stored payload stays published |
-| T00.5 | Inspect `build/EFI/BUILD-INFO.plist` | `gpu = hp-adlp-edp`, `wifi = airportitlwm`, `debug = false`, `identity_injected = true`; `gpu_patches.sequoia_mmio` = `applied` |
-| T00.6 | `shasum -a 256 build/EFI/OC/Kexts/WhateverXe.kext/Contents/MacOS/WhateverXe` | `6bf93338…3bea60ba` (published binary plus the 24H232 constant) |
+| T00.4 | `shasum -a 256 efi/variants/gpu-wex080-adlp/WhateverXe.kext/Contents/MacOS/WhateverXe` | `2b64ebc0…7ec0518` — the stored payload stays published |
+| T00.5 | Inspect `build/EFI/BUILD-INFO.plist` | `gpu = wex080-adlp`, `wifi = airportitlwm-tahoe`, `debug = false`, `identity_injected = true`; `gpu_patches` has no `sequoia_mmio` entry (0.8.0 resolves MMIO dynamically) |
+| T00.6 | `shasum -a 256 build/EFI/OC/Kexts/WhateverXe.kext/Contents/MacOS/WhateverXe` | equals the published `2b64ebc0…7ec0518`; no byte patch is applied |
 | T00.7 | Open `build/EFI/OC/config.plist` | `boot-args` contains the five `-wex-*` fork arguments and `revpatch=sbvmm,cpuname`; `PlatformInfo/Generic/ProcessorType` is `3841`; SMBIOS fields are filled |
 | T00.8 | Back up the current ESP and keep a bootable USB | both exist and boot (test the USB before relying on it) |
 
@@ -30,7 +30,7 @@ Do not skip T00.8. The rest of the plan assumes a working escape hatch.
 |---|---|---|
 | T01.1 | Boot the new EFI from USB first | OpenCore picker appears |
 | T01.2 | Select the macOS volume | reaches the desktop without a panic |
-| T01.3 | `sw_vers` | `15.8.2` / `24H232` (`Darwin 24.6.0`) |
+| T01.3 | `sw_vers` | `26.x` on the Tahoe default, or `15.8.2` / `24H232` (Darwin 24.6.0) on the Sequoia build |
 | T01.4 | `ioreg -l \| grep IOPlatformSerialNumber` | matches `private/identity.plist` |
 | T01.5 | `system_profiler SPHardwareDataType` | `MacBookPro16,2`, correct serial, 16 GB |
 | T01.6 | Sign in state of iCloud/iMessage/App Store | unchanged; no re-activation prompt |
@@ -57,11 +57,12 @@ later is honest.
 
 ## Phase 3 — Graphics: the primary experiment
 
-Prerequisite: WhateverXe Graphics **0.3.1** (Compat 0.6.0) for the `hp-adlp-edp`
-default, or **0.4.1** (Compat 0.8.0) for the `wex080-adlp` port, and the
-matching EFI on the ESP. The default `make build` already carries the
-24H232 Sequoia MMIO constant; T00.5/T00.6 prove it before boot. A stick copied
-from an older build must be repaired with
+Prerequisite: WhateverXe Graphics **0.4.1** (Compat 0.8.0) for the
+`wex080-adlp` default, or **0.3.1** (Compat 0.6.0) for the Sequoia
+`hp-adlp-edp` build, and the matching EFI on the ESP. The 0.8.0 default
+resolves MMIO dynamically; only `hp-adlp-edp` builds carry the 24H232 Sequoia
+constant, and T00.5/T00.6 prove it before boot. A Sequoia stick copied from an
+older build must be repaired with
 `scripts/macos/patch-wex-sequoia-mmio.sh` or rebuilt.
 
 | ID | Step | Pass criterion |
@@ -83,9 +84,10 @@ from an older build must be repaired with
 | T03.13 | Open the App Store and browse a page with screenshots/previews | page paints; no spinner hang. If it hangs, run `sudo bash scripts/macos/patch-va-tglva.sh --test` and repeat |
 | T03.14 | `bash scripts/macos/test-metal-runtime-compile.sh` | `VERDICT: PASS`; a kernel compiles from source and builds a pipeline. `XeCompilerAdapter` denials may be logged and are expected |
 
-If T03.2 shows entry 19 = `00`, save `TGLSequoiaMMIOGuard` and
-`TGLSequoiaMMIOInspection` and confirm the ESP has the patched binary
-(`6bf93338…`, or `gpu_patches.sequoia_mmio` in `BUILD-INFO.plist`). If it does
+On the Sequoia 0.6.0 build, if T03.2 shows entry 19 = `00`, save
+`TGLSequoiaMMIOGuard` and `TGLSequoiaMMIOInspection` and confirm the ESP has
+the patched binary (`6bf93338…`, or `gpu_patches.sequoia_mmio` in
+`BUILD-INFO.plist`). If it does
 and entry 19 is still `00`, the kernel moved the call again: read the real
 bytes with `scripts/macos/patch-wex-sequoia-mmio.sh --kernel <KDK>` and record
 entry 16. Do not change `-igfxdvmt`, `framebuffer-stolenmem` or the SMBIOS:
@@ -103,7 +105,7 @@ Each step changes exactly one thing and records the same evidence bundle.
 | T04.3 | Capture `WhateverXeVBTRaw` + port records + `TGLSequoiaMMIOGuard` | complete report for upstream |
 | T04.4 | If the patched 0.6.0 still shows entry 19 = `00`, record the real bytes at `_IOProtectCacheMode + 0xCA` with `patch-wex-sequoia-mmio.sh --kernel` | evidence for the next point-update constant |
 | T04.5 | Report upstream with BIOS F.35, macOS 24H232, the VBT and the guard | issue contains the evidence listed in [08](08-troubleshooting.md#11-reporting-a-graphics-bug-upstream) |
-| T04.6 | Revert to the default EFI and reinstall Graphics 0.3.1; for the 0.8.0-adlp port keep 0.4.1 | machine boots and is usable |
+| T04.6 | Revert to the default EFI and keep Graphics 0.4.1; on the Sequoia build reinstall Graphics 0.3.1 | machine boots and is usable |
 
 If neither variant accelerates, do not try NootedGreen as a quick fix. It is a
 different driver with a different support matrix, and mixing investigations
@@ -113,7 +115,7 @@ makes both reports unusable.
 
 | ID | Step | Pass criterion |
 |---|---|---|
-| T05.1 | `kmutil showloaded \| grep -i itlwm` | exactly one Wi-Fi driver (`com.zxystd.AirportItlwm` by default) |
+| T05.1 | `kmutil showloaded \| grep -i itlwm` | exactly one Wi-Fi driver (`com.zxystd.AirportItlwm`; Tahoe build by default) |
 | T05.2 | Open the Wi-Fi menu / System Settings → Network | native Airport interface appears; scan returns networks |
 | T05.3 | Join a WPA2/WPA3 network | DHCP address; `ping 1.1.1.1` succeeds |
 | T05.4 | `system_profiler SPBluetoothDataType` | controller present, firmware version shown |
@@ -196,7 +198,7 @@ Repeat after any payload update:
 
 | ID | Check |
 |---|---|
-| T11.1 | `make variants` — all four builds pass `verify_efi.py` |
+| T11.1 | `make variants` — all five builds pass `verify_efi.py` |
 | T11.2 | `make inventory` — hashes unchanged unless the payload changed intentionally |
 | T11.3 | Boot the default build: desktop, Wi-Fi, audio, battery, keyboard |
 | T11.4 | Graphics state matches the last recorded state (no silent regression) |
@@ -210,12 +212,12 @@ Keep a simple log next to the evidence bundle:
 ```
 date:
 BIOS:            F.35 (2025-11-17)
-macOS:           15.8.2 (24H232, Darwin 24.6.0)
-EFI variant:     hp-adlp-edp / wex080-adlp / airportitlwm / debug=no
-WhateverXe:      0.6.0  197da23b…  or  0.8.0  2b64ebc0…
-Compat:          0.6.0  or  0.8.0
-Graphics pkg:    0.3.1  or  0.4.1
-T03.2 Guard[19]: 01
+macOS:           26.x (Tahoe) or 15.8.2 (24H232, Darwin 24.6.0)
+EFI variant:     wex080-adlp / hp-adlp-edp / airportitlwm-tahoe / airportitlwm-sequoia / debug=no
+WhateverXe:      0.8.0  2b64ebc0…  or  0.6.0  197da23b…
+Compat:          0.8.0  or  0.6.0
+Graphics pkg:    0.4.1  or  0.3.1
+T03.2 Guard[19]: 01 (Sequoia 0.6.0) / n/a (0.8.0 dynamic)
 T03.4 StartAllowed: Yes
 T03.5 AIFB:      1
 T03.7 VRAM/Metal:  GB / Yes

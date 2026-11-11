@@ -3,24 +3,26 @@
 This is the open problem. Everything else on the machine works. Read this
 before changing boot arguments.
 
-## Current state: Sequoia 15.8.2
+## Current state: Tahoe default, Sequoia supported
 
-The machine was downgraded from Tahoe 26.7.2 to **macOS Sequoia 15.8.2
-(24H232, Darwin 24.6.0)**. The driver pair did not change:
+The machine dual-boots **macOS 26 Tahoe** and **macOS Sequoia 15.8.2
+(24H232, Darwin 24.6.0)**. The default `make build` now targets Tahoe with the
+dynamic-MMIO 0.8.0 port; the 0.6.0 `adlp-edp` build is kept as the proven
+Sequoia pairing:
 
 | Half | Version | Why |
 |---|---|---|
-| EFI kext (default) | WhateverXe 0.6.0, `adlp-edp` branch, patch series 54, published binary `197da23b…`; `make build` applies the 24H232 Sequoia constant | Proven base driver; parses this VBT and drives internal OLED |
-| EFI kext (0.8.0 port) | WhateverXe 0.8.0, `adlp-0.8.0` branch, binary `2b64ebc0…` (`gpu-wex080-adlp`) | Upstream 0.8.0 rebase; resolves MMIO dynamically without binary patching; masks unprobed Type-C routes to drive internal OLED |
-| Installed package | WhateverXe Graphics 0.4.1 (`AppleIntelTGLCompat` 0.8.0) | Installed 2026-11-09; pairs with the `wex080-adlp` EFI. Graphics 0.3.1 remains the rollback package for the 0.6.0 default |
+| EFI kext (default) | WhateverXe 0.8.0, `adlp-0.8.0` branch, binary `2b64ebc0…` (`gpu-wex080-adlp`) | Default for macOS 26; upstream 0.8.0 rebase; resolves MMIO dynamically without binary patching; masks unprobed Type-C routes to drive internal OLED |
+| EFI kext (Sequoia) | WhateverXe 0.6.0, `adlp-edp` branch, patch series 54, published binary `197da23b…`; the `hp-adlp-edp` build applies the 24H232 Sequoia constant | Proven base driver for macOS 15.8.2; parses this VBT and drives internal OLED |
+| Installed package | WhateverXe Graphics 0.4.1 (`AppleIntelTGLCompat` 0.8.0) | Installed 2026-11-09; pairs with the default `wex080-adlp`. Graphics 0.3.1 remains the package for the 0.6.0 Sequoia build |
 
 WhateverXe 0.6.0 picks its MMIO protection routine by OS family
 (`tglPrepareMMIOUC()` dispatches to `…TahoeMMIOUC`, `…SequoiaMMIOUC`,
-`…SonomaMMIOUC`, …). The Tahoe patch therefore never ran here. Sequoia has its
-own build-matched check, and **24H232 does not match the constant in either
-WhateverXe 0.6.0 or 0.6.1**, so the published 0.6.0 binary cannot start the
-accelerator without patching. The default build rewrites the one stale byte in
-the built kext; the pinned payload in `efi/variants` stays as published.
+`…SonomaMMIOUC`, …). The Tahoe patch never ran on the Sequoia install. Sequoia
+has its own build-matched check, and **24H232 does not match the constant in
+either WhateverXe 0.6.0 or 0.6.1**, so the published 0.6.0 binary cannot start the
+accelerator without patching. The `hp-adlp-edp` build rewrites the one stale
+byte in the built kext; the pinned payload in `efi/variants` stays as published.
 On **WhateverXe 0.8.0-adlp**, MMIO protection is resolved dynamically at
 runtime (`TGLMMIOStrongUCRouted = Yes`), requiring zero binary patching on
 24H232 or future point updates.
@@ -345,7 +347,7 @@ pipeline on first use, cached afterwards. That is much smaller than the memory
 pressure described in
 [08-troubleshooting.md](08-troubleshooting.md#7-battery-power-cpu-and-display).
 
-## Why the fork is still required on Sequoia
+## Why the fork is still required
 
 Upstream 0.7.0 (2026-11-02) states Sequoia 15.8.x support, removes the
 exact-build MMIO requirement, and its changelog says internal eDP for Alder
@@ -377,15 +379,13 @@ have:
   DP port at `aux 0x40`.
 
 That fixed-DP path is what the same-model reference used to reach a working
-panel on Tahoe 26.7.1, and it is why the fork remains the default on Sequoia.
+panel on Tahoe 26.7.1, and it is why the fork remains the default.
 Upstream 0.7.0 is shipped on the stick as `EFI-wex070` so the claim can be
 tested directly — it pairs with WhateverXe Graphics 0.4.0
 (`AppleIntelTGLCompat` 0.7.0), which is **not** installed.
 
-Making current upstream (0.7.0 or 0.8.0) the default would mean rebasing those
-two behaviours onto it and building the kext from source on macOS, then
-re-testing the panel path. That is a larger project than the downgrade, and is
-not needed to get a usable machine.
+Rebasing those two behaviours onto current upstream was the remaining work;
+the `wex080-adlp` port below now does it on 0.8.0.
 
 In November 2026, WhateverXe 0.8.0 was released with dynamic MMIO resolution.
 The `adlp-edp` logic was ported to 0.8.0 as `efi/variants/gpu-wex080-adlp`,
@@ -412,8 +412,8 @@ patched Apple drivers.
 
 | EFI kext | Required package | `AppleIntelTGLCompat` | Status |
 |---|---|---|---|
-| WhateverXe 0.6.0 + `adlp-edp` (default) | WhateverXe Graphics 0.3.1 | 0.6.0 | Verified working (requires 24H232 build-time patch) |
-| WhateverXe 0.8.0 + `adlp-edp` (`EFI-wex080-adlp`) | WhateverXe Graphics 0.4.1 | 0.8.0 | Installed 2026-11-09; ABI verified, reboot pending (native dynamic MMIO, zero patching) |
+| WhateverXe 0.8.0 + `adlp-edp` (`wex080-adlp`, default) | WhateverXe Graphics 0.4.1 | 0.8.0 | Installed 2026-11-09; boots Tahoe 26 and Sequoia (native dynamic MMIO, zero patching) |
+| WhateverXe 0.6.0 + `adlp-edp` (Sequoia build) | WhateverXe Graphics 0.3.1 | 0.6.0 | Verified working on 15.8.2 (requires 24H232 build-time patch) |
 | upstream WhateverXe 0.7.0 (`EFI-wex070`) | WhateverXe Graphics 0.4.0 | 0.7.0 | Control experiment (internal panel dark) |
 | upstream WhateverXe 0.8.0 | WhateverXe Graphics 0.4.1 | 0.8.0 | Control experiment (Tahoe only; internal panel dark) |
 
@@ -421,10 +421,10 @@ The 0.5.0 compatibility floor is what matters. Compat 0.6.0, 0.7.0 and 0.8.0
 all accept clients that request 0.5.0, but only a matching package installs the
 Apple kexts the kext was built and tested against. Graphics 0.4.1 keeps the
 same `__TEXT,__text` in the two Apple TGL kexts and the Metal/VA bundles as
-0.3.1 (only the OpenGL driver changed), so the `wex080-adlp` port runs
-unchanged; the 0.6.0 default has the same ABI but has
-not been re-tested with 0.4.1. If you boot the default, keep the 0.3.1 package
-or record a fresh boot test before changing the table above.
+0.3.1 (only the OpenGL driver changed), so the `wex080-adlp` default runs
+unchanged; the 0.6.0 Sequoia build has the same ABI but has not been re-tested
+with 0.4.1. Keep 0.3.1 with the Sequoia build, or record a fresh boot test
+before changing the table above.
 
 ### WhateverXe 0.8.0-adlp: Dynamic MMIO and the Type-C conflict fix
 
@@ -547,7 +547,7 @@ on this unit:
 
 0.7.0 is in the same position: it fixed the VBT *version* range and the MMIO
 build matching, but the duplicate-DDI rule and the `panel_type = 0xFF` case are
-unchanged (see [above](#why-the-fork-is-still-required-on-sequoia)).
+unchanged (see [above](#why-the-fork-is-still-required)).
 
 ### Upstream WhateverXe 0.8.0 (2026-11-07) does not change this
 
@@ -896,17 +896,17 @@ tuning does. CPU power and heat are managed with XCPM low power mode instead:
 `scripts/macos/power-profile.sh` and
 [§ 6](06-usb-acpi-power.md#power-management).
 
-## Install order (Sequoia)
+## Install order (Sequoia build)
 
-1. Boot Sequoia with this EFI. WhateverXe Graphics 0.3.1 is already installed
-   on this machine, so this should be the usable state.
+1. Boot Sequoia with the `hp-adlp-edp` EFI. WhateverXe Graphics 0.3.1 is
+   already installed on this machine, so this should be the usable state.
 2. Confirm the pair:
    ```sh
    kmutil showloaded | grep -iE 'whateverxe|AppleIntelTGLCompat'   # 0.6.0 / 0.6.0
    ```
    If `AppleIntelTGLCompat` is missing or is not 0.6.0, install **WhateverXe
    Graphics 0.3.1** and restart. 0.3.1 is the package that matches the fork.
-3. The default `make build` already contains the 24H232 Sequoia MMIO constant.
+3. The `hp-adlp-edp` build already contains the 24H232 Sequoia MMIO constant.
    If you copied an older stick, run
    `scripts/macos/patch-wex-sequoia-mmio.sh` on it first; the build does not
    patch a stick that was assembled elsewhere.
@@ -915,11 +915,15 @@ tuning does. CPU power and heat are managed with XCPM low power mode instead:
 
 ### Running WhateverXe 0.8.0-adlp
 
-1. Build `build/EFI-wex080-adlp`:
+The 0.8.0-adlp variant is the default; `make build` already produces it. To
+build it explicitly:
+
+1. Build `build/EFI` (or an explicit copy):
    ```sh
    ./scripts/build_efi.py --gpu wex080-adlp --out build/EFI-wex080-adlp --force
    ```
-2. Copy `build/EFI-wex080-adlp` over the ESP of your boot disk or USB stick.
+2. Copy `build/EFI` / `build/EFI-wex080-adlp` over the ESP of your boot disk or
+   USB stick.
 3. Boot into macOS. The matching userspace package is WhateverXe Graphics
    0.4.1 (`AppleIntelTGLCompat` 0.8.0); it is installed on this machine. The
    port also remains ABI-compatible with Graphics 0.3.1 if you need to compare.
@@ -947,9 +951,9 @@ machine is not accelerated in between:
    useful outcome of the experiment is the IORegistry evidence
    (`WhateverXeFirmwarePorts` status, `TGLSequoiaMMIOGuard`) and external
    HDMI/USB-C output, not a picture on the laptop panel.
-4. To go back, restore the default or `wex080-adlp` EFI. Restore Graphics
-   0.3.1 only if the EFI you go back to is the 0.6.0 default; keep 0.4.1 for
-   the 0.8.0-adlp port.
+4. To go back, restore the default `wex080-adlp` EFI and keep Graphics 0.4.1.
+   Restore Graphics 0.3.1 only if you go back to the 0.6.0 `hp-adlp-edp`
+   Sequoia build.
 
 ## Rollback
 

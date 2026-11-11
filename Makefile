@@ -5,7 +5,7 @@ VERIFY_FLAGS ?=
 .PHONY: all build verify variants inventory clean help
 
 help:
-	@echo "make build     - build the default EFI (hp-adlp-edp + airportitlwm) into build/EFI"
+	@echo "make build     - build the default EFI (wex080-adlp + airportitlwm-tahoe) into build/EFI"
 	@echo "make verify    - run structural checks on build/EFI"
 	@echo "make variants  - build all GPU/Wi-Fi combinations plus a debug EFI"
 	@echo "make inventory - regenerate audit/payloads.tsv"
@@ -22,12 +22,12 @@ verify:
 	$(PYTHON) scripts/verify_efi.py $(VERIFY_FLAGS) build/EFI
 
 variants:
-	$(PYTHON) scripts/build_efi.py --identity $(IDENTITY) --gpu hp-adlp-edp --wifi airportitlwm --out build/EFI --force
-	$(PYTHON) scripts/build_efi.py --identity $(IDENTITY) --gpu wex080-adlp --wifi airportitlwm --out build/EFI-wex080-adlp --force
-	$(PYTHON) scripts/build_efi.py --identity $(IDENTITY) --gpu hp-adlp-edp --wifi itlwm --out build/EFI-itlwm --force
-	$(PYTHON) scripts/build_efi.py --identity $(IDENTITY) --gpu wex070 --wifi airportitlwm --out build/EFI-wex070 --force
+	$(PYTHON) scripts/build_efi.py --identity $(IDENTITY) --out build/EFI --force
+	$(PYTHON) scripts/build_efi.py --identity $(IDENTITY) --gpu hp-adlp-edp --wifi airportitlwm-sequoia --out build/EFI-sequoia --force
+	$(PYTHON) scripts/build_efi.py --identity $(IDENTITY) --wifi itlwm --out build/EFI-itlwm --force
+	$(PYTHON) scripts/build_efi.py --identity $(IDENTITY) --gpu wex070 --out build/EFI-wex070 --force
 	$(PYTHON) scripts/build_efi.py --identity $(IDENTITY) --debug --out build/EFI-debug --force
-	@for dir in build/EFI build/EFI-wex080-adlp build/EFI-itlwm build/EFI-wex070 build/EFI-debug; do \
+	@for dir in build/EFI build/EFI-sequoia build/EFI-itlwm build/EFI-wex070 build/EFI-debug; do \
 		$(PYTHON) scripts/verify_efi.py $(VERIFY_FLAGS) $$dir || exit 1; \
 	done
 

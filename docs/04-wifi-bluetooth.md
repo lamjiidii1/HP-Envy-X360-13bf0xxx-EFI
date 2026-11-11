@@ -8,7 +8,9 @@ generation; they are mutually exclusive and selected at build time.
 
 ## Variant A — `AirportItlwm` (default, native)
 
-- Kext: `AirportItlwm.kext` **2.4.0, Sequoia build** (`sequoia-vtd-1`; see
+- Kext: `AirportItlwm.kext` **2.4.1, Tahoe build** (`tahoe-vtd-1`) for the
+  default macOS 26 configuration, or **2.4.0, Sequoia build**
+  (`sequoia-vtd-1`) for macOS 15.8.2 (see
   [10-provenance.md](10-provenance.md))
 - Mechanism: implements Apple's `AirPort` interface, so the native Wi-Fi menu
   and System Settings pane work.
@@ -17,37 +19,38 @@ generation; they are mutually exclusive and selected at build time.
 
 Why it is the default: it gives the native macOS Wi-Fi UI.
 
-### Why the version is not 2.4.1 any more
+### One build per macOS family
 
 `AirportItlwm` is not OS-independent. It links against
 `com.apple.iokit.IO80211Family` and `IOSkywalkFamily`, whose ABI changes
 between major macOS releases, so each macOS family needs its own build.
 
 - Upstream [OpenIntelWireless/itlwm](https://github.com/OpenIntelWireless/itlwm)
-  has no Sequoia asset: the newest release, `v2.3.0` (2024-06-09), stops at
-  Sonoma 14.4.
-- The Tahoe binary this repo used before the downgrade embeds
-  `AirportItlwm-Tahoe.build` / `tahoe-vtd-1` and cannot attach on Sequoia.
-  It was removed from the tree; it remains in Git history.
-- The Sequoia binary comes from the [laobamac/itlwm](
-  https://github.com/laobamac/itlwm) fork, whose release `v2.4.0-alpha`
-  builds `AirportItlwm-Sequoia` and `AirportItlwm-Tahoe` separately. The
-  Sequoia asset embeds `sequoia-vtd-1` and is documented for
-  "Darwin 24.2.0–24.99.99".
+  has no Sequoia or Tahoe asset: the newest release, `v2.3.0` (2024-06-09),
+  stops at Sonoma 14.4.
+- The [laobamac/itlwm](https://github.com/laobamac/itlwm) fork's release
+  `v2.4.0-alpha` publishes separate `AirportItlwm-Tahoe` and
+  `AirportItlwm-Sequoia` assets. The Tahoe asset reports 2.4.1 and embeds
+  `tahoe-vtd-1`; the Sequoia asset reports 2.4.0 and embeds
+  `sequoia-vtd-1`.
+- The default build selects the Tahoe asset. The Sequoia asset is not removed;
+  it stays in the tree as `wifi-airportitlwm` and is selected explicitly.
 
-It is an alpha build, which is why the `itlwm` fallback below stays pinned.
+Both are alpha builds, which is why the `itlwm` fallback below stays pinned.
 
 Caveats:
 
-- A Sequoia point update may again require a new build. If no interface
-  appears after an update, that is the first thing to check.
+- A macOS point update may again require a new build. If no interface appears
+  after an update, that is the first thing to check.
 - If no interface appears at all, switch to `itlwm` instead of debugging two
   variables at once.
 
 Build:
 
 ```sh
-./scripts/build_efi.py --wifi airportitlwm   # default
+./scripts/build_efi.py --wifi airportitlwm-tahoe     # default, macOS 26
+./scripts/build_efi.py --wifi airportitlwm-sequoia \
+  --out build/EFI-sequoia                            # macOS 15.8.2
 ```
 
 ## Variant B — `itlwm` + HeliPort (fallback)
@@ -80,8 +83,8 @@ The build script places `itlwm.kext` in `OC/Kexts` and points the single
 Wi-Fi entry at `Contents/MacOS/itlwm`. It also prints a reminder to copy
 `HeliPort.app` to `/Applications`.
 
-Only one of the two kext folders is copied into the EFI, and the config has a
-single Wi-Fi entry. Do not merge the two variants by hand: two drivers
+Only one Wi-Fi kext folder is copied into the EFI, and the config has a
+single Wi-Fi entry. Do not merge the variants by hand: two drivers
 claiming the same PCI device is a reliable way to lose Wi-Fi entirely.
 
 ## Bluetooth

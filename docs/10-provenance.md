@@ -79,7 +79,7 @@ executable. `-` means the bundle has no executable (a pure plist injector).
 |---|---|---|---|---|
 | `Lilu.kext` | 1.7.2 | [acidanthera/Lilu](https://github.com/acidanthera/Lilu) | `ff98508b40a1eb5fb477029db8886412520f8e39965279ea331c99e3d2e3b274` | none |
 | `AMFIPass.kext` | 1.4.1 | [dhinakg/AMFIPass](https://github.com/dhinakg/AMFIPass) | `2d36aeca1740b258e6bb0b66844b5bfb59a0edb7cdd9ef78206689e5d223d8dc` | "Mod" build from WhateverXe Graphics: trust anchor changed for Xe bundles |
-| `WhateverXe.kext` | 0.6.0 | b00t0x + [retropineaple adlp-edp](https://github.com/retropineaple/WhateverXe/tree/adlp-edp), prebuilt in [whateverxe-hp-envy-x360](https://github.com/retropineaple/whateverxe-hp-envy-x360) commit `8100282` | `197da23bbe5a09731ef9517a0a6f9dabe52ab1f9b0c885a841a064190770288c` | unmodified published binary (patch series 54); the build applies the 24H232 Sequoia constant (§5); **default** (variant `gpu-hp-adlp-edp`) |
+| `WhateverXe.kext` | 0.6.0 | b00t0x + [retropineaple adlp-edp](https://github.com/retropineaple/WhateverXe/tree/adlp-edp), prebuilt in [whateverxe-hp-envy-x360](https://github.com/retropineaple/whateverxe-hp-envy-x360) commit `8100282` | `197da23bbe5a09731ef9517a0a6f9dabe52ab1f9b0c885a841a064190770288c` | unmodified published binary (patch series 54); the build applies the 24H232 Sequoia constant (§5); Sequoia build (variant `gpu-hp-adlp-edp`) |
 | `WhateverXe.kext` | 0.8.0 | b00t0x + [adlp-edp port](https://github.com/lamjiidii1/HP-Envy-X360-13bf0xxx-EFI/tree/wex080-adlp) | `2b64ebc02afca386b47497006d3bf245a6d097b1d62e01b220a5f03fd7ec0518` | Dynamic MMIO; first-child-wins VBT parsing; fixed Combo A DP route; masked speculative Type-C routes for OLED link training (variant `gpu-wex080-adlp`) |
 | `WhateverXe.kext` | 0.7.0 | [b00t0x/WhateverXe](https://github.com/b00t0x/WhateverXe) | `ea156ad48ce7e29b2b409232b4d0623abd492935428b43da79239899fa2b0f3f` | none; control only, rejects this VBT (variant `gpu-wex070`) |
 | `VirtualSMC.kext` | 1.3.9 | [acidanthera/VirtualSMC](https://github.com/acidanthera/VirtualSMC) | `bf91e9542b86c20acaf210353a93742291c49328e2d14b03fa0fa4fc52b3b5ce` | none |
@@ -93,7 +93,7 @@ executable. `-` means the bundle has no executable (a pure plist injector).
 | `VoodooPS2Keyboard`/`Mouse`/`Trackpad` | 2.3.8 | same | see `payloads.tsv` | none |
 | `VoodooI2C.kext` | 2.9.2 | [VoodooI2C/VoodooI2C](https://github.com/VoodooI2C/VoodooI2C), patched fork [lamjiidii1/VoodooI2C](https://github.com/lamjiidii1/VoodooI2C) | `28fa3a0cb332572c32ef0bce5ba6a53191dc4a819880cb39526c91e4be04d011` | Alder Lake-LP `0x51E8` personality and `transferI2CToAddress` bridge |
 | `CirrusAudioFixup.kext` | 1.2.1 | [lamjiidii1/CirrusAudioFixup](https://github.com/lamjiidii1/CirrusAudioFixup), upstream author hoaugtr | `1f0b6df9c01c9c7482e9677300d63216753c3771a2e3955239e7681e0b78ce99` | HP Envy CS35L41 DSP tuning and EFI calibration; Cirrus Logic license in the bundle |
-| `TGLDmic.kext` / `TGLDmic.driver` | 0.6.0 source (bundles 0.5.0) | [labrouss/TGLDmic](https://github.com/labrouss/TGLDmic), fork [lamjiidii1/TGLDmic](https://github.com/lamjiidii1/TGLDmic) | `42ce2c8080e6e17d3300d84aa18445c851be05fd0be6a2d877413d4219aea9d2` kext, `6e75f82f6a0237a40f20810df591b90e9c2161e34c389c5eb5e7534180eddca0` HAL | Intel-signed `sof-adl.ri` embedded; HAL installed from `scripts/macos/TGLDmic.driver` |
+| `TGLDmic.kext` / `TGLDmic.driver` | 0.6.0 | [labrouss/TGLDmic](https://github.com/labrouss/TGLDmic), fork [lamjiidii1/TGLDmic](https://github.com/lamjiidii1/TGLDmic) | `c9d980d6f1768eb79aba28ebea6cf59b8ee459645be16009e8553f7e6f6e57af` kext, `6e75f82f6a0237a40f20810df591b90e9c2161e34c389c5eb5e7534180eddca0` HAL | Intel-signed `sof-adl.ri` embedded; HAL installed from `scripts/macos/TGLDmic.driver` |
 | `VoodooGPIO`/`I2CServices`/`Input`/`I2CHID` | bundled | same | see `payloads.tsv` | none |
 | `CpuTopologyRebuild.kext` | 2.0.2 | [b00t0x/CpuTopologyRebuild](https://github.com/b00t0x/CpuTopologyRebuild) | `0e36496ff627db53002ad04bd8e1e910909e083e587609fb9b472d5f2d7bde07` | none |
 | `SimpleHDA.kext` | 1.0.0 | [laobamac/SimpleHDA](https://github.com/laobamac/SimpleHDA) | `f74c9dbddf43266c97c5f72cd76498bce1d6b5bd3731a947be62f1378b4c7954` | none |
@@ -112,35 +112,45 @@ the table is a summary of that file, not a second source.
 
 | Kext | Version | Source | SHA-256 | Notes |
 |---|---|---|---|---|
-| `AirportItlwm.kext` | 2.4.0 | [laobamac/itlwm](https://github.com/laobamac/itlwm) `v2.4.0-alpha`, `sequoia-vtd-1` build | `c3b95b3b8b54f9efbb9362d9dd3c29a354bb45e2dbc50a2ca3ec54f0f94bfc58` | default; native menu; **alpha**, not an OpenIntelWireless release |
+| `AirportItlwm.kext` (Tahoe) | 2.4.1 | downstream Tahoe/VTD build, `tahoe-vtd-1`; published as the `AirportItlwm-Tahoe` asset of [laobamac/itlwm](https://github.com/laobamac/itlwm) `v2.4.0-alpha` | `cf11f2da43a7a98513417e059dcbd6e1800bb28bf5e821ff950794901e0c65dc` | default for macOS 26; native menu; **alpha**, not an OpenIntelWireless release |
+| `AirportItlwm.kext` (Sequoia) | 2.4.0 | [laobamac/itlwm](https://github.com/laobamac/itlwm) `v2.4.0-alpha`, `sequoia-vtd-1` build | `c3b95b3b8b54f9efbb9362d9dd3c29a354bb45e2dbc50a2ca3ec54f0f94bfc58` | macOS 15 build; native menu; **alpha** |
 | `itlwm.kext` | 2.3.0 | [OpenIntelWireless/itlwm](https://github.com/OpenIntelWireless/itlwm) release `v2.3.0` | `63952b0b7373e6a7e75a9a4f8ab0789a52a48ceb99bb0c8d0f387004d487690b` | fallback; needs HeliPort |
 
 Only one is copied into a built EFI. The config template contains a single
 placeholder entry (`WIFI_BUNDLE.kext`) that the build script rewrites.
 
-### AirportItlwm 2.4.0 provenance
+### AirportItlwm provenance
 
-This needs to be stated precisely, because the version number does not come
+This needs to be stated precisely, because the version numbers do not come
 from an OpenIntelWireless release:
 
 - OpenIntelWireless's newest official release is **2.3.0**, published
-  2024-06-09, and stops at Sonoma 14.4. There is no official 2.4.0.
+  2024-06-09, and stops at Sonoma 14.4. There is no official 2.4.0 or 2.4.1.
 - `AirportItlwm` links against `IO80211Family`/`IOSkywalkFamily`, so a build is
-  tied to one macOS family. The Tahoe binary this repository used before the
-  downgrade (2.4.1, `tahoe-vtd-1`) cannot attach on Sequoia and was removed
-  from the tree; it remains in Git history.
-- The shipped binary is the **Sequoia** asset of
+  tied to one macOS family. The Tahoe binary (`2.4.1`, `tahoe-vtd-1`) cannot
+  attach on Sequoia, and the Sequoia binary (`2.4.0`, `sequoia-vtd-1`) cannot
+  attach on Tahoe.
+- **Tahoe build:** reports `2.4.1`, embeds `AirportItlwm-Tahoe.build` /
+  `tahoe-vtd-1`, declares `IOSkywalkFamily 1.0`, and is byte-identical to the
+  `AirportItlwm.kext` shipped by the same-model reference
+  [retropineaple/whateverxe-hp-envy-x360](https://github.com/retropineaple/whateverxe-hp-envy-x360)
+  at commit `9809987`. The [laobamac/itlwm](https://github.com/laobamac/itlwm)
+  `v2.4.0-alpha` release publishes a Tahoe asset with the same version and
+  build tag. The binary alone does not identify its fork or commit, so it is
+  pinned by SHA-256.
+- **Sequoia build:** the **Sequoia** asset of
   [laobamac/itlwm](https://github.com/laobamac/itlwm) release `v2.4.0-alpha`
   (`AirportItlwm-Sequoia-v2.4.0-RELEASE-alpha-7204c69.zip`, SHA-256
   `263d35e5954808f43bde17b9695b675aefc2f6d4cded71306b1b6575aea61a82`).
   It reports `2.4.0` and embeds `AirportItlwm-Sequoia.build` / `sequoia-vtd-1`.
   The fork documents it for Darwin 24.2.0–24.99.99, i.e. Sequoia.
-- It is pinned by SHA-256 and treated as a third-party payload. Do not
-  silently replace it; if a newer build is used, record its source and hash
+- Both are pinned by SHA-256 and treated as third-party payloads. Do not
+  silently replace them; if a newer build is used, record its source and hash
   here first.
-- Validation status: **boot-tested on 15.8.2 (24H232), 2026-11-03.**
-  `AirportItlwm` attaches and the native Wi-Fi menu works. If it ever fails to
-  attach, use the `itlwm` variant rather than mixing drivers.
+- Validation status: the Sequoia build is **boot-tested on 15.8.2 (24H232),
+  2026-11-03**; the Tahoe build boots the macOS 26 install on this machine.
+  If either fails to attach, use the `itlwm` variant rather than mixing
+  drivers.
 
 `itlwm` 2.3.0 is the official release and is independent of the macOS
 networking stack, which is why it remains the fallback.
@@ -159,7 +169,7 @@ They are Apple/Intel-derived and are deliberately not vendored here.
 | Pairs with | WhateverXe 0.8.0-adlp (`wex080-adlp`), `AppleIntelTGLCompat` 0.8.0 |
 | Installs to | `/Library/Extensions` and `/Library/GPUBundles`, then AuxKC |
 | Payload | `AppleIntelTGLCompat` 0.8.0; Apple TGL kexts and GPUBundles `16.0.32` / `16.0.0` |
-| Rollback package | `WhateverXe-Graphics-0.3.1.pkg`, SHA-256 `bd8b449431b1bf3815f9011ad3e13c7038012d17aed54dfb2aecfce6b9089623`; pairs with the 0.6.0 default and Compat 0.6.0 |
+| Rollback package | `WhateverXe-Graphics-0.3.1.pkg`, SHA-256 `bd8b449431b1bf3815f9011ad3e13c7038012d17aed54dfb2aecfce6b9089623`; pairs with the 0.6.0 Sequoia build and Compat 0.6.0 |
 | Control package | `WhateverXe-Graphics-0.4.0.pkg`, SHA-256 `7a1b5015b3e6e8b522f26c25df85c313471c9142564a0b57356cddd2c88b9510` (95,200,795 bytes), pairs with WEX 0.7.0 / Compat 0.7.0 |
 | Included shim | `impostor.dylib` for Sequoia, SHA-256 `1cc38c7941333d3f4b88316795c78ca0095addf945fa35b6ff8634ecc93a1060`, from `payloads/Sequoia/Library/GPUBundles/AppleIntelTGLGraphicsMTLDriver.bundle/Contents/MacOS/`; replaces the 0.3.1 shim (`53c93a6e…fb57b`) named in `scripts/macos/patch-mtl-impostor.sh` |
 | Included shim | `TGLVA` for Sequoia, SHA-256 `db879dbae1c708b5fcdb3c39e251e63e635016d19885e9186fdc6baca68414aa`, from `payloads/Sequoia/Library/GPUBundles/AppleIntelTGLGraphicsVADriver.bundle/Contents/MacOS/TGLVA`; replaces the 0.3.1 shim (`0c4df393…e35ac`) named in `scripts/macos/patch-va-tglva.sh`. The adjacent `AppleIntelTGLGraphicsVADriver` differs only in its PCI device-ID dispatch table |
@@ -184,16 +194,16 @@ next reboot.
 
 Graphics 0.3.1 is no longer installed on the machine but is kept in
 `~/MacOS/PostInstall` for rollback. It remains the validated pair for the
-0.6.0 default; 0.4.1's identical ABI makes that pairing plausible, but it has
-not been boot-tested with 0.6.0 and is not claimed here. The 0.4.0 package
-remains the control for `EFI-wex070`. Do not mix a 0.7.0 kext with a 0.6.0 or
-0.8.0 package.
+0.6.0 Sequoia build; 0.4.1's identical ABI makes that pairing plausible, but
+it has not been boot-tested with 0.6.0 and is not claimed here. The 0.4.0
+package remains the control for `EFI-wex070`. Do not mix a 0.7.0 kext with a
+0.6.0 or 0.8.0 package.
 
 **The stored payload is unmodified; the built kext is not.** The file in
 `efi/variants/gpu-hp-adlp-edp` is the published `197da23b…` binary. On Sequoia
-15.8.2 (24H232) `make build` rewrites its ninth Sequoia MMIO constant from
-`E8 71 CB 02` to `E8 A1 CB 02` in the output, so the default
-`build/EFI/OC/Kexts/WhateverXe.kext` executable is `6bf93338…`
+15.8.2 (24H232) the `--gpu hp-adlp-edp` build rewrites its ninth Sequoia MMIO
+constant from `E8 71 CB 02` to `E8 A1 CB 02` in the output, so that build's
+`OC/Kexts/WhateverXe.kext` executable is `6bf93338…`
 (`6bf9333808658eb6a5e828fbd2413a1ca33b6553380fa8a3af49e6dd3bea60ba`).
 `BUILD-INFO.plist` records the patch, and `verify_efi.py` checks the output.
 The transformation is one byte at `0x16FCF` (plus the literal-pool copy at
@@ -258,17 +268,19 @@ The release archives used to populate the repository:
 |---|---|---|
 | `OpenCore-1.0.8-RELEASE.zip` | `2011e8b7216ecb2645d97ea710df965947edd406846e92050b9bc4190be6d27b` | OpenCore, drivers, resources |
 | WhateverXe 0.7.0 RELEASE zip | `5548c78f687134580913b9f600fb8b0f16bb49f7d430bcc82de7fa9761d4f62b` | `efi/variants/gpu-wex070` (control) |
-| `WhateverXe.kext` (0.8.0-adlp) | `2b64ebc02afca386b47497006d3bf245a6d097b1d62e01b220a5f03fd7ec0518` | `efi/variants/gpu-wex080-adlp` (built from branch `adlp-0.8.0`) |
+| `WhateverXe.kext` (0.8.0-adlp) | `2b64ebc02afca386b47497006d3bf245a6d097b1d62e01b220a5f03fd7ec0518` | `efi/variants/gpu-wex080-adlp` (built from branch `adlp-0.8.0`; default) |
+| AirportItlwm Tahoe build (2.4.1, `tahoe-vtd-1`) | `cf11f2da43a7a98513417e059dcbd6e1800bb28bf5e821ff950794901e0c65dc` | `efi/variants/wifi-airportitlwm-tahoe` (default for macOS 26) |
 | `AirportItlwm-Sequoia-v2.4.0-RELEASE-alpha-7204c69.zip` | `263d35e5954808f43bde17b9695b675aefc2f6d4cded71306b1b6575aea61a82` | `efi/variants/wifi-airportitlwm` |
-| `WhateverXe-Graphics-0.4.1.pkg` | `7f7ce3b924ad421cff0c4f30534598858474b8c9539c4b889a461bc1d5fed02c` | installed 2026-11-09; pairs with the 0.8.0-adlp port, not in Git |
-| `WhateverXe-Graphics-0.3.1.pkg` | `bd8b449431b1bf3815f9011ad3e13c7038012d17aed54dfb2aecfce6b9089623` | rollback for the 0.6.0 default, not in Git |
+| `WhateverXe-Graphics-0.4.1.pkg` | `7f7ce3b924ad421cff0c4f30534598858474b8c9539c4b889a461bc1d5fed02c` | installed 2026-11-09; pairs with the 0.8.0-adlp default, not in Git |
+| `WhateverXe-Graphics-0.3.1.pkg` | `bd8b449431b1bf3815f9011ad3e13c7038012d17aed54dfb2aecfce6b9089623` | rollback for the 0.6.0 Sequoia build, not in Git |
 | `WhateverXe-Graphics-0.4.0.pkg` | `7a1b5015b3e6e8b522f26c25df85c313471c9142564a0b57356cddd2c88b9510` | control only; pairs with 0.7.0, not in Git |
 
 The 0.6.0 `adlp-edp` binary is taken from the same-model reference
 (`retropineaple/whateverxe-hp-envy-x360` commit `8100282`, 2026-11-01) and
 pinned by its executable hash `197da23b…`. It is the published patch-series-54
-binary, with no local modification in Git; the default build patches its
-24H232 Sequoia constant as described in §5. The older commit `9809987` shipped
+binary, with no local modification in Git; the `hp-adlp-edp` Sequoia build
+patches its 24H232 Sequoia constant as described in §5. The older commit
+`9809987` shipped
 `c090b9dd…`; that is the binary the previous EFI used, and it remains in Git
 history of this repository.
 

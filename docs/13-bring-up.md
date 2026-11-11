@@ -45,8 +45,8 @@ mistake.
 | A Mac or Linux machine | To clone and build the EFI; the target laptop does not need an existing OS |
 | USB stick, 16 GB+ | macOS installer + OpenCore EFI |
 | Second USB stick or the internal ESP | A bootable backup of the EFI you are about to replace |
-| macOS Sequoia installer | Use Apple's `createinstallmedia`; this repo does not ship an installer |
-| `WhateverXe-Graphics-0.4.1.pkg` | Pairs with the `wex080-adlp` 0.8.0 port (`AppleIntelTGLCompat` 0.8.0). The 0.6.0 default uses `WhateverXe-Graphics-0.3.1.pkg`; see [03-graphics.md](03-graphics.md) |
+| macOS installer | macOS 26 Tahoe or Sequoia 15.8.2 via Apple's `createinstallmedia`; this repo does not ship an installer |
+| `WhateverXe-Graphics-0.4.1.pkg` | Pairs with the `wex080-adlp` 0.8.0 default (`AppleIntelTGLCompat` 0.8.0). The Sequoia `hp-adlp-edp` 0.6.0 build uses `WhateverXe-Graphics-0.3.1.pkg`; see [03-graphics.md](03-graphics.md) |
 | The 0.4.x shims | Already included in Graphics 0.4.1; only needed when rolling back to 0.3.1 (`patch-mtl-impostor.sh`, `patch-va-tglva.sh`) |
 | Your own SMBIOS values | Serial, MLB, UUID, ROM. Never reuse someone else's and never commit them |
 
@@ -70,9 +70,9 @@ make verify
 `scripts/verify_efi.py`, which fails on a blank SMBIOS identity. The build
 already contains:
 
-- OpenCore 1.0.8 and the 12 ACPI tables;
-- WhateverXe 0.6.0 + `-wex-adlp-edp` and the 24H232 MMIO constant;
-- AirportItlwm 2.4.0 (Sequoia build);
+- OpenCore 1.0.8 and the 13 ACPI tables;
+- WhateverXe 0.8.0 + `-wex-adlp-edp` with dynamic MMIO resolution (default);
+- AirportItlwm 2.4.1 (Tahoe build);
 - `revcpu=1`, `revpatch=sbvmm,cpuname` for the CPU name and OTA updates.
 
 The `1,88 GHz` that macOS shows is the invariant TSC, not the core clock; see
@@ -81,7 +81,8 @@ The `1,88 GHz` that macOS shows is the invariant TSC, not the core clock; see
 Other variants are optional:
 
 ```sh
-./scripts/build_efi.py --gpu wex080-adlp --out build/EFI-wex080-adlp --force   # 0.8.0 native dynamic MMIO
+./scripts/build_efi.py --gpu hp-adlp-edp --wifi airportitlwm-sequoia \
+  --out build/EFI-sequoia --force              # Sequoia 15.8.2 pairing
 ./scripts/build_efi.py --wifi itlwm --out build/EFI-itlwm --force
 ./scripts/build_efi.py --gpu wex070 --out build/EFI-wex070 --force             # control only
 ./scripts/build_efi.py --debug --out build/EFI-debug --force
@@ -94,6 +95,11 @@ Other variants are optional:
 On a Mac:
 
 ```sh
+# macOS 26 Tahoe
+sudo /Applications/Install\ macOS\ Tahoe.app/Contents/Resources/createinstallmedia \
+  --volume /Volumes/MyUSB --nointeraction
+
+# or macOS 15 Sequoia
 sudo /Applications/Install\ macOS\ Sequoia.app/Contents/Resources/createinstallmedia \
   --volume /Volumes/MyUSB --nointeraction
 ```
@@ -166,23 +172,24 @@ and change one variable at a time.
 ## 6. First boot checks
 
 ```sh
-kmutil showloaded | grep -i whateverxe        # 0.6.0 (default) or 0.8.0 (wex080-adlp)
+kmutil showloaded | grep -i whateverxe        # 0.8.0 (default) or 0.6.0 (Sequoia)
 system_profiler SPHardwareDataType | grep -E 'Processor Name|Total Number of Cores'
 system_profiler SPDisplaysDataType | grep -E 'Resolution|UI Looks like|Metal'
+ioreg -l | grep -o '"TGLMMIOStrongUCRouted" = <[^>]*>'
 ioreg -l | grep -o '"TGLSequoiaMMIOGuard" = <[^>]*>'
 ioreg -rc IntelAccelerator | head
 ```
 
 Expected on this machine:
 
-- `WhateverXe` **0.6.0** with `AppleIntelTGLCompat` **0.6.0**, or
-  `WhateverXe` **0.8.0** with `AppleIntelTGLCompat` **0.8.0** after the package
-  below; never a mismatched pair;
+- `WhateverXe` **0.8.0** with `AppleIntelTGLCompat` **0.8.0** (default), or
+  `WhateverXe` **0.6.0** with `AppleIntelTGLCompat` **0.6.0** on the Sequoia
+  build, after the package below; never a mismatched pair;
 - `Processor Name: 12th Gen Intel(R) Core(TM) i7-1250U`;
 - `Total Number of Cores: 10` (12 threads online);
 - internal panel online at **Looks like 1440 × 900**;
-- `TGLSequoiaMMIOGuard` entry 19 = `01` on 0.6.0; `TGLMMIOStrongUCRouted = Yes`
-  on 0.8.0-adlp;
+- `TGLMMIOStrongUCRouted = Yes` on the 0.8.0 default;
+  `TGLSequoiaMMIOGuard` entry 19 = `01` on the Sequoia 0.6.0 build;
 - `Metal 2`, not Metal 3.
 
 `hw.physicalcpu = 2` while `hw.ncpu = 12` is expected: CpuTopologyRebuild's
@@ -196,12 +203,12 @@ Order matters: **boot with the selected WEX EFI first, then install the
 matching userspace package.**
 
 ```sh
-# 0.8.0-adlp port (this machine)
+# 0.8.0-adlp default
 shasum -a 256 WhateverXe-Graphics-0.4.1.pkg
 sudo installer -pkg WhateverXe-Graphics-0.4.1.pkg -target /
 # restart
 
-# 0.6.0 default
+# 0.6.0 Sequoia build
 shasum -a 256 WhateverXe-Graphics-0.3.1.pkg
 sudo installer -pkg WhateverXe-Graphics-0.3.1.pkg -target /
 # restart
@@ -211,11 +218,13 @@ Do not install Graphics 0.3.2 or 0.4.0 with either EFI: 0.3.2 ships Compat
 0.6.1 and 0.4.0 ships Compat 0.7.0. Graphics 0.4.1 ships Compat 0.8.0, keeps
 the 0.5.0 compatibility floor and has identical Apple kernel driver text
 (Metal/VA bundles too) to 0.3.1; only the OpenGL driver was rebuilt. It is the
-validated package for the 0.8.0-adlp port. The 0.6.0 default remains paired
-with 0.3.1 until a boot test with 0.4.1 is recorded.
+validated package for the 0.8.0-adlp default. The 0.6.0 Sequoia build remains
+paired with 0.3.1 until a boot test with 0.4.1 is recorded.
 
-A fresh `make build` already carries the 24H232 MMIO signature. If you copied
-an older stick, or entry 19 reads `00`, repair it in place:
+The 0.8.0 default resolves MMIO dynamically and needs no byte patch. Only the
+Sequoia 0.6.0 build carries the 24H232 MMIO signature; it is applied by the
+build. If you copied an older Sequoia stick, or entry 19 reads `00`, repair it
+in place:
 
 ```sh
 sudo bash scripts/macos/patch-wex-sequoia-mmio.sh \
@@ -233,7 +242,7 @@ Apply them in this order and restart between graphics-stack changes.
 
 | Symptom | Fix | Why |
 |---|---|---|
-| System Settings crashes when opening **Battery**; ControlCenter crash-loops | Already fixed in Graphics 0.4.1; use `patch-mtl-impostor.sh` only after a 0.3.1 rollback | The 0.3.1 `impostor.dylib` only enables its Metal archive hook on build 24H32; this install is 24H232 |
+| System Settings crashes when opening **Battery**; ControlCenter crash-loops | Already fixed in Graphics 0.4.1; use `patch-mtl-impostor.sh` only after a 0.3.1 rollback | The 0.3.1 `impostor.dylib` only enables its Metal archive hook on build 24H32; the Sequoia install is 24H232 |
 | App Store hangs on screenshots/Quick Look; HEIC previews spin | Already fixed in Graphics 0.4.1; use `patch-va-tglva.sh` only after a 0.3.1 rollback | The 0.3.1 VA shim accepts only 24H32, so HEIC/HEVC decode never starts |
 | Safari video freezes or apps abort with archive errors | Metal archive workaround, optional | Same build-gate class as the Battery pane |
 | Overheating under normal use | Display HiDPI + fixed shims + power profile | 1× mode redraws 5.2 MP, and a thrashing shim burns CPU |
@@ -309,14 +318,17 @@ logged; those denials are expected and harmless.
   (HiDPI). Never run the panel at 1× 2880×1800: it redraws every pixel and is
   the largest single heat source. Keep the **Display P3** colour profile; this
   OLED covers about 110 % of P3 and sRGB would clip it.
-- **Wi-Fi:** the default AirportItlwm build gives the native menu. If no
-  interface appears after a macOS point update, build the `itlwm` fallback and
-  install HeliPort. See [04-wifi-bluetooth.md](04-wifi-bluetooth.md).
+- **Wi-Fi:** the default AirportItlwm 2.4.1 Tahoe build gives the native menu
+  on macOS 26; use `airportitlwm-sequoia` on macOS 15. If no interface appears
+  after a macOS point update, rebuild for that macOS family or use the `itlwm`
+  fallback and install HeliPort. See [04-wifi-bluetooth.md](04-wifi-bluetooth.md).
 - **Bluetooth:** works from the same AX211; see
   [04-wifi-bluetooth.md](04-wifi-bluetooth.md#bluetooth).
-- **Audio:** 3.5 mm and USB-C output work; the internal CS35L41 speakers do not.
-  `alcid=11` plus the patched AppleALC is required or recording panics. The
-  internal microphone is untested. See [05-audio.md](05-audio.md).
+- **Audio:** 3.5 mm and USB-C output work. The internal CS35L41 stereo speakers
+  work through CirrusAudioFixup 1.2.1 + the patched VoodooI2C 2.9.2 fork with
+  layout 13, and the internal DMIC microphone works through TGLDmic 0.6.0.
+  SimpleHDA is enabled for the Tahoe AppleHDA stack. See
+  [05-audio.md](05-audio.md).
 
 ## 10. Power and thermal
 
@@ -421,6 +433,7 @@ sysctl -n machdep.cpu.brand_string hw.ncpu hw.physicalcpu hw.logicalcpu
 # graphics
 kmutil showloaded | grep -iE 'whateverxe|AppleIntelTGLCompat'
 system_profiler SPDisplaysDataType | grep -E 'Resolution|UI Looks like|Metal'
+ioreg -l | grep -o '"TGLMMIOStrongUCRouted" = <[^>]*>'
 ioreg -l | grep -o '"TGLSequoiaMMIOGuard" = <[^>]*>'
 
 # power
@@ -432,9 +445,10 @@ pmset -g therm
 Healthy signs:
 
 - processor name is the real i7-1250U, 10 cores / 12 threads;
-- `WhateverXe` and `Compat` match: 0.6.0/0.6.0 on the default, or 0.8.0/0.8.0
-  on the `wex080-adlp` port;
-- Metal 2, `Looks like 1440 × 900`, MMIO entry 19 = `01`;
+- `WhateverXe` and `Compat` match: 0.8.0/0.8.0 on the default, or 0.6.0/0.6.0
+  on the Sequoia build;
+- Metal 2, `Looks like 1440 × 900`; `TGLMMIOStrongUCRouted = Yes` on 0.8.0 or
+  MMIO entry 19 = `01` on the Sequoia 0.6.0 build;
 - battery `lowpowermode 1`, AC `lowpowermode 0`;
 - `CPU_Speed_Limit = 100`, no thermal warning.
 

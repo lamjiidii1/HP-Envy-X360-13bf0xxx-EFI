@@ -973,7 +973,7 @@
 				<key>BundlePath</key>
 				<string>SimpleHDA.kext</string>
 				<key>Comment</key>
-				<string>SimpleHDA 1.0.0 (AppleHDA stack provider for macOS Tahoe 25.x)</string>
+				<string>SimpleHDA 1.0.0 (AppleHDA stack provider for macOS 26 Tahoe, Darwin 25.x)</string>
 				<key>Enabled</key>
 				<true/>
 				<key>ExecutablePath</key>

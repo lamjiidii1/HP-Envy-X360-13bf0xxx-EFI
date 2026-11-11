@@ -21,12 +21,12 @@ This repository is the result of auditing the machine's previous EFI, auditing
 several public Xe-LP hackintosh EFIs, and rebuilding the configuration from
 scratch with every payload pinned and hashed.
 
-> **Status:** the machine now runs **macOS Sequoia 15.8.2 (24H232, Darwin
-> 24.6.0)**, and the EFI has been retargeted to it. Wi-Fi uses a Sequoia build
-> of `AirportItlwm`; the graphics half uses the `wex080-adlp` port of
-> WhateverXe 0.8.0 with WhateverXe Graphics 0.4.1 (`AppleIntelTGLCompat` 0.8.0),
-> installed 2026-11-09 and awaiting its first post-install reboot.
-> The repository's default 0.6.0 `adlp-edp` EFI remains available and pairs with
+> **Status:** the machine dual-boots **macOS Sequoia 15.8.2 (24H232, Darwin
+> 24.6.0)** and **macOS 26 Tahoe**. The default build now targets Tahoe:
+> WhateverXe 0.8.0-adlp with WhateverXe Graphics 0.4.1 (`AppleIntelTGLCompat`
+> 0.8.0) and the `AirportItlwm` 2.4.1 Tahoe build. Tahoe 26 boots to the
+> desktop with this EFI; the Sequoia configuration is still built from the same
+> tree with `--gpu hp-adlp-edp --wifi airportitlwm-sequoia` and pairs with
 > WhateverXe Graphics 0.3.1. Unmodified upstream WhateverXe
 > 0.7.0 and 0.8.0 — although they support Sequoia/Tahoe and no longer need a
 > build-matched MMIO constant — cannot drive this panel: they reject this
@@ -34,14 +34,16 @@ scratch with every payload pinned and hashed.
 > `panel_type = 0xFF`, so there is no panel record to work from. The fork's
 > `-wex-adlp-edp` mode exists to drive exactly that configuration, and the
 > `wex080-adlp` variant ports it onto 0.8.0. Evidence and the reasoning are in
-> [docs/03-graphics.md](docs/03-graphics.md#why-the-fork-is-still-required-on-sequoia).
+> [docs/03-graphics.md](docs/03-graphics.md#why-the-fork-is-still-required).
 >
-> On Sequoia 15.8.2 (24H232) WhateverXe selects a different MMIO routine, so
-> the Tahoe patch is inert. The same class of build-matched check exists there:
-> the ninth Sequoia guard comparison expects `E8 71 CB 02 00` at
-> `_IOProtectCacheMode+0xCA`, but 24H232 has `E8 A1 CB 02 00`. `make build`
-> now applies that one-byte constant change to the **built** kext; the payload
-> in `efi/variants` stays the published `197da23b…` binary.
+> On Sequoia 15.8.2 (24H232) the 0.6.0 build selects a different MMIO
+> routine, so the Tahoe patch is inert. The same class of build-matched check
+> exists there: the ninth Sequoia guard comparison expects `E8 71 CB 02 00` at
+> `_IOProtectCacheMode+0xCA`, but 24H232 has `E8 A1 CB 02 00`. Building the
+> 0.6.0 variant (`--gpu hp-adlp-edp`) applies that one-byte constant change to
+> the **built** kext; the payload in `efi/variants` stays the published
+> `197da23b…` binary. The Tahoe default (`wex080-adlp`) resolves MMIO
+> dynamically and needs no byte patch on either OS.
 > `scripts/macos/patch-wex-sequoia-mmio.sh` can repair a stick in place after a
 > macOS update. Graphics 0.4.1 already ships the fixed Metal (`impostor.dylib`)
 > and VA (`TGLVA`) shims; `scripts/macos/patch-mtl-impostor.sh` and
@@ -49,8 +51,8 @@ scratch with every payload pinned and hashed.
 > whose shims accept only build 24H32 (this machine is 24H232).
 >
 > **Boot-tested on 15.8.2 from this repository (2026-11-03 / 0.8.0 verified 2026-11-07).**
-> The built stick boots to the desktop with either the 0.6.0 default or the
-> WhateverXe 0.8.0-adlp variant (`build/EFI-wex080-adlp`). On 0.8.0, MMIO is
+> The built stick boots to the desktop with either the 0.6.0 Sequoia build or
+> the WhateverXe 0.8.0-adlp default (`build/EFI`). On 0.8.0, MMIO is
 > resolved dynamically (`TGLMMIOStrongUCRouted = Yes`) without binary patching.
 > `IntelAccelerator` is present, `VRAM (Dynamic, Max)` is 1536 MB and
 > `system_profiler` reports **Metal 2**. The internal 2880×1800 OLED is online
@@ -79,14 +81,14 @@ was made — it is not a claim that the feature fails.
 | Boot and install | OpenCore 1.0.8, macOS Sequoia 15.8.2 (24H232) |
 | CPU | 2 P-cores + 8 E-cores / 12 threads, XCPM 400–4700 MHz |
 | Graphics | Internal 2880×1800 OLED, HiDPI **Looks like 1440×900**, Metal 2, hardware HEVC/HEIC decode |
-| Wi-Fi | Intel AX211 via `AirportItlwm` 2.4.0, native menu |
+| Wi-Fi | Intel AX211 via `AirportItlwm` 2.4.1 (Tahoe default) or 2.4.0 (Sequoia build), native menu |
 | Bluetooth | Intel AX211 via `IntelBluetoothFirmware` |
 | USB | USB-A and USB-C data; USB-C charging |
 | Trackpad | I2C precision trackpad, full gestures (`VoodooI2C` + `VoodooI2CHID`) |
 | Keyboard | Works, including brightness keys (`BrightnessKeys`) and audio volume keys (F5/F6/F7) |
 | Internal speakers | Stereo speakers fully working via Cirrus Logic **CS35L41** dual smart amps (`CirrusAudioFixup` 1.2.1 + `VoodooI2C` 2.9.2, layout-id 13) |
 | Audio out / Switching | 3.5 mm combo jack, USB-C audio, and automatic speaker-to-headphone switching |
-| Internal microphone | Dual digital DMIC array working via Intel cAVS 2.5 DSP ([`TGLDmic`](https://github.com/lamjiidii1/TGLDmic) v0.6.0 source, bundle 0.5.0, with signed `sof-adl.ri` + HAL driver) |
+| Internal microphone | Dual digital DMIC array working via Intel cAVS 2.5 DSP ([`TGLDmic`](https://github.com/lamjiidii1/TGLDmic) 0.6.0 with signed `sof-adl.ri` + HAL driver) |
 | Battery | Charge/percentage/health and the Battery settings pane (after the `impostor.dylib` fix) |
 | App Store / Quick Look | HEIC/HEVC previews and screenshots work (after the `TGLVA` fix) |
 | Power management | XCPM P-states, `balanced`/`battery`/`performance` profiles |
@@ -133,17 +135,18 @@ was made — it is not a claim that the feature fails.
 | Wi-Fi / BT | Intel AX211 CNVi, `8086:51F0` |
 | Audio | ALC245 over Intel SST (`8086:51CC`) + CS35L41 amplifiers |
 | Card reader | Realtek RTS5288 (`10ec:5228`) |
-| OS | macOS Sequoia 15.8.2 (24H232, Darwin 24.6.0), OpenCore 1.0.8 |
+| OS | macOS 26 Tahoe (default build) and macOS Sequoia 15.8.2 (24H232); OpenCore 1.0.8 |
 | SMBIOS | `MacBookPro16,2` (existing activation identity preserved) |
 
 ## Repository layout
 
 ```
-efi/base/                 OpenCore 1.0.8, 12 ACPI tables, common kexts, resources
-efi/variants/gpu-hp-adlp-edp/     WhateverXe 0.6.0 + adlp-edp patches (default)
-efi/variants/gpu-wex080-adlp/     WhateverXe 0.8.0 + adlp-edp (native dynamic MMIO)
+efi/base/                 OpenCore 1.0.8, 13 ACPI tables, common kexts, resources
+efi/variants/gpu-wex080-adlp/     WhateverXe 0.8.0 + adlp-edp (default, native dynamic MMIO)
+efi/variants/gpu-hp-adlp-edp/     WhateverXe 0.6.0 + adlp-edp patches (proven Sequoia pairing)
 efi/variants/gpu-wex070/          WhateverXe 0.7.0 upstream (control experiment)
-efi/variants/wifi-airportitlwm/   AirportItlwm 2.4.0, Sequoia build (native menu, default)
+efi/variants/wifi-airportitlwm-tahoe/ AirportItlwm 2.4.1, Tahoe build (native menu, default)
+efi/variants/wifi-airportitlwm/   AirportItlwm 2.4.0, Sequoia build (native menu)
 efi/variants/wifi-itlwm/          itlwm 2.3.0 + HeliPort (fallback)
 scripts/build_efi.py      assembles an EFI, injects private identity
 scripts/verify_efi.py     structural and payload checks for a built EFI
@@ -182,7 +185,7 @@ private/                  identity.example.plist (committed), identity.plist (ig
 cp private/identity.example.plist private/identity.plist
 $EDITOR private/identity.plist
 
-# 2. Build the default EFI (WhateverXe 0.6.0 adlp-edp + AirportItlwm).
+# 2. Build the default EFI (WhateverXe 0.8.0-adlp + AirportItlwm 2.4.1 Tahoe).
 make build
 make verify
 
@@ -193,7 +196,8 @@ make verify
 Other combinations:
 
 ```sh
-./scripts/build_efi.py --gpu wex080-adlp --out build/EFI-wex080-adlp # 0.8.0 native dynamic MMIO
+./scripts/build_efi.py --gpu hp-adlp-edp --wifi airportitlwm-sequoia \
+  --out build/EFI-sequoia                   # Sequoia 15.8.2 pairing
 ./scripts/build_efi.py --gpu wex070 --out build/EFI-wex070         # upstream control
 ./scripts/build_efi.py --wifi itlwm --out build/EFI-itlwm
 ./scripts/build_efi.py --debug --out build/EFI-debug           # -v, debug=0x100
@@ -201,11 +205,11 @@ Other combinations:
 
 | Build | GPU driver | Wi-Fi | When to use |
 |---|---|---|---|
-| `build/EFI` (default) | WhateverXe 0.6.0 + adlp-edp | AirportItlwm 2.4.0 (Sequoia) | Proven 0.6.0 driver (requires 24H232 binary patch applied by `make build`) |
-| `build/EFI-wex080-adlp` | WhateverXe 0.8.0 + adlp-edp | AirportItlwm 2.4.0 (Sequoia) | WhateverXe 0.8.0 port; dynamic MMIO resolution without binary patching; internal OLED verified |
-| `build/EFI-itlwm` | WhateverXe 0.6.0 + adlp-edp | itlwm + HeliPort | Fallback if AirportItlwm does not attach |
-| `build/EFI-wex070` | WhateverXe 0.7.0 | AirportItlwm 2.4.0 (Sequoia) | Control experiment; needs Graphics 0.4.0 and is expected to leave the internal panel dark |
-| `build/EFI-debug` | WhateverXe 0.6.0 + adlp-edp | AirportItlwm 2.4.0 (Sequoia) | Verbose boot and kernel logging while debugging |
+| `build/EFI` (default) | WhateverXe 0.8.0 + adlp-edp | AirportItlwm 2.4.1 (Tahoe) | macOS 26 default; dynamic MMIO resolution without binary patching |
+| `build/EFI-sequoia` | WhateverXe 0.6.0 + adlp-edp | AirportItlwm 2.4.0 (Sequoia) | macOS 15.8.2; proven pairing with Graphics 0.3.1 (24H232 MMIO patch applied at build time) |
+| `build/EFI-itlwm` | WhateverXe 0.8.0 + adlp-edp | itlwm + HeliPort | Fallback if AirportItlwm does not attach |
+| `build/EFI-wex070` | WhateverXe 0.7.0 | AirportItlwm 2.4.1 (Tahoe) | Control experiment; needs Graphics 0.4.0 and is expected to leave the internal panel dark |
+| `build/EFI-debug` | WhateverXe 0.8.0 + adlp-edp | AirportItlwm 2.4.1 (Tahoe) | Verbose boot and kernel logging while debugging |
 
 ## From zero to a working install
 
@@ -240,15 +244,17 @@ version.
 
 5. **Install macOS** with the OpenCore picker, then complete the first boot
    checks in [docs/13 §6](docs/13-bring-up.md#6-first-boot-checks):
-   WhateverXe/Compat **0.6.0/0.6.0** (default) or **0.8.0/0.8.0**
-   (`wex080-adlp`), real CPU name, 10 cores / 12 threads, panel at
-   **Looks like 1440 × 900**, Metal 2, `TGLSequoiaMMIOGuard` entry 19 = `01`
-   or `TGLMMIOStrongUCRouted = Yes`.
+   WhateverXe/Compat **0.8.0/0.8.0** (`wex080-adlp`, default) or
+   **0.6.0/0.6.0** (`hp-adlp-edp`, Sequoia), real CPU name, 10 cores /
+   12 threads, panel at **Looks like 1440 × 900**, Metal 2,
+   `TGLMMIOStrongUCRouted = Yes` on 0.8.0, or `TGLSequoiaMMIOGuard`
+   entry 19 = `01` on the 0.6.0 Sequoia build.
 
-6. **Install the matching userspace package**: WhateverXe Graphics **0.3.1**
-   for the `hp-adlp-edp` default, or **0.4.1** for `wex080-adlp` (never
-   0.3.2/0.4.0), then restart. A fresh build already has the 24H232 MMIO
-   constant; repair an older stick with
+6. **Install the matching userspace package**: WhateverXe Graphics **0.4.1**
+   for the default `wex080-adlp`, or **0.3.1** for the Sequoia
+   `hp-adlp-edp` pairing (never 0.3.2/0.4.0), then restart. The default
+   build resolves MMIO dynamically; a `hp-adlp-edp` build already carries
+   the 24H232 constant, and an older stick can be repaired with
    `scripts/macos/patch-wex-sequoia-mmio.sh`.
 
 7. **Apply the post-install fixes** in the table below, in order.
@@ -318,13 +324,15 @@ under the OpenCode desktop, whose helper and renderer keep about two cores
 busy. Numbers and caveats:
 [docs/06 § Measured effect](docs/06-usb-acpi-power.md#measured-effect-2026-11-05).
 
-## Why Sequoia, and where the Tahoe work went
+## Graphics history: Sequoia and Tahoe
 
-The Tahoe 26.7.2 install never got past the first display modeset: the
+The original Tahoe 26.7.2 install never got past the first display modeset: the
 accelerator probed and the panel was detected, but the first frame flip was
 refused and WindowServer fell back to a virtual display. The trail is in
 [docs/03-graphics.md](docs/03-graphics.md) and
-[audit/log-analysis.md](audit/log-analysis.md) §9.2.
+[audit/log-analysis.md](audit/log-analysis.md) §9.2. That history is why the
+Sequoia install became the reference; the `wex080-adlp` port below now also
+boots Tahoe 26.
 
 On 2026-11-02 upstream released WhateverXe 0.7.0, which supports Sequoia
 15.8.x, no longer requires an exact OS build match for MMIO, and claims
@@ -430,7 +438,11 @@ the deviation is recorded in the audit.
 - [OpenIntelWireless](https://github.com/OpenIntelWireless) — itlwm,
   AirportItlwm, IntelBluetoothFirmware, HeliPort.
 - [laobamac](https://github.com/laobamac) — SimpleHDA and the
-  `AirportItlwm-Sequoia` build used here, which upstream does not release.
+  `AirportItlwm-Sequoia` / `AirportItlwm-Tahoe` builds used here, which
+  upstream does not release.
+- [hoaugtr/CirrusAudioFixup](https://github.com/hoaugtr/CirrusAudioFixup) and
+  [labrouss/TGLDmic](https://github.com/labrouss/TGLDmic) — CS35L41 amplifier
+  and internal-microphone drivers, forked under `lamjiidii1`.
 - [VoodooI2C](https://github.com/VoodooI2C), [USBToolBox](https://github.com/USBToolBox),
   [HoRNDIS](https://github.com/jwise/HoRNDIS), [corpnewt](https://github.com/corpnewt).
 - [JulioNectar/Hackintosh-XPS13Plus-IrisXe-Tahoe](https://github.com/JulioNectar/Hackintosh-XPS13Plus-IrisXe-Tahoe),

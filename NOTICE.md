@@ -23,7 +23,8 @@ they have.
 | `WhateverXe.kext` (0.8.0) | b00t0x 0.8.0 + [adlp-edp port](https://github.com/lamjiidii1/WhateverXe/tree/adlp-0.8.0) | BSD-3-Clause | dynamic MMIO, first-child-wins VBT, fixed Combo A DP route; variant `gpu-wex080-adlp` |
 | `WhateverXe.kext` (0.7.0) | [b00t0x/WhateverXe](https://github.com/b00t0x/WhateverXe) 0.7.0 | BSD-3-Clause | none; control variant only |
 | `WhateverXe.kext` (0.6.0) | b00t0x 0.6.0 + [retropineaple adlp-edp patches](https://github.com/retropineaple/WhateverXe/tree/adlp-edp), prebuilt in [retropineaple/whateverxe-hp-envy-x360](https://github.com/retropineaple/whateverxe-hp-envy-x360) | BSD-3-Clause | 54 adlp-edp patches; stored binary unmodified, but `make build` applies the 24H232 Sequoia MMIO constant (one byte) to the output — see `docs/03-graphics.md` |
-| `AirportItlwm.kext` | [laobamac/itlwm](https://github.com/laobamac/itlwm) `v2.4.0-alpha`, `AirportItlwm-Sequoia` build; project upstream [OpenIntelWireless/itlwm](https://github.com/OpenIntelWireless/itlwm) | GPL-2.0 | none; not an official OpenIntelWireless release, see `docs/10-provenance.md` |
+| `AirportItlwm.kext` (Tahoe) | [laobamac/itlwm](https://github.com/laobamac/itlwm) `v2.4.0-alpha`, `AirportItlwm-Tahoe` build; byte-identical to the same-model reference build; project upstream [OpenIntelWireless/itlwm](https://github.com/OpenIntelWireless/itlwm) | GPL-2.0 | default for macOS 26; not an official OpenIntelWireless release, see `docs/10-provenance.md` |
+| `AirportItlwm.kext` (Sequoia) | [laobamac/itlwm](https://github.com/laobamac/itlwm) `v2.4.0-alpha`, `AirportItlwm-Sequoia` build; project upstream [OpenIntelWireless/itlwm](https://github.com/OpenIntelWireless/itlwm) | GPL-2.0 | macOS 15 build; not an official OpenIntelWireless release, see `docs/10-provenance.md` |
 | `itlwm.kext` | OpenIntelWireless/itlwm 2.3.0 | GPL-2.0 | none |
 | `IntelBluetoothFirmware.kext`, `IntelBTPatcher.kext` | OpenIntelWireless 2.5.1 | GPL-2.0 | none |
 | `BlueToolFixup.kext` | [acidanthera/BrcmPatchRAM](https://github.com/acidanthera/BrcmPatchRAM) 2.7.3 | BSD-3-Clause | none |
@@ -34,7 +35,7 @@ they have.
 | `HoRNDIS.kext` | [jwise/HoRNDIS](https://github.com/jwise/HoRNDIS) | GPL-2.0 | none |
 | `VoodooI2C*.kext` | fork of [VoodooI2C](https://github.com/VoodooI2C/VoodooI2C) 2.9.2, [lamjiidii1/VoodooI2C](https://github.com/lamjiidii1/VoodooI2C) | GPL-2.0 | Alder Lake-LP I2C personality and `transferI2CToAddress` bridge so the trackpad and CS35L41 amplifiers share the controller |
 | `CirrusAudioFixup.kext` | [lamjiidii1/CirrusAudioFixup](https://github.com/lamjiidii1/CirrusAudioFixup) 1.2.1 (upstream author hoaugtr) | Cirrus Logic license, `Resources/LICENSE.cirrus` | HP Envy CS35L41 tuning and EFI calibration |
-| `TGLDmic.kext`, `TGLDmic.driver` | fork of [labrouss/TGLDmic](https://github.com/labrouss/TGLDmic) v0.6.0 source, [lamjiidii1/TGLDmic](https://github.com/lamjiidii1/TGLDmic) | see upstream | embedded Intel-signed `sof-adl.ri`; both bundles report 0.5.0 |
+| `TGLDmic.kext`, `TGLDmic.driver` | fork of [labrouss/TGLDmic](https://github.com/labrouss/TGLDmic) v0.6.0, [lamjiidii1/TGLDmic](https://github.com/lamjiidii1/TGLDmic) | see upstream | embedded Intel-signed `sof-adl.ri` |
 | `CpuTopologyRebuild.kext` | b00t0x 2.0.2 | BSD-3-Clause | none |
 
 The Sequoia 24H232 MMIO diagnosis and the Metal-archive workaround are adapted
