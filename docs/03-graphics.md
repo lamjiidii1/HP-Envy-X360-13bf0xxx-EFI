@@ -12,7 +12,7 @@ Sequoia pairing:
 
 | Half | Version | Why |
 |---|---|---|
-| EFI kext (default) | WhateverXe 0.8.0, `adlp-0.8.0` branch, binary `2b64ebc0…` (`gpu-wex080-adlp`) | Default for macOS 26; upstream 0.8.0 rebase; resolves MMIO dynamically without binary patching; masks unprobed Type-C routes to drive internal OLED |
+| EFI kext (default) | WhateverXe 0.8.0, `adlp-0.8.0` branch, binary `cc7b83a2…` (`gpu-wex080-adlp`) | Default for macOS 26; upstream 0.8.0 rebase; resolves MMIO dynamically without binary patching; masks unprobed Type-C routes to drive internal OLED; Metal POSH leak fix and flip deduplication |
 | EFI kext (Sequoia) | WhateverXe 0.6.0, `adlp-edp` branch, patch series 54, published binary `197da23b…`; the `hp-adlp-edp` build applies the 24H232 Sequoia constant | Proven base driver for macOS 15.8.2; parses this VBT and drives internal OLED |
 | Installed package | WhateverXe Graphics 0.4.1 (`AppleIntelTGLCompat` 0.8.0) | Installed 2026-11-09; pairs with the default `wex080-adlp`. Graphics 0.3.1 remains the package for the 0.6.0 Sequoia build |
 
@@ -471,6 +471,11 @@ areas:
    for this variant; keeping USB-C video would require probing for an external
    sink before masking the routes.
 
+3. **Metal POSH leak and flip deduplication**: the 2026-11-10 build
+   (`REL-080-2026-11-10`, binary `cc7b83a2…`) adds `-wex-mtl-poshfix` and
+   `-wex-flip-dedupe`. `build_efi.py` puts both in the default `wex080-adlp`
+   boot arguments.
+
 ## What the logs show
 
 From `LOGS/macOS_Logs_20261030_180840` (macOS 26.7.2, build 25G332):
@@ -856,16 +861,20 @@ reinstall.
 | `keepsyms=1` | Keeps symbols in panics |
 | `msgbuf=4194304` | Larger kernel log buffer for bring-up diagnostics |
 | `shda-lang=en` | SimpleHDA language |
-| `alcid=11` | AppleALC layout 11 (ALC245) |
+| `alcid=13` | AppleALC layout 13 (ALC245 with CS35L41 smart amps) |
 | `-wex-adlp-edp` | Drive the internal panel as a fixed DP output on Combo A (0.6.0 fork only; this is the argument that makes this panel work) |
 | `-wex-reset-restore` | Restore display/render state after a GPU reset |
 | `-wex-no-multicontext` | Avoid the second compute ring that deadlocks on recovery |
 | `-wex-scanout-coherent` | Mark every flipped surface displayable (HiDPI above 1440x900) |
 | `-wex-pm` | XE-PM CPU profile: HWP units and the idle table on hybrid Alder Lake. On this kernel its HWP route does not install, so it does not change CPU power; see the note below |
+| `-wex-mtl-poshfix` | 0.8.0 build only: fixes the Metal POSH resource leak reported on this port |
+| `-wex-flip-dedupe` | 0.8.0 build only: deduplicates repeated flip transactions before they reach the display pipe |
+| `-ithcoff`, `-ithcpoll` | `-ithcoff` disables `ITHC.kext`; `-ithcpoll` polls the THC instead of using its MSI interrupt |
 | `-v`, `debug=0x100` | `--debug` builds only |
 
-All five `-wex-*` arguments belong to the `adlp-edp` patchset (supported in
-both the 0.6.0 fork and `wex080-adlp`) and are deliberately **absent**
+All five `-wex-*` arguments of the `adlp-edp` patchset (supported in both the
+0.6.0 fork and `wex080-adlp`) are present in both patched builds; `wex080-adlp`
+adds `-wex-mtl-poshfix` and `-wex-flip-dedupe`. They are deliberately **absent**
 from the `EFI-wex070` build, because its parsing is intended to be the upstream
 one. Do not copy them across without knowing which of the variants is under test.
 

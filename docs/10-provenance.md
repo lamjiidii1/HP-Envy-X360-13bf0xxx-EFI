@@ -80,7 +80,7 @@ executable. `-` means the bundle has no executable (a pure plist injector).
 | `Lilu.kext` | 1.7.2 | [acidanthera/Lilu](https://github.com/acidanthera/Lilu) | `ff98508b40a1eb5fb477029db8886412520f8e39965279ea331c99e3d2e3b274` | none |
 | `AMFIPass.kext` | 1.4.1 | [dhinakg/AMFIPass](https://github.com/dhinakg/AMFIPass) | `2d36aeca1740b258e6bb0b66844b5bfb59a0edb7cdd9ef78206689e5d223d8dc` | "Mod" build from WhateverXe Graphics: trust anchor changed for Xe bundles |
 | `WhateverXe.kext` | 0.6.0 | b00t0x + [retropineaple adlp-edp](https://github.com/retropineaple/WhateverXe/tree/adlp-edp), prebuilt in [whateverxe-hp-envy-x360](https://github.com/retropineaple/whateverxe-hp-envy-x360) commit `8100282` | `197da23bbe5a09731ef9517a0a6f9dabe52ab1f9b0c885a841a064190770288c` | unmodified published binary (patch series 54); the build applies the 24H232 Sequoia constant (§5); Sequoia build (variant `gpu-hp-adlp-edp`) |
-| `WhateverXe.kext` | 0.8.0 | b00t0x + [adlp-edp port](https://github.com/lamjiidii1/HP-Envy-X360-13bf0xxx-EFI/tree/wex080-adlp) | `2b64ebc02afca386b47497006d3bf245a6d097b1d62e01b220a5f03fd7ec0518` | Dynamic MMIO; first-child-wins VBT parsing; fixed Combo A DP route; masked speculative Type-C routes for OLED link training (variant `gpu-wex080-adlp`) |
+| `WhateverXe.kext` | 0.8.0 | b00t0x + [adlp-edp port](https://github.com/lamjiidii1/HP-Envy-X360-13bf0xxx-EFI/tree/wex080-adlp) | `cc7b83a238fabf52f092c6f3db4acae8d114c5f2fc607397c51c187e41295f88` | Dynamic MMIO; first-child-wins VBT parsing; fixed Combo A DP route; masked speculative Type-C routes; Metal POSH leak fix and flip deduplication (variant `gpu-wex080-adlp`) |
 | `WhateverXe.kext` | 0.7.0 | [b00t0x/WhateverXe](https://github.com/b00t0x/WhateverXe) | `ea156ad48ce7e29b2b409232b4d0623abd492935428b43da79239899fa2b0f3f` | none; control only, rejects this VBT (variant `gpu-wex070`) |
 | `VirtualSMC.kext` | 1.3.9 | [acidanthera/VirtualSMC](https://github.com/acidanthera/VirtualSMC) | `bf91e9542b86c20acaf210353a93742291c49328e2d14b03fa0fa4fc52b3b5ce` | none |
 | `SMCProcessor.kext` | 1.3.9 | acidanthera/VirtualSMC | `dcf738671431721692f752e3df43acaaa02c93788ae7b21153504b07db01be32` | none |
@@ -92,6 +92,7 @@ executable. `-` means the bundle has no executable (a pure plist injector).
 | `VoodooPS2Controller.kext` | 2.3.8 | [acidanthera/VoodooPS2](https://github.com/acidanthera/VoodooPS2) | `be6f3aa9dc88954462e422df78d8d7d129cb91b8fd03c4018ef04cc9f472e8f0` | none |
 | `VoodooPS2Keyboard`/`Mouse`/`Trackpad` | 2.3.8 | same | see `payloads.tsv` | none |
 | `VoodooI2C.kext` | 2.9.2 | [VoodooI2C/VoodooI2C](https://github.com/VoodooI2C/VoodooI2C), patched fork [lamjiidii1/VoodooI2C](https://github.com/lamjiidii1/VoodooI2C) | `28fa3a0cb332572c32ef0bce5ba6a53191dc4a819880cb39526c91e4be04d011` | Alder Lake-LP `0x51E8` personality and `transferI2CToAddress` bridge |
+| `ITHC.kext` | 0.1.0 | [quo/ithc-linux](https://github.com/quo/ithc-linux) port, sources in `drivers/ithc` | `b47a4b7d5c89c25e39718c7225c48deb24b36f6387df31115677eefbb001210f` | Intel THC touchscreen; BSD-2-Clause; `-ithcoff` disables it, `-ithcpoll` polls instead of using MSI |
 | `CirrusAudioFixup.kext` | 1.2.1 | [lamjiidii1/CirrusAudioFixup](https://github.com/lamjiidii1/CirrusAudioFixup), upstream author hoaugtr | `1f0b6df9c01c9c7482e9677300d63216753c3771a2e3955239e7681e0b78ce99` | HP Envy CS35L41 DSP tuning and EFI calibration; Cirrus Logic license in the bundle |
 | `TGLDmic.kext` / `TGLDmic.driver` | 0.6.0 | [labrouss/TGLDmic](https://github.com/labrouss/TGLDmic), fork [lamjiidii1/TGLDmic](https://github.com/lamjiidii1/TGLDmic) | `c9d980d6f1768eb79aba28ebea6cf59b8ee459645be16009e8553f7e6f6e57af` kext, `6e75f82f6a0237a40f20810df591b90e9c2161e34c389c5eb5e7534180eddca0` HAL | Intel-signed `sof-adl.ri` embedded; HAL installed from `scripts/macos/TGLDmic.driver` |
 | `VoodooGPIO`/`I2CServices`/`Input`/`I2CHID` | bundled | same | see `payloads.tsv` | none |
@@ -268,7 +269,7 @@ The release archives used to populate the repository:
 |---|---|---|
 | `OpenCore-1.0.8-RELEASE.zip` | `2011e8b7216ecb2645d97ea710df965947edd406846e92050b9bc4190be6d27b` | OpenCore, drivers, resources |
 | WhateverXe 0.7.0 RELEASE zip | `5548c78f687134580913b9f600fb8b0f16bb49f7d430bcc82de7fa9761d4f62b` | `efi/variants/gpu-wex070` (control) |
-| `WhateverXe.kext` (0.8.0-adlp) | `2b64ebc02afca386b47497006d3bf245a6d097b1d62e01b220a5f03fd7ec0518` | `efi/variants/gpu-wex080-adlp` (built from branch `adlp-0.8.0`; default) |
+| `WhateverXe.kext` (0.8.0-adlp) | `cc7b83a238fabf52f092c6f3db4acae8d114c5f2fc607397c51c187e41295f88` | `efi/variants/gpu-wex080-adlp` (built from branch `adlp-0.8.0`; default) |
 | AirportItlwm Tahoe build (2.4.1, `tahoe-vtd-1`) | `cf11f2da43a7a98513417e059dcbd6e1800bb28bf5e821ff950794901e0c65dc` | `efi/variants/wifi-airportitlwm-tahoe` (default for macOS 26) |
 | `AirportItlwm-Sequoia-v2.4.0-RELEASE-alpha-7204c69.zip` | `263d35e5954808f43bde17b9695b675aefc2f6d4cded71306b1b6575aea61a82` | `efi/variants/wifi-airportitlwm` |
 | `WhateverXe-Graphics-0.4.1.pkg` | `7f7ce3b924ad421cff0c4f30534598858474b8c9539c4b889a461bc1d5fed02c` | installed 2026-11-09; pairs with the 0.8.0-adlp default, not in Git |
@@ -286,7 +287,7 @@ history of this repository.
 
 The 0.8.0 `adlp-edp` binary is built from commit `51798c0` of the `adlp-0.8.0`
 branch of WhateverXe, incorporating the `adlp-edp` patchset and the Display 13
-Type-C speculative route mask. It is pinned by its executable hash `2b64ebc0…`.
+Type-C speculative route mask. It is pinned by its executable hash `cc7b83a2…`.
 Later source commits restore the released three-argument `supportedWiring`
 contract and harden tests; they do not change the enabled Combo-A panel route,
 so the hardware-validated binary is kept as the shipped payload.

@@ -16,11 +16,12 @@ step once and capture the evidence described in
 | T00.1 | `make build` | exits 0; `checked build/EFI` ends with `result : OK` |
 | T00.2 | `python3 scripts/verify_efi.py --allow-blank-identity build/EFI` on a checkout without the private identity | `result : OK` (CI mode) |
 | T00.3 | `make inventory` and `git diff --exit-code audit/payloads.tsv` | no diff: pinned payloads are unchanged |
-| T00.4 | `shasum -a 256 efi/variants/gpu-wex080-adlp/WhateverXe.kext/Contents/MacOS/WhateverXe` | `2b64ebc0…7ec0518` — the stored payload stays published |
+| T00.4 | `shasum -a 256 efi/variants/gpu-wex080-adlp/WhateverXe.kext/Contents/MacOS/WhateverXe` | `cc7b83a2…41295f88` — the stored payload stays published |
 | T00.5 | Inspect `build/EFI/BUILD-INFO.plist` | `gpu = wex080-adlp`, `wifi = airportitlwm-tahoe`, `debug = false`, `identity_injected = true`; `gpu_patches` has no `sequoia_mmio` entry (0.8.0 resolves MMIO dynamically) |
-| T00.6 | `shasum -a 256 build/EFI/OC/Kexts/WhateverXe.kext/Contents/MacOS/WhateverXe` | equals the published `2b64ebc0…7ec0518`; no byte patch is applied |
-| T00.7 | Open `build/EFI/OC/config.plist` | `boot-args` contains the five `-wex-*` fork arguments and `revpatch=sbvmm,cpuname`; `PlatformInfo/Generic/ProcessorType` is `3841`; SMBIOS fields are filled |
+| T00.6 | `shasum -a 256 build/EFI/OC/Kexts/WhateverXe.kext/Contents/MacOS/WhateverXe` | equals the published `cc7b83a2…41295f88`; no byte patch is applied |
+| T00.7 | Open `build/EFI/OC/config.plist` | `boot-args` contains the `-wex-*` fork arguments (`-wex-mtl-poshfix`, `-wex-flip-dedupe` on the 0.8.0 default) and `revpatch=sbvmm,cpuname`; `ITHC.kext` is enabled; `PlatformInfo/Generic/ProcessorType` is `3841`; SMBIOS fields are filled |
 | T00.8 | Back up the current ESP and keep a bootable USB | both exist and boot (test the USB before relying on it) |
+| T00.9 | `shasum -a 256 efi/base/OC/Kexts/ITHC.kext/Contents/MacOS/ITHC` | `b47a4b7d…001210f` — matches `audit/payloads.tsv` |
 
 Do not skip T00.8. The rest of the plan assumes a working escape hatch.
 
@@ -214,7 +215,7 @@ date:
 BIOS:            F.35 (2025-11-17)
 macOS:           26.x (Tahoe) or 15.8.2 (24H232, Darwin 24.6.0)
 EFI variant:     wex080-adlp / hp-adlp-edp / airportitlwm-tahoe / airportitlwm-sequoia / debug=no
-WhateverXe:      0.8.0  2b64ebc0…  or  0.6.0  197da23b…
+WhateverXe:      0.8.0  cc7b83a2…  or  0.6.0  197da23b…
 Compat:          0.8.0  or  0.6.0
 Graphics pkg:    0.4.1  or  0.3.1
 T03.2 Guard[19]: 01 (Sequoia 0.6.0) / n/a (0.8.0 dynamic)

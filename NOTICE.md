@@ -34,6 +34,7 @@ they have.
 | `XHCI-unsupported.kext` | [RehabMan](https://github.com/RehabMan/OS-X-USB-Inject-All) 0.9.2 | GPL-2.0 | none |
 | `HoRNDIS.kext` | [jwise/HoRNDIS](https://github.com/jwise/HoRNDIS) | GPL-2.0 | none |
 | `VoodooI2C*.kext` | fork of [VoodooI2C](https://github.com/VoodooI2C/VoodooI2C) 2.9.2, [lamjiidii1/VoodooI2C](https://github.com/lamjiidii1/VoodooI2C) | GPL-2.0 | Alder Lake-LP I2C personality and `transferI2CToAddress` bridge so the trackpad and CS35L41 amplifiers share the controller |
+| `ITHC.kext` | port of [quo/ithc-linux](https://github.com/quo/ithc-linux) 0.1.0, sources in `drivers/ithc` | BSD-2-Clause | Intel THC touchscreen; `-ithcoff` disables it |
 | `CirrusAudioFixup.kext` | [lamjiidii1/CirrusAudioFixup](https://github.com/lamjiidii1/CirrusAudioFixup) 1.2.1 (upstream author hoaugtr) | Cirrus Logic license, `Resources/LICENSE.cirrus` | HP Envy CS35L41 tuning and EFI calibration |
 | `TGLDmic.kext`, `TGLDmic.driver` | fork of [labrouss/TGLDmic](https://github.com/labrouss/TGLDmic) v0.6.0, [lamjiidii1/TGLDmic](https://github.com/lamjiidii1/TGLDmic) | see upstream | embedded Intel-signed `sof-adl.ri` |
 | `CpuTopologyRebuild.kext` | b00t0x 2.0.2 | BSD-3-Clause | none |

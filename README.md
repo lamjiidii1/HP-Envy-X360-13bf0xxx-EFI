@@ -99,7 +99,7 @@ was made — it is not a claim that the feature fails.
 |---|---|---|
 | **Camera** | The camera sits behind the Intel **Alder Lake Imaging Signal Processor** (`8086:465d`, IPU6) with a MIPI sensor. macOS has no IPU6/MIPI camera driver, and it is not a USB UVC device, so there is no fallback. | Not attempted; owner does not need it |
 | **microSD card reader** | Realtek **RTS5288** PCIe SD UHC-I controller (`10ec:5228`) has no macOS driver. | Not attempted; not tested physically |
-| **Touchscreen** | The panel glass is physically broken and touch does not work in Windows either. This is a hardware fault, not a macOS/driver problem. | Cannot be tested |
+| **Touchscreen** | The panel glass is physically broken and touch does not work in Windows either. This is a hardware fault, not a macOS/driver problem. `ITHC.kext` (Intel THC) is included and enabled so a replacement panel can be tested; `-ithcoff` disables it. | Cannot be tested on this unit |
 | **Sleep / wake** | HP firmware limit: the machine enters sleep but never wakes ("Sleep Wake failure in EFI"). Sleep is disabled rather than faked. | Known limit, see [docs/06](docs/06-usb-acpi-power.md#sleep--known-broken-on-this-platform) |
 
 ### Untested / partial
@@ -142,6 +142,7 @@ was made — it is not a claim that the feature fails.
 
 ```
 efi/base/                 OpenCore 1.0.8, 13 ACPI tables, common kexts, resources
+drivers/ithc/             ITHC source, BSD-2-Clause license, reproducible build script
 efi/variants/gpu-wex080-adlp/     WhateverXe 0.8.0 + adlp-edp (default, native dynamic MMIO)
 efi/variants/gpu-hp-adlp-edp/     WhateverXe 0.6.0 + adlp-edp patches (proven Sequoia pairing)
 efi/variants/gpu-wex070/          WhateverXe 0.7.0 upstream (control experiment)
@@ -173,6 +174,8 @@ scripts/macos/battery-cap-compare.sh     cap-off run vs the recorded balanced ba
 scripts/macos/install-boot-capture.sh    black-screen boot capture daemon
 scripts/macos/restore-opencode-migration.sh  restore chat + repo on macOS
 scripts/migrate-to-macos.sh              build the Linux → macOS migration bundle
+measure_power.command     double-click launcher for the battery drain monitor
+scripts/measure_power.sh  pure-bash real-time power telemetry (no Python)
 docs/                     hardware, audit, graphics, Wi-Fi, audio, install, bring-up, measurements
 audit/                    reference matrix, config diff, log analysis, payload hashes
 private/                  identity.example.plist (committed), identity.plist (ignored)
