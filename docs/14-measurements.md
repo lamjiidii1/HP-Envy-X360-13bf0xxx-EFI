@@ -5,9 +5,11 @@ This page keeps the raw numbers that drove the power, thermal and
 directory. Raw captures remain in `LOGS/power-audit-*` and
 `LOGS/geekbench/` on the machine that produced them.
 
-Environment: macOS Sequoia 15.8.2 (24H232), i7-1250U (2P + 8E, 12 threads),
-16 GB, 2880×1800 OLED. All CPU numbers are the Intel energy-model estimate from
-`powermetrics` (`CPUs+GT+SA`), not a wall-meter reading.
+Environment: macOS Sequoia 15.8.2 (24H232) and macOS 26 Tahoe, i7-1250U
+(2P + 8E, 12 threads), 16 GB, 2880×1800 OLED. All macOS package numbers are
+the Intel energy-model estimate from `powermetrics` (`CPUs+GT+SA`), not a
+wall-meter reading; whole-machine battery numbers come from `InstantAmperage`.
+A Fedora run on the same machine is recorded in §4 as a hardware reference.
 
 ## 1. XCPM, the cap, and the 1.88 GHz label
 
@@ -170,6 +172,55 @@ hours from the CSV. The earlier "100 % → 40 % in under 4 h" observation was
 made under the same kind of UI load, so it is an upper bound on drain, not a
 property of the hardware.
 
+### Same machine on Fedora: a hardware reference
+
+A short Fedora run on 2026-11-08 read the battery rail directly
+(`/sys/class/power_supply/BAT*/power_now`) while Firefox kept **15 tabs open**.
+The power-save profile was active for the idle phase; the performance profile
+was selected for Geekbench 7. Raw log: `LOGS/fedora-power-20261108.txt`.
+
+| Phase | Window | Average | Peak |
+|---|---|---|---|
+| Browser warm-up / settling | 15:58:00–15:59:56 | 6.65 W | 8.37 W |
+| **Power save, idle, Firefox 15 tabs open** | 16:02:00–16:05:52 | **4.23 W** | 4.82 W |
+| **Geekbench 7, performance profile** | 16:06:52–16:12:03 | 17.8 W | **24.12 W** |
+| Cooldown after the benchmark | 16:12:08–16:15:33 | 11.95 W | 21.51 W |
+
+This is a whole-machine battery-rail measurement, the same kind of number as
+`battery-watch.sh`, so it can be set beside the macOS 7.93 W light-use figure.
+The gap is the important result:
+
+- **Fedora: 4.2 W idle with 15 browser tabs.**
+- **macOS: 7.9 W reading a PDF with no background apps.**
+
+That is roughly **+3.7 W (+88 %)** at the lightest comparable load, before any
+browser tab is added. It is consistent with the macOS package never reaching
+C2–C10 or GPU DC6 (§2), while Fedora's i915/GuC stack can enter those states.
+The practical consequences are the ones reported on the machine: a warmer
+chassis and roughly half the battery runtime even when idle.
+
+Caveats: one run per state, screen brightness and battery health were not
+recorded, and the Fedora `power_now` value includes the panel, Wi-Fi and SSD
+just like the macOS battery-rail figure. The Fedora Geekbench score was not
+saved in this log. This is a reference floor, not a controlled A/B: repeat the
+same 15-tab Firefox idle workload on macOS, at the same brightness, before
+treating the 3.7 W difference as a target.
+
+Before that repeat, record the CPU-power state that produced the macOS number:
+
+```sh
+sysctl debug.xepm          # hwp / route / cst should be 1 on Tahoe 26.7.1
+pmset -g | grep lowpowermode
+kmutil showloaded | grep -E 'WhateverXe|AppleIntelTGLCompat'
+```
+
+`route: 3` means WhateverXe's XE-PM profile did not install (the Sequoia
+24H232 case); `lowpowermode 0` means the performance profile is active. Both
+change the result by more than the ±10–15 % measurement noise. The kext and
+`AppleIntelTGLCompat` versions must also match: 0.6.0 with 0.6.0 (Graphics
+0.3.1) on Sequoia, or 0.8.0 with 0.8.0 (Graphics 0.4.1) on Tahoe. See
+[06-usb-acpi-power.md § Hybrid P-cores](06-usb-acpi-power.md#hybrid-p-cores-and-the--wex-pm-route).
+
 ## 5. Hybrid topology looks wrong but is intentional
 
 ```text
@@ -216,6 +267,12 @@ sudo bash scripts/macos/power-audit.sh
 
 # real discharge over normal use (no root)
 INTERVAL=10 bash scripts/macos/battery-watch.sh
+
+# same-machine Fedora reference (battery rail, no root)
+while true; do
+  echo "$(date +%T)  $(awk '{printf "%.2f W\n", $1/1000000}' /sys/class/power_supply/BAT*/power_now)"
+  sleep 5
+done
 
 # post-boot state in one file
 bash scripts/macos/post-install-check.sh

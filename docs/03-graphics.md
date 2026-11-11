@@ -902,6 +902,23 @@ non-zero, so the profile's `EPP=0` and EE-turbo-off never reach the hardware.
 `sysctl -w debug.xepm.epp=...` is root-only and cannot help either: it changes
 a variable that the same gate ignores.
 
+The route is **build-specific**, and Tahoe 26.7.1 is the build it was checked
+against. Reading `/Volumes/Tahoe - Data/System/Library/Kernels/kernel` shows
+the prologue at `_xcpm_enable_pstate_ctrs + 0x1190` (`55 48 89 E5 53 50 89 FB`)
+and the `mov ecx,0x774; wrmsr` site at `+0x12F8` match the profile byte for
+byte. On Tahoe the 0.8.0 build should therefore install the route; confirm on
+the running system:
+
+```sh
+sysctl debug.xepm
+# hwp: 1, route: 1, cst: 1  -> profile active
+# route: 3                 -> profile off (the Sequoia 24H232 case above)
+```
+
+Sequoia 15.8.2 (24H232) does not match either byte pattern, so `-wex-pm` is
+inert there. That is one reason a Sequoia benchmark should not be compared
+with a Tahoe one without recording `debug.xepm.route`.
+
 The argument is harmless and stays in the default boot-args; `_xcpm_cstate_table`
 resolves on this kernel, so its idle-table patch may still apply, but no EPP
 tuning does. CPU power and heat are managed with XCPM low power mode instead:

@@ -203,7 +203,45 @@ Two platform limits appear in the same runs and are not pmset settings:
 
 The same hardware therefore loses roughly half its sustained CPU power budget
 under the macOS `lowpowermode` cap, whereas Fedora's `balance` profile can use
-the full PL1/PL2 envelope.
+the full PL1/PL2 envelope. The bigger difference is at idle: the same Fedora
+machine held **4.2 W with 15 Firefox tabs open**, against **7.9 W on macOS
+reading a PDF with no background apps** — a gap that tracks the missing
+C2–C10/DC6 states rather than the CPU governor. See
+[14-measurements.md § 4](14-measurements.md#same-machine-on-fedora-a-hardware-reference).
+
+### Hybrid P-cores and the `-wex-pm` route
+
+The ~3.6 GHz ceiling and the missing C-states have a common cause in XCPM,
+which predates Intel's hybrid CPUs:
+
+- XCPM writes the HWP turbo limit in 100 MHz units, but Alder Lake P-cores
+  count HWP performance in ~78.7 MHz units. A 4.7 GHz table entry therefore
+  becomes ~3.7 GHz on the P-cores.
+- Its default EPP (0x80) clips one-core turbo on Alder/Raptor Lake mobile.
+- Its idle table enables C3 (which these CPUs do not have) and disables
+  C8/C10, so cores stop at C6 or fall back to C1.
+
+WhateverXe ships an XE-PM profile behind `-wex-pm` that addresses this:
+rescales the HWP request on P-cores, writes EPP 0, disables energy-efficient
+turbo, enables C8/C10 in the idle table, and puts driverless IPU/GNA/ISH/DPTF/
+Thunderbolt-DMA functions into D3hot. The route is byte-checked and only
+installs on the kernel build it was written for. On **Tahoe 26.7.1 (25G241)**
+the bytes match and it should be active; on **Sequoia 15.8.2 (24H232)** it is
+inert (`debug.xepm.route: 3`). Confirm with:
+
+```sh
+sysctl debug.xepm
+# hwp: 1, route: 1, cst: 1 -> active
+# route: 3                -> off
+```
+
+Independent measurements of the same profile on a 2P+8E **i5-1245U** (Dell
+Latitude 7430) report Geekbench 6 single-core **1370 → 1832 (+34 %)**, multi
+**4142 → 4550**, and idle package **6.2 → ~5.4 W**. On a 4P+8E i7-1360P the
+same profile reports Geekbench 7 single-core **1269 → 1697 (+34 %)** and idle
+package **4.6 → 3.3 W**. These are the numbers to reproduce here before
+changing GPU flags: the profile is the first thing to check when the laptop
+is hot or the P-cores look stuck below 4 GHz.
 
 ## Sleep — known broken on this platform
 
