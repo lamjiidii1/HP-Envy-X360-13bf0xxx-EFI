@@ -387,9 +387,10 @@ provenance and removes dead weight, but the driver stack is the real variable.
 
 - Rebuilt from OpenCore 1.0.8 release binaries (the old `ResetNvramEntry.efi`
   did not match any official 1.0.8 build).
-- Added `SSDT-USB-Reset.aml` and `SSDT-USBW.aml`; all 12 ACPI tables now match
-  the same-model reference byte-for-byte (except cosmetic OEM IDs in
-  `SSDT-EC.aml`).
+- Added `SSDT-USB-Reset.aml` and `SSDT-USBW.aml`; the 12 ACPI tables present at
+  the time now match the same-model reference byte-for-byte (except cosmetic
+  OEM IDs in `SSDT-EC.aml`). A later `SSDT-HP-MICMUTE.aml` for the microphone
+  mute key brings the total to 13.
 - Removed the 13 disabled sample `Kernel/Patch` entries, the two disabled
   `ReservedMemory` entries, OpenCore's sample tools/entries, and
   `-vi2c-force-polling` (the touchpad works without extra polling).
