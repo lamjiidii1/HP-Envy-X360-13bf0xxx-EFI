@@ -62,10 +62,13 @@ upstream `SHA256SUMS`.
 After the installer the on-disk versions were confirmed (`Compat 0.8.0`,
 Apple kexts `16.0.32` / `16.0.0`), the three binaries matched the package
 payload byte-for-byte, and `kmutil inspect` listed Compat 0.8.0
-(`F6997294-0598-30BD-98B3-38E0EEB2FA7E`) in the rebuilt AuxKC. **A reboot is
-required to load it; hardware verification is pending.**
+(`F6997294-0598-30BD-98B3-38E0EEB2FA7E`) in the rebuilt AuxKC. After the
+required reboot, **the 0.8.0 + Graphics 0.4.1 pair was verified on macOS 26
+Tahoe on 2026-11-11**: the accelerator loads, the internal panel runs at
+HiDPI, Metal 2 is reported, and the Battery pane and App Store paint
+correctly. The commands below remain the regression check.
 
-What to check after booting Sequoia:
+What to check after booting Tahoe (0.8.0 default) or Sequoia (0.6.0):
 
 ```sh
 # On 0.6.0: guard[19] must be 01

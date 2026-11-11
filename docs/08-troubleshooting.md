@@ -583,7 +583,7 @@ audio disappear even though the codec is correct.
 | Some ports missing | The map is board-specific (`8A28`); regenerate with USBToolBox instead of editing |
 | USB installer not visible | `HfsPlus.efi` (or `OpenHfsPlus.efi`) loaded |
 | Touchpad dead | Not expected: the I2C touchpad works and enumerates as "Magic Trackpad 2". Check `VoodooI2C`/`VoodooI2CHID`, `SSDT-GPI0.aml` and the GPI0 `_STA` patch |
-| Touchscreen dead | Hardware: the panel glass is cracked on this unit and touch fails in Windows too; nothing to fix in macOS |
+| Touchscreen dead (both halves) | Check `ITHC.kext` is enabled and loaded (`kmutil showloaded \| grep ITHC`), the THC device is present (`ioreg -l \| grep -i 51d0`), and `-ithcoff` is not in `boot-args`. Individual dead regions are the broken glass on this unit, not a driver fault; `-ithcpoll` is a fallback for MSI problems |
 | Camera dead | Expected: the camera is IPU6 `8086:465d` on MIPI, not USB UVC, and macOS has no driver. `system_profiler SPCameraDataType` is empty and it is absent from the USB tree |
 | Keyboard works, trackpad does not | VoodooPS2 trackpad plugin is for the PS/2 path; the I2C touchpad needs VoodooI2C and working GPIO |
 

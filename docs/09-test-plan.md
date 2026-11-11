@@ -149,7 +149,7 @@ a successful recording proves the DSP patch is in the built kext.
 | T07.3 | Sleep/wake is not required for this test; hot-plug instead | devices appear/disappear cleanly |
 | T07.4 | Keyboard (internal) | all keys, brightness keys included |
 | T07.5 | Trackpad | **works**: precision movements, tap, two-finger scroll, gestures; enumerates as "Magic Trackpad 2" |
-| T07.6 | Touchscreen | cannot be tested: the glass is cracked and touch fails in Windows too. Record the hardware fault, do not chase a driver |
+| T07.6 | Touchscreen: tap and drag across the undamaged half | pointer follows the finger; multi-touch and gestures reach the desktop. **Passes on the right half (2026-11-11).** The left half is physically cracked glass and does not report touches; this is a hardware limit, not a driver fault |
 | T07.7 | Camera | expected dead: IPU6 `8086:465d` on MIPI, not USB. `SPCameraDataType` is empty and it is absent from the USB tree |
 | T07.8 | SD card reader | expected unsupported (RTS5288 `10ec:5228`); record, do not chase |
 

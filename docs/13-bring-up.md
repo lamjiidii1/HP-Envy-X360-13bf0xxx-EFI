@@ -19,18 +19,18 @@ Short version for this exact hardware:
 
 **Works:** boot/install, CPU (2 P + 8 E / 12 threads), internal OLED at
 **Looks like 1440 × 900** + Metal 2, Wi-Fi, Bluetooth, all USB-A/USB-C data
-ports and USB-C charging, trackpad with gestures, keyboard, audio out over
-3.5 mm and USB-C, battery reporting and the Battery pane (after the
-`impostor` fix), App Store/Quick Look (after the `TGLVA` fix), XCPM power
-profiles.
+ports and USB-C charging, trackpad with gestures, touchscreen on the
+undamaged half of this unit (ITHC), keyboard, internal speakers (CS35L41),
+internal microphone (TGLDmic), audio out over 3.5 mm and USB-C, battery
+reporting and the Battery pane (after the `impostor` fix), App Store/Quick
+Look (after the `TGLVA` fix), XCPM power profiles.
 
-**Does not work:** internal speakers (CS35L41 smart amps, no driver), camera
-(IPU6 `8086:465d` on MIPI, no driver), microSD reader (RTS5288, no driver),
-touchscreen (physically broken glass; fails in Windows too), sleep/wake (HP
-firmware limit).
+**Does not work:** camera (IPU6 `8086:465d` on MIPI, no driver), microSD reader
+(RTS5288, no driver), sleep/wake (HP firmware limit). The left half of this
+unit's touchscreen is cracked glass, so only the right half reports touches.
 
-**Untested:** internal microphone, HDMI/USB-C video output, Thunderbolt/USB4
-alt modes, fan/board sensors.
+**Untested:** HDMI/USB-C video output, Thunderbolt/USB4 alt modes,
+fan/board sensors.
 
 Do not treat the last group as failures, and do not spend time on the first
 group of failures: each is a hardware or firmware limit, not a configuration

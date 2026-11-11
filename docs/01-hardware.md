@@ -91,7 +91,7 @@ provided because both are known to work on this generation; see
 |---|---|---|
 | Card reader | Realtek RTS5288 `10ec:5228` | no macOS driver; not tested physically |
 | Camera | Intel Alder Lake IPU6 `8086:465d` (MIPI, not USB) | no macOS driver; not attempted |
-| Touchscreen | I2C HID | physically broken glass on this unit; does not work in Windows either |
+| Touchscreen | I2C HID via Intel THC | **works on the undamaged half**: `ITHC.kext` + `VoodooI2CHID`; the glass is cracked on this unit, so the left half does not report touches. `-ithcoff` disables the driver |
 | Touchpad | I2C HID | **works**: precision trackpad with gestures via `VoodooI2C` + `VoodooI2CHID` |
 
 ## How this inventory was collected
