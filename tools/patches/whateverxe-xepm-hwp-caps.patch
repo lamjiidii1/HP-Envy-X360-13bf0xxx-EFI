@@ -1,0 +1,76 @@
+diff --git a/WhateverXe/kern_xepm.cpp b/WhateverXe/kern_xepm.cpp
+index 64b4d46..639cd1f 100644
+--- a/WhateverXe/kern_xepm.cpp
++++ b/WhateverXe/kern_xepm.cpp
+@@ -6,12 +6,14 @@
+ //  Opt-in with -wex-pm. Everything is applied 20 s after the patcher loads (system up), re-checked at 60 s.
+ //
+ //  1. HWP units (hybrid P-cores). XCPM writes IA32_HWP_REQUEST (0x774) max/desired in 100 MHz ratio units (max = the
+-//     TURBO_RATIO_LIMIT value, 50 on an i7-1360P). On hybrid P-cores one HWP performance unit is ~78.7 MHz (Linux
+-//     intel_pstate hybrid scaling factor 78741; HWP_CAPABILITIES highest = 64 for 5.0 GHz), so max 50 caps them at
+-//     ~3.9 GHz. The static XCPM routine at _xcpm_enable_pstate_ctrs+0x1190 (macOS 26.7.1 25G241) takes the target
+-//     multiplier and writes the local CPU's request; it is routed, and after Apple's write the request is rescaled on
+-//     cores whose highest perf exceeds the requested max (max -> highest, desired -> desired * highest / max). The
+-//     route is installed only after the prologue and the write site match byte for byte.
++//     TURBO_RATIO_LIMIT value, 47 on an i7-1250U, 50 on an i7-1360P). On hybrid P-cores one HWP performance unit is
++//     ~78.7 MHz (Linux intel_pstate hybrid scaling factor 78741; HWP_CAPABILITIES highest = 60 for 4.7 GHz), so max 47
++//     caps them at ~3.7 GHz. E-cores use 100 MHz units, so their request is already correct.
++//     The static XCPM routine at _xcpm_enable_pstate_ctrs+0x1190 (macOS 26.7.1 25G241) takes the target multiplier and
++//     writes the local CPU's request; it is routed. After Apple's write, the requested max is converted from XCPM's
++//     100 MHz units to the current core's HWP units, so an uncapped request reaches the core's highest performance and
++//     a deliberate cap (Low Power Mode, thermal, lowpowermode 1 -> ratio 24) is preserved instead of being rewritten
++//     to the highest. The route is installed only after the prologue and the write site match byte for byte.
+ //  2. EPP. XCPM's frequency vector asks EPP 0x80. On ADL/RPL mobile parts that clips one-core turbo (Intel, Linux 5.17
+ //     intel_pstate: EPP <= 102 needed). The profile writes EPP 0 (sysctl debug.xepm.epp to change).
+ //  3. Energy-efficient turbo off (MSR_POWER_CTL 0x1FC bit 19).
+@@ -34,6 +36,20 @@ extern "C" void mp_rendezvous_no_intrs(void (*fn)(void *), void *arg);
+ static inline uint64_t xpRdmsr(uint32_t m) { uint32_t lo, hi; asm volatile("rdmsr" : "=a"(lo), "=d"(hi) : "c"(m)); return ((uint64_t)hi << 32) | lo; }
+ static inline void xpWrmsr(uint32_t m, uint64_t v) { asm volatile("wrmsr" : : "c"(m), "a"((uint32_t)v), "d"((uint32_t)(v >> 32))); }
+ 
++// One HWP performance unit in kHz for the current core: 78741 on hybrid P-cores (Core), 100000 on E-cores (Atom).
++// CPUID leaf 1AH EAX[31:24] is the core type (0x40 = Core, 0x20 = Atom); measured on the i7-1250U. 0 = unknown, in
++// which case the request is left as XCPM wrote it (100 MHz units are already right for E-cores and non-hybrid parts).
++static uint32_t xpHwpUnitKhz() {
++	uint32_t a, b, c, d;
++	asm volatile("cpuid" : "=a"(a), "=b"(b), "=c"(c), "=d"(d) : "a"(0u), "c"(0u));
++	if (a < 0x1a) return 0;
++	asm volatile("cpuid" : "=a"(a), "=b"(b), "=c"(c), "=d"(d) : "a"(0x1au), "c"(0u));
++	const uint32_t type = (a >> 24) & 0xff;
++	if (type == 0x40) return 78741;
++	if (type == 0x20) return 100000;
++	return 0;
++}
++
+ static bool gXpOn = false;
+ static int gXpHwp = 0, gXpEpp = -1;                 // sysctl debug.xepm.hwp / .epp (root)
+ static int gXpEet = 0, gXpCst = 0, gXpD3 = 0, gXpRoute = 0;   // status
+@@ -48,10 +64,16 @@ static uint64_t xpSetMult(uint64_t mult, uint64_t a1, uint64_t a2, uint64_t a3)
+ 		if (v & (1ULL << 42)) return r;   // package control: leave it alone
+ 		const uint32_t hi = (uint32_t)(xpRdmsr(0x771) & 0xff), max = (uint32_t)(v >> 8) & 0xff, des = (uint32_t)(v >> 16) & 0xff;
+ 		uint64_t nv = v;
+-		if (max && hi > max && hi < 0xff) {
+-			uint32_t d = des ? (des * hi + max / 2) / max : 0;
+-			if (d > hi) d = hi;
+-			nv = (nv & ~0xFFFF00ULL) | ((uint64_t)hi << 8) | ((uint64_t)d << 16);
++		const uint32_t unit = xpHwpUnitKhz();
++		if (max && hi > max && hi < 0xff && unit) {
++			// Convert the requested 100 MHz ratio into this core's HWP units instead of maximizing it. This keeps a
++			// deliberate cap (e.g. lowpowermode 1 -> ratio 24 -> ~2.36 GHz on a P-core) but still lets an uncapped
++			// request reach the core's highest performance (47 -> 60 on a 4.7 GHz P-core, E-cores are already 1:1).
++			uint32_t w = (uint32_t)(((uint64_t)max * 100000 + unit / 2) / unit);
++			if (w > hi) w = hi;
++			uint32_t d = des ? (uint32_t)(((uint64_t)des * 100000 + unit / 2) / unit) : 0;
++			if (d > w) d = w;
++			nv = (nv & ~0xFFFF00ULL) | ((uint64_t)w << 8) | ((uint64_t)d << 16);
+ 		}
+ 		if (gXpEpp >= 0) nv = (nv & ~0xFF000000ULL) | ((uint64_t)gXpEpp << 24);
+ 		if (nv != v) xpWrmsr(0x774, nv);
+@@ -121,7 +143,7 @@ static void xpApply(thread_call_param_t, thread_call_param_t) {
+ }
+ 
+ SYSCTL_NODE(_debug, OID_AUTO, xepm, CTLFLAG_RW, 0, "WhateverXe XE-PM");
+-SYSCTL_INT(_debug_xepm, OID_AUTO, hwp, CTLFLAG_RW, &gXpHwp, 0, "HWP rescale on hybrid P-cores");
++SYSCTL_INT(_debug_xepm, OID_AUTO, hwp, CTLFLAG_RW, &gXpHwp, 0, "HWP unit conversion on hybrid cores (honors lower caps)");
+ SYSCTL_INT(_debug_xepm, OID_AUTO, epp, CTLFLAG_RW, &gXpEpp, 0, "EPP override, -1 = XCPM's");
+ SYSCTL_INT(_debug_xepm, OID_AUTO, eet_off, CTLFLAG_RD, &gXpEet, 0, "");
+ SYSCTL_INT(_debug_xepm, OID_AUTO, cst, CTLFLAG_RD, &gXpCst, 0, "1 = C8/C10 on");

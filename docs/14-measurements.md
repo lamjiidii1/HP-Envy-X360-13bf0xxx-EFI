@@ -57,6 +57,26 @@ Two limits are not pmset settings:
 
 Full detail: [06-usb-acpi-power.md](06-usb-acpi-power.md#measured-effect-2026-11-05).
 
+### XE-PM HWP cap fix (2026-11-11)
+
+The default WhateverXe 0.8.0 was rebuilt with
+`tools/patches/whateverxe-xepm-hwp-caps.patch`, which makes XE-PM convert
+XCPM's HWP request instead of maximizing it. Same boot, one busy thread, on
+battery:
+
+| Case | Busiest core | Package |
+|---|---|---|
+| old kext, `lowpowermode 1`, `hwp=1` | 3.81–3.84 GHz | 20.6–21.8 W |
+| rebuilt kext, `lowpowermode 1`, `hwp=1` | **2.21–2.23 GHz** | **10.8–11.7 W** |
+| rebuilt kext, `lowpowermode 0`, `hwp=1` | 3.81 GHz | 14.2–15.4 W |
+
+A four-thread run under `lowpowermode 1` kept all ten cores at or below
+2.5 GHz (P-cores ~2.0–2.2 GHz), so the cap is enforced on both core types.
+Package C-state residency stayed at 0.00 % while cores were busy; that is
+expected without GPU DC6 and is unrelated to this change. Battery draw with
+OpenCode, WindowServer and post-boot background work active fell from 17.2 W
+to 14.4 W, but that is not an idle baseline.
+
 ## 3. Geekbench 7: the runs, and why most were invalid
 
 All runs are Geekbench 7.1.0 for macOS AVX2, on battery, same install.

@@ -80,7 +80,7 @@ executable. `-` means the bundle has no executable (a pure plist injector).
 | `Lilu.kext` | 1.7.2 | [acidanthera/Lilu](https://github.com/acidanthera/Lilu) | `ff98508b40a1eb5fb477029db8886412520f8e39965279ea331c99e3d2e3b274` | none |
 | `AMFIPass.kext` | 1.4.1 | [dhinakg/AMFIPass](https://github.com/dhinakg/AMFIPass) | `2d36aeca1740b258e6bb0b66844b5bfb59a0edb7cdd9ef78206689e5d223d8dc` | "Mod" build from WhateverXe Graphics: trust anchor changed for Xe bundles |
 | `WhateverXe.kext` | 0.6.0 | b00t0x + [retropineaple adlp-edp](https://github.com/retropineaple/WhateverXe/tree/adlp-edp), prebuilt in [whateverxe-hp-envy-x360](https://github.com/retropineaple/whateverxe-hp-envy-x360) commit `8100282` | `197da23bbe5a09731ef9517a0a6f9dabe52ab1f9b0c885a841a064190770288c` | unmodified published binary (patch series 54); the build applies the 24H232 Sequoia constant (§5); Sequoia build (variant `gpu-hp-adlp-edp`) |
-| `WhateverXe.kext` | 0.8.0 | b00t0x + [adlp-edp port](https://github.com/lamjiidii1/HP-Envy-X360-13bf0xxx-EFI/tree/wex080-adlp) | `cc7b83a238fabf52f092c6f3db4acae8d114c5f2fc607397c51c187e41295f88` | Dynamic MMIO; first-child-wins VBT parsing; fixed Combo A DP route; masked speculative Type-C routes; Metal POSH leak fix and flip deduplication (variant `gpu-wex080-adlp`) |
+| `WhateverXe.kext` | 0.8.0 | b00t0x + [lamjiidii1/WhateverXe](https://github.com/lamjiidii1/WhateverXe) `main` @ `dffff32` + XE-PM cap patch | `fa7dcf28a516b084dd94fdea63e1ecdfe9d8e6e0c26054290e58900a72d468e7` | Dynamic MMIO; first-child-wins VBT parsing; fixed Combo A DP route; masked speculative Type-C routes; Metal POSH leak fix and flip deduplication; XE-PM honors `lowpowermode` caps (variant `gpu-wex080-adlp`) |
 | `WhateverXe.kext` | 0.7.0 | [b00t0x/WhateverXe](https://github.com/b00t0x/WhateverXe) | `ea156ad48ce7e29b2b409232b4d0623abd492935428b43da79239899fa2b0f3f` | none; control only, rejects this VBT (variant `gpu-wex070`) |
 | `VirtualSMC.kext` | 1.3.9 | [acidanthera/VirtualSMC](https://github.com/acidanthera/VirtualSMC) | `bf91e9542b86c20acaf210353a93742291c49328e2d14b03fa0fa4fc52b3b5ce` | none |
 | `SMCProcessor.kext` | 1.3.9 | acidanthera/VirtualSMC | `dcf738671431721692f752e3df43acaaa02c93788ae7b21153504b07db01be32` | none |
@@ -269,7 +269,7 @@ The release archives used to populate the repository:
 |---|---|---|
 | `OpenCore-1.0.8-RELEASE.zip` | `2011e8b7216ecb2645d97ea710df965947edd406846e92050b9bc4190be6d27b` | OpenCore, drivers, resources |
 | WhateverXe 0.7.0 RELEASE zip | `5548c78f687134580913b9f600fb8b0f16bb49f7d430bcc82de7fa9761d4f62b` | `efi/variants/gpu-wex070` (control) |
-| `WhateverXe.kext` (0.8.0-adlp) | `cc7b83a238fabf52f092c6f3db4acae8d114c5f2fc607397c51c187e41295f88` | `efi/variants/gpu-wex080-adlp` (built from branch `adlp-0.8.0`; default) |
+| `WhateverXe.kext` (0.8.0-adlp, XE-PM cap fix) | `fa7dcf28a516b084dd94fdea63e1ecdfe9d8e6e0c26054290e58900a72d468e7` | `efi/variants/gpu-wex080-adlp` (built from `lamjiidii1/WhateverXe` `main` @ `dffff32` + `tools/patches/whateverxe-xepm-hwp-caps.patch`; default) |
 | AirportItlwm Tahoe build (2.4.1, `tahoe-vtd-1`) | `cf11f2da43a7a98513417e059dcbd6e1800bb28bf5e821ff950794901e0c65dc` | `efi/variants/wifi-airportitlwm-tahoe` (default for macOS 26) |
 | `AirportItlwm-Sequoia-v2.4.0-RELEASE-alpha-7204c69.zip` | `263d35e5954808f43bde17b9695b675aefc2f6d4cded71306b1b6575aea61a82` | `efi/variants/wifi-airportitlwm` |
 | `WhateverXe-Graphics-0.4.1.pkg` | `7f7ce3b924ad421cff0c4f30534598858474b8c9539c4b889a461bc1d5fed02c` | installed 2026-11-09; pairs with the 0.8.0-adlp default, not in Git |
@@ -285,12 +285,20 @@ patches its 24H232 Sequoia constant as described in §5. The older commit
 `c090b9dd…`; that is the binary the previous EFI used, and it remains in Git
 history of this repository.
 
-The 0.8.0 `adlp-edp` binary is built from commit `51798c0` of the `adlp-0.8.0`
-branch of WhateverXe, incorporating the `adlp-edp` patchset and the Display 13
-Type-C speculative route mask. It is pinned by its executable hash `cc7b83a2…`.
-Later source commits restore the released three-argument `supportedWiring`
-contract and harden tests; they do not change the enabled Combo-A panel route,
-so the hardware-validated binary is kept as the shipped payload.
+The 0.8.0 default is rebuilt from the `main` tip of
+[lamjiidii1/WhateverXe](https://github.com/lamjiidii1/WhateverXe) at `dffff32`
+(which already carries the `adlp-edp` patchset, the Display 13 Type-C route
+mask, `-wex-mtl-poshfix` and `-wex-flip-dedupe`) plus
+`tools/patches/whateverxe-xepm-hwp-caps.patch`. The patch changes XE-PM's
+`xpSetMult` so it converts XCPM's 100 MHz request into the current core's HWP
+units (78.741 MHz on P-cores, 100 MHz on E-cores; core type from CPUID leaf
+`1AH`) instead of rewriting every lower request to the core's highest. That
+restores the `lowpowermode` cap while keeping turbo. The result is pinned as
+`fa7dcf28…`. It replaces the earlier `cc7b83a2…` binary, which remains in Git
+history and in the live ESP at `EFI/OC/Kexts-backup/`. The rebuild is not
+byte-identical to that binary (21 fewer symbols, ~8 KB less text) because it
+is built from a later source tip; it was boot-tested on 2026-11-11 and the
+cap fix was measured on that boot.
 
 The other kexts were taken from their named upstream releases; their
 individual hashes in `payloads.tsv` are the authority.

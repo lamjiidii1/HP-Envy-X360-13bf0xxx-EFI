@@ -12,7 +12,7 @@ Sequoia pairing:
 
 | Half | Version | Why |
 |---|---|---|
-| EFI kext (default) | WhateverXe 0.8.0, `adlp-0.8.0` branch, binary `cc7b83a2…` (`gpu-wex080-adlp`) | Default for macOS 26; upstream 0.8.0 rebase; resolves MMIO dynamically without binary patching; masks unprobed Type-C routes to drive internal OLED; Metal POSH leak fix and flip deduplication |
+| EFI kext (default) | WhateverXe 0.8.0, `main` branch @ `dffff32` + XE-PM cap patch, binary `fa7dcf28…` (`gpu-wex080-adlp`) | Default for macOS 26; upstream 0.8.0 rebase; resolves MMIO dynamically without binary patching; masks unprobed Type-C routes to drive internal OLED; Metal POSH leak fix and flip deduplication; XE-PM now honors `lowpowermode` caps |
 | EFI kext (Sequoia) | WhateverXe 0.6.0, `adlp-edp` branch, patch series 54, published binary `197da23b…`; the `hp-adlp-edp` build applies the 24H232 Sequoia constant | Proven base driver for macOS 15.8.2; parses this VBT and drives internal OLED |
 | Installed package | WhateverXe Graphics 0.4.1 (`AppleIntelTGLCompat` 0.8.0) | Installed 2026-11-09; pairs with the default `wex080-adlp`. Graphics 0.3.1 remains the package for the 0.6.0 Sequoia build |
 
@@ -479,6 +479,14 @@ areas:
    `-wex-flip-dedupe`. `build_efi.py` puts both in the default `wex080-adlp`
    boot arguments.
 
+4. **XE-PM honors lower caps (2026-11-11)**: the `fa7dcf28…` rebuild changes
+   `xpSetMult` so it converts XCPM's 100 MHz ratio into the current core's HWP
+   units (78.741 MHz on P-cores, 100 MHz on E-cores) instead of rewriting every
+   lower request to the core's highest. `lowpowermode 1` again caps the
+   P-cores (measured 2.21–2.23 GHz, 10.8–11.7 W package) instead of running
+   them at 3.81–3.84 GHz / 20.6–21.8 W; uncapped turbo still reaches 3.81 GHz.
+   See `tools/patches/whateverxe-xepm-hwp-caps.patch`.
+
 ## What the logs show
 
 From `LOGS/macOS_Logs_20261030_180840` (macOS 26.7.2, build 25G332):
@@ -869,7 +877,7 @@ reinstall.
 | `-wex-reset-restore` | Restore display/render state after a GPU reset |
 | `-wex-no-multicontext` | Avoid the second compute ring that deadlocks on recovery |
 | `-wex-scanout-coherent` | Mark every flipped surface displayable (HiDPI above 1440x900) |
-| `-wex-pm` | XE-PM CPU profile: HWP units and the idle table on hybrid Alder Lake. On this kernel its HWP route does not install, so it does not change CPU power; see the note below |
+| `-wex-pm` | XE-PM CPU profile: HWP units, EPP, idle table and D3hot on hybrid Alder Lake. On Tahoe 26.7.1 the HWP route installs (`debug.xepm.route: 1`); the rebuilt 0.8.0 honors lower caps. Inert on Sequoia 15.8.2; see the note below |
 | `-wex-mtl-poshfix` | 0.8.0 build only: fixes the Metal POSH resource leak reported on this port |
 | `-wex-flip-dedupe` | 0.8.0 build only: deduplicates repeated flip transactions before they reach the display pipe |
 | `-ithcoff`, `-ithcpoll` | `-ithcoff` disables `ITHC.kext`; `-ithcpoll` polls the THC instead of using its MSI interrupt |
@@ -884,11 +892,12 @@ one. Do not copy them across without knowing which of the variants is under test
 Do not add `-wex-noaccel`: it deliberately disables the accelerator and would
 guarantee the 19 MB fallback.
 
-### CPU power: `-wex-pm` is inert on this kernel
+### CPU power: `-wex-pm` on Tahoe (active) and Sequoia (inert)
 
-WhateverXe 0.6.0 parses `-wex-pm`, registers the `debug.xepm.*` sysctls, and
-then tries to route a hook onto XCPM's set-multiplier function. On 24H232 that
-route fails, and the failure is visible at runtime:
+WhateverXe parses `-wex-pm`, registers the `debug.xepm.*` sysctls, and then
+tries to route a hook onto XCPM's set-multiplier function. The route is
+**build-specific**: it installs on Tahoe 26.7.1 (25G241) and fails on Sequoia
+15.8.2 (24H232), where the failure is visible at runtime:
 
 ```sh
 sysctl debug.xepm.hwp debug.xepm.route debug.xepm.d3
@@ -898,22 +907,41 @@ sysctl debug.xepm.hwp debug.xepm.route debug.xepm.d3
 ```
 
 `xpSetMult` only writes MSR `0x774` (IA32_HWP_REQUEST) when `gXpHwp` is
-non-zero, so the profile's `EPP=0` and EE-turbo-off never reach the hardware.
+non-zero, so on Sequoia the profile's `EPP=0` and EE-turbo-off never reach the
+hardware.
 `sysctl -w debug.xepm.epp=...` is root-only and cannot help either: it changes
 a variable that the same gate ignores.
 
-The route is **build-specific**, and Tahoe 26.7.1 is the build it was checked
-against. Reading `/Volumes/Tahoe - Data/System/Library/Kernels/kernel` shows
-the prologue at `_xcpm_enable_pstate_ctrs + 0x1190` (`55 48 89 E5 53 50 89 FB`)
+Reading `/Volumes/Tahoe - Data/System/Library/Kernels/kernel` shows the
+prologue at `_xcpm_enable_pstate_ctrs + 0x1190` (`55 48 89 E5 53 50 89 FB`)
 and the `mov ecx,0x774; wrmsr` site at `+0x12F8` match the profile byte for
-byte. On Tahoe the 0.8.0 build should therefore install the route; confirm on
-the running system:
+byte, so the 0.8.0 build installs the route on Tahoe. Confirm on the running
+system:
 
 ```sh
 sysctl debug.xepm
 # hwp: 1, route: 1, cst: 1  -> profile active
 # route: 3                 -> profile off (the Sequoia 24H232 case above)
 ```
+
+The original upstream rescale rewrote *any* maximum below the core's highest
+HWP performance to that highest value. That repairs the 100 MHz vs 78.7 MHz
+unit mismatch for turbo, but it also discarded deliberate caps: with
+`lowpowermode 1` (XCPM ratio 24, 2.4 GHz) the P-cores still ran at ~3.8 GHz and
+drew ~21 W package power. The `fa7dcf28…` rebuild replaces that with a unit
+conversion (see [10-provenance.md](10-provenance.md) and
+`tools/patches/whateverxe-xepm-hwp-caps.patch`):
+
+| One busy thread, same boot | Busiest core | Package |
+|---|---|---|
+| upstream XE-PM, `lowpowermode 1` | 3.81–3.84 GHz | 20.6–21.8 W |
+| rebuilt XE-PM, `lowpowermode 1` | **2.21–2.23 GHz** | **10.8–11.7 W** |
+| rebuilt XE-PM, `lowpowermode 0` | 3.81 GHz | 14.2–15.4 W |
+
+A four-thread run under `lowpowermode 1` kept all ten cores at or below
+2.5 GHz; the P-cores sat at ~2.0–2.2 GHz. E-cores use 100 MHz HWP units and
+were already correct. With the rebuild, Low Power Mode is a real cap again and
+the uncapped turbo is unchanged.
 
 Sequoia 15.8.2 (24H232) does not match either byte pattern, so `-wex-pm` is
 inert there. That is one reason a Sequoia benchmark should not be compared

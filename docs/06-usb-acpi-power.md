@@ -86,9 +86,10 @@ profile: XCPM holds the package to `IOPlatformPowerProfile`'s `lpm_ratio`
 instead of 4.7 GHz. It does not change the topology or the WhateverXe GPU
 driver, and `sudo pmset -a lowpowermode 0` reverts it.
 
-Do not expect `-wex-pm` to help here: its HWP route does not install on this
-kernel, so its EPP value never reaches MSR `0x774` (see
-[§ 3](03-graphics.md#cpu-power--wex-pm-is-inert-on-this-kernel)).
+On Tahoe 26.7.1 the rebuilt 0.8.0 kext installs the XE-PM HWP route, so EPP
+and the HWP cap conversion do reach MSR `0x774`. On Sequoia 15.8.2 the same
+route does not install and the profile is inert (see
+[§ 3](03-graphics.md#cpu-power--wex-pm-on-tahoe-active-and-sequoia-inert)).
 
 ### Persistence, the orange icon, and the boot daemon
 
@@ -222,18 +223,37 @@ which predates Intel's hybrid CPUs:
   C8/C10, so cores stop at C6 or fall back to C1.
 
 WhateverXe ships an XE-PM profile behind `-wex-pm` that addresses this:
-rescales the HWP request on P-cores, writes EPP 0, disables energy-efficient
-turbo, enables C8/C10 in the idle table, and puts driverless IPU/GNA/ISH/DPTF/
-Thunderbolt-DMA functions into D3hot. The route is byte-checked and only
-installs on the kernel build it was written for. On **Tahoe 26.7.1 (25G241)**
-the bytes match and it should be active; on **Sequoia 15.8.2 (24H232)** it is
-inert (`debug.xepm.route: 3`). Confirm with:
+converts the HWP request to per-core units on P-cores, writes EPP 0, disables
+energy-efficient turbo, enables C8/C10 in the idle table, and puts driverless
+IPU/GNA/ISH/DPTF/Thunderbolt-DMA functions into D3hot. The route is
+byte-checked and only installs on the kernel build it was written for. On
+**Tahoe 26.7.1 (25G241)** the bytes match and it is active; on **Sequoia
+15.8.2 (24H232)** it is inert (`debug.xepm.route: 3`). Confirm with:
 
 ```sh
 sysctl debug.xepm
 # hwp: 1, route: 1, cst: 1 -> active
 # route: 3                -> off
 ```
+
+The stock profile maximized every HWP request lower than the core's highest
+performance. That repaired the 100 MHz → 78.7 MHz unit mismatch for turbo but
+also discarded Low Power Mode: `lowpowermode 1` (ratio 24, 2.4 GHz) still ran
+P-cores at ~3.8 GHz. The default kext now converts the requested ratio into
+per-core HWP units instead (`fa7dcf28…`, built from the WhateverXe `main` tip
+plus `tools/patches/whateverxe-xepm-hwp-caps.patch`). Measured on battery,
+one busy thread, same boot:
+
+| `lowpowermode` | Upstream XE-PM | Rebuilt XE-PM |
+|---|---|---|
+| `1` (cap 2.4 GHz) | 3.81–3.84 GHz, 20.6–21.8 W | **2.21–2.23 GHz, 10.8–11.7 W** |
+| `0` (no cap) | ~3.87 GHz, 20.1–23.4 W | 3.81 GHz, 14.2–15.4 W |
+
+With the rebuild, a four-thread load under `lowpowermode 1` kept every core at
+or below 2.5 GHz; the P-cores sat at ~2.0–2.2 GHz. E-cores use 100 MHz HWP
+units and were already correct. Package C-state residency still reads 0.00 %
+while any core is busy (the GPU never enters DC6 without GuC), so that line is
+not a regression from this change.
 
 Independent measurements of the same profile on a 2P+8E **i5-1245U** (Dell
 Latitude 7430) report Geekbench 6 single-core **1370 → 1832 (+34 %)**, multi
