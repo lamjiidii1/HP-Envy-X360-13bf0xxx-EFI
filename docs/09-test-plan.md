@@ -173,6 +173,8 @@ a successful recording proves the DSP patch is in the built kext.
 | T08.14 | `nvram boot-args \| tr ' ' '\n' \| grep nvmefaspm` and `ioreg -r -c IOPCIDevice -l -w0 \| grep -E 'pci-l1ss-enable\|pci-max-latency'` | `-nvmefaspm` present; both L1SS properties on the NVMe path (`0f001260`); `system_profiler SPNVMeDataType` still reports x4 / 16 GT/s |
 | T08.15 | Turn Bluetooth on, then `ioreg -r -c BTIdle -d1 -l -w0 \| grep btidle` and check the controller's `IOPowerManagement` | `btidle-applied = 3`, `btidle-status` has `if0=100 p81=100 p82=100`; `CurrentPowerState = 1`, `CapabilityFlags` contains `65536`. With Bluetooth off, `applied = 0` is expected |
 | T08.16 | `bash scripts/macos/power-now.sh --once` | prints percentage, source and a plausible watt draw (no root) |
+| T08.17 | Quit OpenCode, then `sudo bash scripts/macos/idle-baseline.sh 120` and again with `--display-sleep` | panel asleep: package ~2.1–2.3 W, whole machine ~5.7–6.0 W, package PC3 93–96 %, P-cores C7 95–98 %, E-cores C6 99 %+; panel on: ~2.5 W / ~6.3–7.1 W. PC6–PC10 stay 0 % in both |
+| T08.18 | With the panel asleep, one window with Wi-Fi off and one with it on (`sudo networksetup -setairportpower en0 off` / `on`) | Wi-Fi delta ≤0.3 W and the floor stays ~5.7 W. A much larger delta means the radio is not idling and is worth investigating |
 
 ## Phase 9 — Sleep (known broken, informational)
 

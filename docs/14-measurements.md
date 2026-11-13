@@ -2,14 +2,15 @@
 
 This page keeps the raw numbers that drove the power, thermal and
 "is-it-fast-enough" decisions, without requiring the gitignored `LOGS/`
-directory. Raw captures remain in `LOGS/power-audit-*` and
-`LOGS/geekbench/` on the machine that produced them.
+directory. Raw captures remain in `LOGS/power-audit-*`, `LOGS/geekbench/` and
+`LOGS/idle-baseline-*` on the machine that produced them.
 
 Environment: macOS Sequoia 15.8.2 (24H232) and macOS 26 Tahoe, i7-1250U
 (2P + 8E, 12 threads), 16 GB, 2880×1800 OLED. All macOS package numbers are
 the Intel energy-model estimate from `powermetrics` (`CPUs+GT+SA`), not a
 wall-meter reading; whole-machine battery numbers come from `InstantAmperage`.
-A Fedora run on the same machine is recorded in §4 as a hardware reference.
+A Fedora run and a tuned Linux idle measurement on the same machine are
+recorded in §4 as hardware references.
 
 ## 1. XCPM, the cap, and the 1.88 GHz label
 
@@ -142,6 +143,29 @@ interval they describe.
 Both reads show the same `0xE2 = 0x74008008` (limit 8 = C10, CFG lock set) and
 `deep_idle_count = 0`; the GPU stays at RC6 ~100 % with `GPU Busy 0.00 %`.
 
+One artifact to ignore: powermetrics sometimes prints an E-core slightly above
+100 % (100.02–100.42 %). It derives total and per-C-state residency over
+marginally different intervals; the overshoot is under half a percent and is
+not real residency.
+
+**Why PC6+ never appears.** A probe build of WhateverXe, archived as
+`tools/patches/whateverxe-xepm-msr-probe.patch`, exposed the package power
+MSRs through `debug.xepm.msr`. On this part:
+
+- `0xE2 = 0x74008008`: limit **8** (C10, "no limit"), CFG lock set, C1
+  demotion and package demotion enabled. The limit was never the blocker, and
+  the guarded write (`debug.xepm.pcst`) is refused by the lock.
+- `0x60` (PC2 residency) is unsupported; `0x3F8` (PC3) advances with the wall
+  clock while `0x3F9`–`0x632` (PC6–PC10) stay at exactly zero.
+- `0x770` bit 0 is set (HWP on) and `0x774` carries EPP 96 with the expected
+  min/max/desired fields; `0x771` reports the core's HWP capabilities.
+
+So the hardware limit is high, the OS asks for the right states, and the
+package still stops at PC3. Deeper states need the DMC/PMC coordination that
+WhateverXe does not implement, which makes it a driver project rather than a
+configuration toggle. The probe only added three read-only/debug sysctls and
+is not part of the shipped kext.
+
 **Correction.** The "package and cores never idle, stuck in PC0" conclusion in
 earlier revisions of this page was an artifact of the measuring session. With
 the desktop quit, the package sits in PC3 ~93–96 %, the P-cores in C7 ~96–98 %
@@ -157,14 +181,60 @@ probe build carried only three read-only/debug sysctls, so this is the expected
 result.
 
 The 7.07 W vs 5.84 W split is the useful part: with the panel off the SoC is
-only ~2.2 W, so ~3.7 W is PCH/VRM, NVMe, Wi-Fi, Bluetooth and the EC. Further
-idle work belongs there, not in CPU C-states.
+only ~2.2 W, so the rest is platform. The isolation runs below attribute it.
 
 One contamination example from the same session: the first run after that
 reboot read 4.45 W and 47.9 % residency because `triald` (12.8 % CPU) and
 Spotlight (`mds`/`mdworker`) were still indexing, with IPIs at ~750/s.
 Post-boot background work has to finish before any of these numbers mean
 anything.
+
+#### Idle floor isolation (2026-11-13)
+
+Four more 120 s windows, same machine, on battery, Bluetooth **off**, no USB
+devices attached, panel and Wi-Fi controlled:
+
+```sh
+sudo networksetup -setairportpower en0 off
+sudo scripts/macos/idle-baseline.sh 120 --display-sleep   # A
+sudo networksetup -setairportpower en0 on
+sudo scripts/macos/idle-baseline.sh 120 --display-sleep   # B
+sudo scripts/macos/idle-baseline.sh 120                   # C, panel minimum
+sudo scripts/macos/idle-baseline.sh 120                   # D, panel ~40 %
+```
+
+| run | panel | Wi-Fi | total draw | SoC package | everything else |
+|---|---|---|---|---|---|
+| A | asleep | off | **5.66 W** | 2.22 W | 3.44 W |
+| B | asleep | on | **5.91 W** | 2.43 W | 3.48 W |
+| C | on | on | **6.49 W** | 2.63 W | 3.86 W |
+| D | on, ~40 % | on | **6.30 W** | 2.52 W | 3.78 W |
+
+What the split says:
+
+- **Wi-Fi ≈ 0.25 W** (A → B). The AirPortItlwm power penalty is real but
+  small; it is not the multi-watt item it had been assumed to be.
+- **Panel ≈ 0.6 W** at this brightness (B → D). C and D are 0.19 W apart,
+  inside the noise, so the intended minimum-brightness step did not register;
+  a minimum-vs-maximum panel A/B is still open.
+- **3.4 W of the 5.7 W panel-off floor is neither CPU/GPU, Wi-Fi nor panel.**
+  With Bluetooth off and nothing on USB, the residue is PCH, DRAM, NVMe, VRM
+  conversion loss, the EC and the display link.
+
+Caveat: the OpenCode CLI process was still resident during A and B (~2 % CPU),
+because these runs were started from the agent session. The fully-quiet runs
+earlier in the evening gave the same floor (5.84 W), so the conclusion stands.
+
+In both panel-asleep runs `IODisplayWrangler` reported state 1 and the
+backlight `DevicePowerState 0`, so the panel and its backlight were genuinely
+off; the ~0.6 W step is the lit panel at ~40 %, not a half-asleep link.
+
+Sanity check on the battery rail: over the ~11 min of the four runs the pack
+fell **71 % → 69 %**. At this pack's health (`AppleRawMaxCapacity` 7745 mAh
+against `DesignCapacity` 8638 mAh, ≈90 %, about 59 Wh at 7.6 V) that is
+1.18 Wh / 0.19 h ≈ **6.2 W** average, matching the ~6.0 W measured. `pmset`'s
+"time remaining" implies ~9 W at the same moment and is pessimistic; quote the
+rail, not the projection.
 
 ## 3. Geekbench 7: the runs, and why most were invalid
 
@@ -310,7 +380,8 @@ package states and GPU DC6, which macOS never enters without a GuC/DMC path;
 no Fedora-side residency data was captured to prove it.
 
 The practical consequences are the ones reported on the machine: a warmer
-chassis and roughly half the battery runtime even when idle.
+chassis and, as measured below, about 2.5× the idle draw of Linux on the same
+board.
 
 Caveats: one run per state, screen brightness and battery health were not
 recorded, and the Fedora `power_now` value includes the panel, Wi-Fi and SSD
@@ -333,6 +404,49 @@ change the result by more than the ±10–15 % measurement noise. The kext and
 `AppleIntelTGLCompat` versions must also match: 0.6.0 with 0.6.0 (Graphics
 0.3.1) on Sequoia, or 0.8.0 with 0.8.0 (Graphics 0.4.1) on Tahoe. See
 [06-usb-acpi-power.md § Hybrid P-cores](06-usb-acpi-power.md#hybrid-p-cores-and-the--wex-pm-route).
+
+### Tuned Linux idle vs macOS idle (2026-11-13)
+
+The Fedora run above was a browser workload. A separate tuned Linux session on
+the same laptop idled at **~2.5 Wh/h ≈ 2.5 W** with the panel **on** at ~40 %
+brightness, 2880×1800 at 200 % scale and Wi-Fi connected, as reported by the
+PowerState app. Treat the unit with care: if the app was showing accumulated
+energy over a window rather than a rate, the figure is not comparable; the
+authoritative read is `/sys/class/power_supply/BAT*/power_now` (µW).
+
+Against the four-run isolation in §2 that is a **2.5× gap**: 2.5 W on Linux
+vs 6.30 W on macOS at the same panel setting. The split rules out the obvious
+suspects:
+
+- Wi-Fi is 0.25 W and was **on** in both cases;
+- the panel is ~0.6 W at that brightness, and both numbers include it;
+- Bluetooth was off, no USB device was attached, and the desktop was quiet.
+
+So the gap is not the compositor and not the desktop environment. It is the
+platform: macOS stops at **PC3**, and the states above it need the DMC/PMC
+coordination that Linux's i915/PMC stack provides and WhateverXe does not
+implement. macOS also never drives the PCH/EC/s0ix states that Linux's
+platform drivers do. About **3.4 W** is spent outside the CPU/GPU package and
+cannot be attributed to one device.
+
+What it would take, in order of effort:
+
+| Lever | Expected | Cost |
+|---|---|---|
+| PC6+ / DMC path | 1.3–1.6 W | driver work in WhateverXe; not a toggle |
+| PCH/EC/s0ix power states | ~1–2 W | reverse-engineering the HP ACPI/EC; high risk |
+| NVMe controller APST | 0.2–0.5 W | kext-level forcing; the link state is already fixed |
+| Background daemons | <0.3 W | marginal |
+
+The practical consequence is runtime, not heat: about **9 h** of idle runtime
+on this pack (59 Wh ÷ 6.3 W) against roughly 23 h at the Linux floor. That
+matters for a machine left idle on battery for a whole day, and hardly at all
+next to load power (10–24 W). It is the price of running macOS on a board
+whose power management it does not know.
+
+This also corrects an earlier assumption on this page: Wi-Fi is not a
+multi-watt item, and the gap is not because macOS fails to reach PC2/PC3 — it
+reaches them. What it never reaches is PC6+ and the platform states behind it.
 
 ## 5. Hybrid topology looks wrong but is intentional
 

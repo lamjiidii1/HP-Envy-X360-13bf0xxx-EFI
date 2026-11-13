@@ -139,6 +139,19 @@ For a quick sanity check without leaving it running:
 SAMPLES=3 INTERVAL=2 bash scripts/macos/battery-watch.sh
 ```
 
+For the idle floor specifically, quit OpenCode and run a fixed window:
+
+```sh
+sudo bash scripts/macos/idle-baseline.sh 120
+sudo bash scripts/macos/idle-baseline.sh 120 --display-sleep
+```
+
+It prints battery draw at both ends, package and per-core residencies, and the
+interrupt rates, and writes the raw samples under `LOGS/idle-baseline-*`. Do
+not quote `pmset -g batt`'s "time remaining" against these: at ~6 W measured
+it implies about 9 W. See
+[14 § 2](14-measurements.md#idle-floor-isolation-2026-11-13).
+
 One implementation note: `ioreg` prints a negative `InstantAmperage` as an
 unsigned 64-bit number (`-1925 mA` becomes `18446744073709550691`). An early
 version of this script treated that as a huge charge rate and reported
@@ -268,9 +281,14 @@ Two device-level properties complete the package:
 
 The largest remaining gap is platform-level: the package stops at PC3
 (**PC6–PC10 stay 0.00 %**) and GPU DC6 stays 0.00 %, because WhateverXe has no
-DMC/DC-state control. With the panel asleep the machine still draws ~5.8 W
-while the SoC itself accounts for only ~2.1–2.2 W, so most of the idle floor
-is PCH, VRM, NVMe, Wi-Fi and Bluetooth rather than CPU idle. The
+DMC/DC-state control. Four isolation runs put numbers on the floor: ~5.7 W
+with the panel and Wi-Fi off, of which the SoC is ~2.2 W. Wi-Fi accounts for
+only ~0.25 W and the panel ~0.6 W at 40 % brightness, so ~3.4 W is PCH, DRAM,
+NVMe, VRM conversion loss, the EC and the display link. Linux on the same
+board idles near 2.5 W because its PMC/i915 stack can reach PC8/PC10 and its
+platform drivers drive the sleep states macOS does not; see
+[14 § 2](14-measurements.md#idle-floor-isolation-2026-11-13) and
+[14 § 4](14-measurements.md#tuned-linux-idle-vs-macos-idle-2026-11-13). The
 `lowpowermode` cap and these idle tweaks reduce what the machine burns while
 awake; they do not make it reach C8/C10.
 

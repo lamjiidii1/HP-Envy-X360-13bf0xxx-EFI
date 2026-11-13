@@ -104,6 +104,10 @@ next time package C-states come up.
   divide by `machdep.tsc.frequency`, as `xepm-msr.py` does. The probe build is
   not byte-identical to the shipped kext (debug sysctls only), so do not ship
   it.
+- **Status values:** `debug.xepm.pcst_status` is `-2` never attempted, `-1`
+  value out of range, `-3` refused because the CFG lock is set, otherwise the
+  limit now in `0xE2`. This laptop's CFG lock is set, so a write is refused
+  and the limit stays 8.
 
 ## `patch-intel-bt-lowpower` (built into `scripts/build_efi.py`)
 

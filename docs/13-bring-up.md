@@ -482,6 +482,11 @@ Healthy signs:
 - **GPU DC6 stays at 0 %** without GuC, and the package stops at PC3 (PC6+
   stays 0 %). Cores do idle: P-cores C7 ~96–98 %, E-cores C6 ~99 %. Treat
   PC6+ as a diagnostic, not a tunable.
+- **Idle floor is ~6.3 W with the panel on**, ~5.7 W with it off, of which the
+  SoC is only ~2.2 W. Linux on the same board idles near 2.5 W; the ~3.4 W
+  difference is platform power management macOS does not drive (PCH/EC, PC6+),
+  not desktop bloat. See
+  [14](14-measurements.md#idle-floor-isolation-2026-11-13).
 - **Benchmarks under the OpenCode desktop are invalid**; the agent UI uses
   about two cores.
 
