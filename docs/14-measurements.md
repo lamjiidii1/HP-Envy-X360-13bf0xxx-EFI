@@ -77,6 +77,39 @@ expected without GPU DC6 and is unrelated to this change. Battery draw with
 OpenCode, WindowServer and post-boot background work active fell from 17.2 W
 to 14.4 W, but that is not an idle baseline.
 
+### Idle power: timer coalescing and EPP 96 (2026-11-12)
+
+Measured on the same install with the desktop open (Tahoe 26.7.1, AC). These
+are A/B deltas inside a noisy session, not a cold-boot idle floor; the package
+figure was roughly 9–10 W throughout.
+
+| Change | Idle package delta | Detail |
+|---|---|---|
+| Timer coalescing | **−0.7 to −1.6 W** | `kern.timer_coalesce_{kt,fp,ts,tier0}_scale=1`, `ns_max=10 ms`; tier-1 `20 ms` |
+| XE-PM EPP `0` → `96` | **−0.75 W** mean | EPP 128 and 255 were both worse |
+| Both | **−0.86 W** mean | effects overlap; they do not add |
+
+EPP 96 is close to free in performance terms:
+
+| Load | EPP 0 | EPP 96 |
+|---|---|---|
+| One-thread turbo | 3828 MHz | **3819 MHz** |
+| Four-thread sustained | 2781 MHz, 24.06 W | 2726 MHz (−2 %), 23.73 W |
+| `lowpowermode 1` peak (80 samples) | 2373 MHz | 2373 MHz, 0 samples ≥ 2500 MHz |
+
+So EPP 96 lowers idle draw without weakening the Low Power Mode cap and with
+no meaningful turbo loss. It is now the compiled XE-PM default; the sysctl
+still overrides it. Timer coalescing needs the boot daemon
+(`scripts/macos/install-power-tuning.sh`) because it is a sysctl.
+
+The NVMe L1SS properties + `-nvmefaspm` and `BTIdle` + the
+IntelBluetoothFirmware power-state patch shipped in the same EFI build and
+were verified live, but neither has a clean isolated A/B yet. They are
+documented as mechanisms in
+[06-usb-acpi-power.md](06-usb-acpi-power.md#idle-power-timers-epp-and-device-idle-2026-11-12)
+and [04-wifi-bluetooth.md](04-wifi-bluetooth.md#bluetooth-idle); do not assign
+them a wattage until one is measured.
+
 ## 3. Geekbench 7: the runs, and why most were invalid
 
 All runs are Geekbench 7.1.0 for macOS AVX2, on battery, same install.
@@ -261,16 +294,21 @@ See [08-troubleshooting.md](08-troubleshooting.md#cpu-name-and-thread-count).
 
 ## 6. Where the live EFI actually lives
 
-The bootable OpenCore EFI on this machine is on the USB stick
-(`/Volumes/MACUSB/EFI/OC/config.plist`). `disk0s1` is the HP/Windows ESP and
-contains no `EFI/OC`. This matters for every "patch the ESP" instruction: patch
-the config the machine actually boots, and back it up first.
+The bootable OpenCore EFI for Tahoe is on the internal ESP labelled
+**`EFITAHOE`** (`/dev/disk0s10`, ~150 MB FAT16,
+`/Volumes/EFITAHOE/EFI/OC/config.plist`). The second internal ESP,
+**`SECONDEFI`** (`/dev/disk0s8`), holds a copy of the same tree for rollback.
+`disk0s1` is the HP/Windows ESP and contains no `EFI/OC`. This matters for
+every "patch the ESP" instruction: patch the config the machine actually
+boots, and back it up first (partition numbers move after repartitioning, so
+confirm with `diskutil list` and `mount` rather than trusting the number).
 
-The dead `ProcessorSpeed` key was removed from that file with PlistBuddy;
-afterwards the live config is byte-identical to `build/EFI`:
+The live config is byte-identical to the deployed build
+(`build/EFI-wex080-adlp`). The dead `ProcessorSpeed` key was removed from it
+with PlistBuddy:
 
 ```sh
-CFG=/Volumes/MACUSB/EFI/OC/config.plist
+CFG=/Volumes/EFITAHOE/EFI/OC/config.plist
 cp -p "$CFG" "$CFG.bak-$(date +%Y%m%d-%H%M%S)"
 /usr/libexec/PlistBuddy -c 'Delete :PlatformInfo:Generic:ProcessorSpeed' "$CFG"
 plutil -lint "$CFG"
@@ -287,6 +325,13 @@ sudo bash scripts/macos/power-audit.sh
 
 # real discharge over normal use (no root)
 INTERVAL=10 bash scripts/macos/battery-watch.sh
+
+# one-line live draw and projected runtime (no root)
+bash scripts/macos/power-now.sh --once
+
+# re-apply timer coalescing + EPP at every boot
+sudo bash scripts/macos/install-power-tuning.sh
+sysctl kern.timer_coalesce_tier0_ns_max kern.timer_coalesce_tier1_ns_max
 
 # same-machine Fedora reference (battery rail, no root)
 while true; do

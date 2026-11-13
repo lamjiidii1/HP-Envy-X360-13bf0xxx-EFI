@@ -52,3 +52,48 @@ every request.
   then `python3 tools/build.py --release`.
 
 The patch is against `dffff328` only; re-check the context if the fork moves.
+
+## `whateverxe-xepm-epp96.patch`
+
+Changes XE-PM's built-in EPP default from `0` to `96` (and documents why).
+
+- **Why:** EPP `0` asks for maximum performance on every HWP request. On this
+  i7-1250U that costs roughly 0.5–0.8 W at idle for no measurable turbo gain;
+  EPP `96` leaves one-core turbo unchanged (3828 → 3819 MHz) and costs about
+  2 % sustained all-thread clock. `-wex-pm` applies it 20 s after load and
+  re-checks at 60 s, so no boot argument or daemon is needed.
+- **Source:** [lamjiidii1/WhateverXe](https://github.com/lamjiidii1/WhateverXe)
+  branch `tune/xepm-epp96` @ `e339315`, on top of
+  `whateverxe-xepm-hwp-caps.patch` (`00193a7`).
+- **Change:** `gXpEpp = 96;` in `xePmInstall()` plus the header comment. The
+  sysctl `debug.xepm.epp` still overrides it at runtime (`0` = performance,
+  `-1` = leave XCPM's own value).
+- **Apply:** with the cap patch already applied,
+  `git apply whateverxe-xepm-epp96.patch`, then
+  `python3 tools/build.py --release`.
+- **Tested:** i7-1250U (2P+8E), Tahoe 26.7.1 (25G241); the deployed kext has
+  SHA-256 `a84472e2510e7ec2cf8885ff1a922c00a4593af694f5d5e5b29a8102276aaa64`.
+
+## `patch-intel-bt-lowpower` (built into `scripts/build_efi.py`)
+
+Forces `IntelBluetoothFirmware` to advertise `kIOPMLowPower` for the USB
+controller, so it can idle-suspend.
+
+- **Why:** the unmodified 2.5.1 kext leaves the AX211 controller in power state
+  2 (`CapabilityFlags` without `kIOPMLowPower`), which costs roughly 0.2–0.4 W
+  and keeps the USB device out of its low-power state even when Bluetooth is
+  idle.
+- **Change:** one machine-code immediate in
+  `IntelBluetoothFirmware.kext/Contents/MacOS/IntelBluetoothFirmware` at file
+  offset `0xA95168` (for the pinned 2.5.1 binary, SHA-256
+  `2da7a9d1213fbb0ba1a6b11396ea416fd06ba4597dfca569aa1c6f53ada25617`):
+  `2` → `0x10000` (`kIOPMLowPower`).
+- **Where:** `patch_intel_bt_lowpower()` in `scripts/build_efi.py`. It is
+  applied to the copied build payload, never to `efi/base`; the manifest
+  records the result under `kext_patches`.
+- **Verify:** after a boot with Bluetooth on,
+  `ioreg -r -c IOUSBHostDevice -l -w0 | grep -A2 '"idProduct" = 51'` should
+  show `CapabilityFlags` containing `65536`. The patch is inert if the base
+  binary does not match the pinned hash (the build refuses to patch).
+- **Caveat:** it is a byte patch against one release. Re-derive the offset
+  before updating `IntelBluetoothFirmware`.

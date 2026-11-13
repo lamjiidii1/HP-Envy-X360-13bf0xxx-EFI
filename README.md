@@ -92,7 +92,7 @@ was made — it is not a claim that the feature fails.
 | Internal microphone | Dual digital DMIC array working via Intel cAVS 2.5 DSP ([`TGLDmic`](https://github.com/lamjiidii1/TGLDmic) 0.6.0 with signed `sof-adl.ri` + HAL driver) |
 | Battery | Charge/percentage/health and the Battery settings pane (after the `impostor.dylib` fix) |
 | App Store / Quick Look | HEIC/HEVC previews and screenshots work (after the `TGLVA` fix) |
-| Power management | XCPM P-states, `balanced`/`battery`/`performance` profiles |
+| Power management | XCPM P-states, `balanced`/`battery`/`performance` profiles, EPP 96, timer coalescing, NVMe L1SS, Bluetooth idle-suspend |
 
 ### Not working
 
@@ -168,6 +168,8 @@ scripts/macos/openmac-diag.sh            continuous per-user diagnostics collect
 scripts/macos/post-install-check.sh      one-shot CPU/GPU/display/battery report
 scripts/macos/power-profile.sh           apply balanced/battery/performance pmset profiles
 scripts/macos/install-power-daemon.sh    re-apply the power profile at every boot
+scripts/macos/install-power-tuning.sh    timer coalescing + EPP at every boot
+scripts/macos/power-now.sh               live battery watts and projected runtime
 scripts/macos/power-audit.sh             measure CPU package power and XCPM state
 scripts/macos/battery-watch.sh           real discharge watts and projected runtime
 scripts/macos/battery-cap-compare.sh     cap-off run vs the recorded balanced baseline
@@ -326,6 +328,25 @@ with `bash scripts/macos/battery-watch.sh`; do not trust a benchmark taken
 under the OpenCode desktop, whose helper and renderer keep about two cores
 busy. Numbers and caveats:
 [docs/06 § Measured effect](docs/06-usb-acpi-power.md#measured-effect-2026-11-05).
+
+Two idle levers are independent of the cap and of `pmset`:
+
+- the shipped WhateverXe kext defaults XE-PM to **EPP 96** (`-wex-pm`), which
+  measured **−0.75 W** mean package at idle with no turbo loss
+  (3828 → 3819 MHz) and about 2 % less sustained clock;
+- a boot daemon widens timer coalescing (max 10 ms; tier-1 20 ms), measured
+  **−0.7 to −1.6 W**.
+
+Together they measured **−0.86 W** mean (the effects overlap). Install the
+daemon; `power-now.sh` prints live draw without root:
+
+```sh
+sudo bash scripts/macos/install-power-tuning.sh
+bash scripts/macos/power-now.sh --once
+```
+
+Details and the NVMe L1SS / Bluetooth idle changes:
+[docs/06 § Idle power](docs/06-usb-acpi-power.md#idle-power-timers-epp-and-device-idle-2026-11-12).
 
 ## Graphics history: Sequoia and Tahoe
 

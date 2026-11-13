@@ -1,0 +1,32 @@
+diff --git a/WhateverXe/kern_xepm.cpp b/WhateverXe/kern_xepm.cpp
+index 639cd1f..5ceb23b 100644
+--- a/WhateverXe/kern_xepm.cpp
++++ b/WhateverXe/kern_xepm.cpp
+@@ -1,6 +1,6 @@
+ //  XE-PM, from JulioNectar's NootedGreen fork (Hackintosh-XPS13Plus-IrisXe-Tahoe,
+ //  commit 0492b29, src/NootedGreen/kern_xepm.cpp), shared with the hackintosh
+-//  community. Adapted for WhateverXe: boot-arg -wex-pm, EPP fixed at 0 (sysctl
++//  community. Adapted for WhateverXe: boot-arg -wex-pm, EPP 96 by default (sysctl
+ //  debug.xepm.epp at runtime), log prefix WEX.
+ //  XE-PM: CPU performance and idle power profile for hybrid Alder Lake / Raptor Lake (and Tiger Lake) under XCPM.
+ //  Opt-in with -wex-pm. Everything is applied 20 s after the patcher loads (system up), re-checked at 60 s.
+@@ -15,7 +15,9 @@
+ //     a deliberate cap (Low Power Mode, thermal, lowpowermode 1 -> ratio 24) is preserved instead of being rewritten
+ //     to the highest. The route is installed only after the prologue and the write site match byte for byte.
+ //  2. EPP. XCPM's frequency vector asks EPP 0x80. On ADL/RPL mobile parts that clips one-core turbo (Intel, Linux 5.17
+-//     intel_pstate: EPP <= 102 needed). The profile writes EPP 0 (sysctl debug.xepm.epp to change).
++//     intel_pstate: EPP <= 102 needed). The profile writes EPP 96 by default: 0 still favors performance and costs
++//     ~0.5-0.8 W at idle here, while 96 keeps turbo (3828 -> 3819 MHz one-thread) and loses ~2% sustained average
++//     clock. Set debug.xepm.epp to override (0 = performance, -1 = XCPM's own value).
+ //  3. Energy-efficient turbo off (MSR_POWER_CTL 0x1FC bit 19).
+ //  4. XCPM idle table (_xcpm_cstate_table): for the spoofed CPU it has C8 (0x40) and C10 (0x60) disabled and C3 (0x10,
+ //     not an ADL/RPL/TGL state) enabled, so cores stop at C6 or fall back to C1. C8/C10 are enabled and C3 disabled,
+@@ -153,7 +155,7 @@ SYSCTL_INT(_debug_xepm, OID_AUTO, route, CTLFLAG_RD, &gXpRoute, 0, "1 = HWP rout
+ void xePmInstall(KernelPatcher &patcher) {
+ 	if (!checkKernelArgument("-wex-pm")) return;
+ 	gXpOn = true;
+-	gXpEpp = 0;
++	gXpEpp = 96;
+ 	gXpCstPtr = patcher.solveSymbol(KernelPatcher::KernelID, "_xcpm_cstate_table");
+ 	patcher.clearError();
+ 	const mach_vm_address_t base = patcher.solveSymbol(KernelPatcher::KernelID, "_xcpm_enable_pstate_ctrs");

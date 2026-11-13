@@ -63,6 +63,7 @@ editing the plist by hand.
 | `SMCBatteryManager.kext` | Battery status and charge threshold |
 | `VirtualSMC.kext` 1.3.9 | SMC emulation |
 | `NVMeFix.kext` 1.1.4 | NVMe power management and quirks (MinKernel 18) |
+| `BTIdle.kext` | Applies a 100 ms idle-suspend policy to the Bluetooth USB interfaces (see [04-wifi-bluetooth.md](04-wifi-bluetooth.md#bluetooth-idle)) |
 | `RestrictEvents.kext` 1.1.7 | CPU name (`revpatch=cpuname`), no board-id patch |
 
 `ProvideCurrentCpuInfo` is enabled in `Kernel/Quirks`; `revcpu=1` and
@@ -210,6 +211,56 @@ reading a PDF with no background apps** — a gap that tracks the missing
 C2–C10/DC6 states rather than the CPU governor. See
 [14-measurements.md § 4](14-measurements.md#same-machine-on-fedora-a-hardware-reference).
 
+### Idle power: timers, EPP, and device idle (2026-11-12)
+
+Three stack-independent changes were measured on this machine on Tahoe 26.7.1,
+with the desktop open (so these are A/B deltas inside a noisy session, not a
+cold-boot idle floor):
+
+| Change | Idle package delta | Notes |
+|---|---|---|
+| Timer coalescing (`scale=1`, max 10 ms; tier-1 20 ms) | **−0.7 to −1.6 W** | real-time threads and hardware interrupts unaffected |
+| XE-PM EPP `0` → `96` | **−0.75 W** mean | EPP 128/255 were worse; one-thread turbo 3828 → 3819 MHz |
+| Both together | **−0.86 W** mean | the two effects overlap, so they do not add |
+
+EPP 96 costs about **2 %** sustained all-thread clock: 2781 → 2726 MHz and
+24.06 → 23.73 W package in a four-thread run. It does not weaken the
+`lowpowermode 1` cap: peak stayed at 2373 MHz and 0 of 80 samples reached
+2.5 GHz. EPP 96 is now the compiled default of the shipped WhateverXe kext
+(`tools/patches/whateverxe-xepm-epp96.patch`), so `-wex-pm` alone is enough;
+`debug.xepm.epp` still overrides it.
+
+Timer coalescing is a sysctl, not a pmset key, and is lost on reboot. Install
+the boot daemon to re-apply it:
+
+```sh
+sudo bash scripts/macos/install-power-tuning.sh
+sudo bash scripts/macos/install-power-tuning.sh --status
+sudo bash scripts/macos/install-power-tuning.sh --uninstall
+```
+
+It writes `/usr/local/sbin/hp-power-tuning`,
+`/Library/LaunchDaemons/local.hp-power-tuning.plist` and
+`/Library/Logs/hp-power-tuning.log`, and re-asserts EPP 96 for older kexts.
+`bash scripts/macos/power-now.sh` prints live battery draw and projected
+runtime without root.
+
+Two device-level properties complete the package:
+
+- **NVMe L1SS.** `PciRoot(0x0)/Pci(0x6,0x0)` gets
+  `pci-l1ss-enable = <0f001260>` (and the endpoint additionally
+  `pci-max-latency = <03100310>`), with `-nvmefaspm` on the boot-args line.
+  These are real `IOPCIFamily` device properties. The link stays at
+  **x4 / 16 GT/s**, so this changes idle link state, not throughput.
+- **Bluetooth idle.** `BTIdle.kext` plus the `kIOPMLowPower` patch to
+  `IntelBluetoothFirmware`; see
+  [04-wifi-bluetooth.md § Bluetooth idle](04-wifi-bluetooth.md#bluetooth-idle).
+
+The largest remaining gap is still platform-level: package C-states and GPU
+DC6 stay at 0.00 %, and WhateverXe has no DMC/DC-state control. The
+`lowpowermode` cap and these idle tweaks reduce what the machine burns while
+awake; they do not make it reach C8/C10.
+
 ### Hybrid P-cores and the `-wex-pm` route
 
 The ~3.6 GHz ceiling and the missing C-states have a common cause in XCPM,
@@ -223,7 +274,7 @@ which predates Intel's hybrid CPUs:
   C8/C10, so cores stop at C6 or fall back to C1.
 
 WhateverXe ships an XE-PM profile behind `-wex-pm` that addresses this:
-converts the HWP request to per-core units on P-cores, writes EPP 0, disables
+converts the HWP request to per-core units on P-cores, writes EPP 96, disables
 energy-efficient turbo, enables C8/C10 in the idle table, and puts driverless
 IPU/GNA/ISH/DPTF/Thunderbolt-DMA functions into D3hot. The route is
 byte-checked and only installs on the kernel build it was written for. On
@@ -240,9 +291,10 @@ The stock profile maximized every HWP request lower than the core's highest
 performance. That repaired the 100 MHz → 78.7 MHz unit mismatch for turbo but
 also discarded Low Power Mode: `lowpowermode 1` (ratio 24, 2.4 GHz) still ran
 P-cores at ~3.8 GHz. The default kext now converts the requested ratio into
-per-core HWP units instead (`fa7dcf28…`, built from the WhateverXe `main` tip
-plus `tools/patches/whateverxe-xepm-hwp-caps.patch`). Measured on battery,
-one busy thread, same boot:
+per-core HWP units instead and defaults EPP to 96 (`a84472e2…`, built from the
+WhateverXe `main` tip plus `tools/patches/whateverxe-xepm-hwp-caps.patch` and
+`tools/patches/whateverxe-xepm-epp96.patch`). Measured on battery, one busy
+thread, same boot:
 
 | `lowpowermode` | Upstream XE-PM | Rebuilt XE-PM |
 |---|---|---|

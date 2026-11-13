@@ -12,7 +12,7 @@ Sequoia pairing:
 
 | Half | Version | Why |
 |---|---|---|
-| EFI kext (default) | WhateverXe 0.8.0, `main` branch @ `dffff32` + XE-PM cap patch, binary `fa7dcf28…` (`gpu-wex080-adlp`) | Default for macOS 26; upstream 0.8.0 rebase; resolves MMIO dynamically without binary patching; masks unprobed Type-C routes to drive internal OLED; Metal POSH leak fix and flip deduplication; XE-PM now honors `lowpowermode` caps |
+| EFI kext (default) | WhateverXe 0.8.0, `tune/xepm-epp96` @ `e339315` + XE-PM cap/EPP 96 patches, binary `a84472e2…` (`gpu-wex080-adlp`) | Default for macOS 26; upstream 0.8.0 rebase; resolves MMIO dynamically without binary patching; masks unprobed Type-C routes to drive internal OLED; Metal POSH leak fix and flip deduplication; XE-PM honors `lowpowermode` caps and defaults EPP to 96 |
 | EFI kext (Sequoia) | WhateverXe 0.6.0, `adlp-edp` branch, patch series 54, published binary `197da23b…`; the `hp-adlp-edp` build applies the 24H232 Sequoia constant | Proven base driver for macOS 15.8.2; parses this VBT and drives internal OLED |
 | Installed package | WhateverXe Graphics 0.4.1 (`AppleIntelTGLCompat` 0.8.0) | Installed 2026-11-09; pairs with the default `wex080-adlp`. Graphics 0.3.1 remains the package for the 0.6.0 Sequoia build |
 
@@ -487,6 +487,12 @@ areas:
    them at 3.81–3.84 GHz / 20.6–21.8 W; uncapped turbo still reaches 3.81 GHz.
    See `tools/patches/whateverxe-xepm-hwp-caps.patch`.
 
+5. **XE-PM defaults to EPP 96 (2026-11-12)**: the `a84472e2…` rebuild changes
+   the built-in EPP from `0` to `96`. Idle package power fell ~0.75 W (mean)
+   with one-thread turbo unchanged (3828 → 3819 MHz) and sustained all-thread
+   clock ~2 % lower. The `lowpowermode 1` cap is unaffected. See
+   `tools/patches/whateverxe-xepm-epp96.patch`.
+
 ## What the logs show
 
 From `LOGS/macOS_Logs_20261030_180840` (macOS 26.7.2, build 25G332):
@@ -928,9 +934,10 @@ The original upstream rescale rewrote *any* maximum below the core's highest
 HWP performance to that highest value. That repairs the 100 MHz vs 78.7 MHz
 unit mismatch for turbo, but it also discarded deliberate caps: with
 `lowpowermode 1` (XCPM ratio 24, 2.4 GHz) the P-cores still ran at ~3.8 GHz and
-drew ~21 W package power. The `fa7dcf28…` rebuild replaces that with a unit
+drew ~21 W package power. The `a84472e2…` rebuild replaces that with a unit
 conversion (see [10-provenance.md](10-provenance.md) and
-`tools/patches/whateverxe-xepm-hwp-caps.patch`):
+`tools/patches/whateverxe-xepm-hwp-caps.patch`), and adds EPP 96 as the
+default (`tools/patches/whateverxe-xepm-epp96.patch`):
 
 | One busy thread, same boot | Busiest core | Package |
 |---|---|---|

@@ -93,9 +93,10 @@ Always enabled, independent of the Wi-Fi choice:
 
 | Kext | Version | Role |
 |---|---|---|
-| `IntelBluetoothFirmware.kext` | 2.5.1 | Uploads firmware to the Intel controller |
+| `IntelBluetoothFirmware.kext` | 2.5.1 | Uploads firmware to the Intel controller (power-state byte patched at build time, see [Bluetooth idle](#bluetooth-idle)) |
 | `IntelBTPatcher.kext` | 2.5.1 | Fixes HCI behaviour on newer Intel chips |
 | `BlueToolFixup.kext` | 2.7.3 | Fixes `bluetoothd` on macOS 12+ |
+| `BTIdle.kext` | local build | Lowers the USB controller's idle-suspend policy to 100 ms |
 
 The config also clears two NVRAM variables on every boot, as required by
 BlueToolFixup for Intel Bluetooth:
@@ -115,6 +116,51 @@ a solution to a problem that does not exist here.
 The Dell Latitude 7420 EFI uses `-ibtcompatbeta`. That is a compatibility
 switch for a different Bluetooth generation; it is not needed on AX211 and is
 not in this config.
+
+## Bluetooth idle
+
+The AX211 exposes two USB interfaces, and without an idle policy
+`IOUSBHostFamily` keeps the controller in USB power state 2 even when nothing
+is connected. Two pieces fix that:
+
+1. **`BTIdle.kext`** (`local.btidle` 0.1.1) waits for the Bluetooth interfaces
+   to appear, opens them, and calls `setIdlePolicy(100)` on each interface and
+   pipe. It retries every 5 s, because `bluetoothd` owns the interfaces only
+   while Bluetooth is on.
+2. **`IntelBluetoothFirmware` power-state patch.** The stock 2.5.1 binary
+   advertises a capability mask without `kIOPMLowPower`, so the device would
+   still refuse the low-power state. `scripts/build_efi.py` rewrites one
+   immediate (`2` → `0x10000`) in the copied binary at build time; the base
+   payload in `efi/base` is untouched.
+
+Verify with Bluetooth **on**:
+
+```sh
+ioreg -r -c BTIdle -d1 -l -w0 | grep -E 'btidle-status|btidle-applied'
+sysctl debug.btidle.ms
+ioreg -r -c IOUSBHostDevice -l -w0 | grep -A2 '"idProduct" = 51'
+```
+
+Expected: `btidle-status = "ms=100 rw=1 if0=100 p81=100 p82=100 if1=0"`,
+`btidle-applied = 3`, and the controller's `IOPowerManagement` reports
+`"CurrentPowerState"=1` with `CapabilityFlags` containing `65536`
+(`kIOPMLowPower`). The `if1=0` is normal: the second interface has no pipes on
+this firmware.
+
+When Bluetooth is **off**, `btidle-applied = 0` and the status shows zeros —
+the interfaces are closed, so there is nothing to configure. That is not a
+failure; it applies by itself when the controller comes up.
+
+To disable at runtime without rebuilding, `sudo sysctl -w debug.btidle.ms=0`
+(`0` = off; the value is writable). To remove it permanently, delete the
+`BTIdle.kext` entry from `Kernel/Add` and the bundle from `OC/Kexts`, and drop
+the `patch_intel_bt_lowpower()` call from `scripts/build_efi.py`. The
+controller then returns to power state 2.
+
+Provenance: `BTIdle` is built from
+[hackintosh-power-tools](https://github.com/keenerdavid18/hackintosh-power-tools)
+`macos/btidle` @ `ddd15e63` (the same kext used by the ThinkPad E16 Gen 3
+reference); see [10-provenance.md § 3](10-provenance.md#3-common-kexts-efibaseockexts).
 
 ## Troubleshooting
 

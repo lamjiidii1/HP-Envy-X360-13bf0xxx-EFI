@@ -137,10 +137,12 @@ sudo diskutil mount <that-partition>
 ls /Volumes/EFI/EFI/OC/config.plist
 ```
 
-Back it up before touching it. **On this unit the live OpenCore EFI is a USB
-stick (`/Volumes/MACUSB/EFI`); `disk0s1` is the HP/Windows ESP and contains no
-`EFI/OC`.** Patching the wrong partition is the most common way to lose a
-working boot.
+Back it up before touching it. **On this unit the live Tahoe OpenCore EFI is
+the internal `EFITAHOE` ESP (`/Volumes/EFITAHOE/EFI`); `SECONDEFI` holds a
+rollback copy and `disk0s1` is the HP/Windows ESP with no `EFI/OC`.**
+Partition numbers change when the disk is repartitioned, so identify the
+volume by label and verify it contains `EFI/OC/config.plist`, not by number.
+Patching the wrong partition is the most common way to lose a working boot.
 
 ## 4. BIOS
 

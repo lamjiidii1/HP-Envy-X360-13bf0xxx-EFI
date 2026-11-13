@@ -16,9 +16,9 @@ step once and capture the evidence described in
 | T00.1 | `make build` | exits 0; `checked build/EFI` ends with `result : OK` |
 | T00.2 | `python3 scripts/verify_efi.py --allow-blank-identity build/EFI` on a checkout without the private identity | `result : OK` (CI mode) |
 | T00.3 | `make inventory` and `git diff --exit-code audit/payloads.tsv` | no diff: pinned payloads are unchanged |
-| T00.4 | `shasum -a 256 efi/variants/gpu-wex080-adlp/WhateverXe.kext/Contents/MacOS/WhateverXe` | `fa7dcf28…2d468e7` — the stored payload stays published |
+| T00.4 | `shasum -a 256 efi/variants/gpu-wex080-adlp/WhateverXe.kext/Contents/MacOS/WhateverXe` | `a84472e2…6aaa64` — the stored payload stays published |
 | T00.5 | Inspect `build/EFI/BUILD-INFO.plist` | `gpu = wex080-adlp`, `wifi = airportitlwm-tahoe`, `debug = false`, `identity_injected = true`; `gpu_patches` has no `sequoia_mmio` entry (0.8.0 resolves MMIO dynamically) |
-| T00.6 | `shasum -a 256 build/EFI/OC/Kexts/WhateverXe.kext/Contents/MacOS/WhateverXe` | equals the published `fa7dcf28…2d468e7`; no byte patch is applied |
+| T00.6 | `shasum -a 256 build/EFI/OC/Kexts/WhateverXe.kext/Contents/MacOS/WhateverXe` | equals the published `a84472e2…6aaa64`; no byte patch is applied |
 | T00.7 | Open `build/EFI/OC/config.plist` | `boot-args` contains the `-wex-*` fork arguments (`-wex-mtl-poshfix`, `-wex-flip-dedupe` on the 0.8.0 default) and `revpatch=sbvmm,cpuname`; `ITHC.kext` is enabled; `PlatformInfo/Generic/ProcessorType` is `3841`; SMBIOS fields are filled |
 | T00.8 | Back up the current ESP and keep a bootable USB | both exist and boot (test the USB before relying on it) |
 | T00.9 | `shasum -a 256 efi/base/OC/Kexts/ITHC.kext/Contents/MacOS/ITHC` | `b47a4b7d…001210f` — matches `audit/payloads.tsv` |
@@ -168,6 +168,11 @@ a successful recording proves the DSP patch is in the built kext.
 | T08.9 | `sudo bash scripts/macos/power-profile.sh balanced`, then `pmset -g custom` and `sysctl -n machdep.xcpm.lpm_enabled` | battery block has `lowpowermode 1`, AC block `0`; on battery `lpm_enabled = 1`. Revert with `sudo pmset -a lowpowermode 0` |
 | T08.10 | `sudo bash scripts/macos/power-audit.sh --compare-lpm` (spins all threads for `DURATION` seconds, then restores `lowpowermode`) | `lpm1` all-thread package power is below `lpm0`, and its average frequency line is near or below 2.4 GHz; raw data in `LOGS/power-audit-*` |
 | T08.11 | Rebuild the EFI with `scripts/build_efi.py`, boot it, then `system_profiler SPHardwareDataType` | `Processor Speed: 4,7 GHz`; `sysctl -n machdep.xcpm.hard_plimit_max_100mhz_ratio` still `47` |
+| T08.12 | `sudo bash scripts/macos/install-power-tuning.sh`, then `sysctl kern.timer_coalesce_tier0_ns_max kern.timer_coalesce_tier1_ns_max` | daemon loaded; values `10000000` and `20000000`. Revert with `sudo bash scripts/macos/install-power-tuning.sh --uninstall` |
+| T08.13 | With `-wex-pm` and no runtime override, `sysctl debug.xepm.epp debug.xepm.route` | `96` and `1` on Tahoe 26.7.1 (the compiled default, not a daemon); `route: 3` on Sequoia 15.8.2 is expected and inert |
+| T08.14 | `nvram boot-args \| tr ' ' '\n' \| grep nvmefaspm` and `ioreg -r -c IOPCIDevice -l -w0 \| grep -E 'pci-l1ss-enable\|pci-max-latency'` | `-nvmefaspm` present; both L1SS properties on the NVMe path (`0f001260`); `system_profiler SPNVMeDataType` still reports x4 / 16 GT/s |
+| T08.15 | Turn Bluetooth on, then `ioreg -r -c BTIdle -d1 -l -w0 \| grep btidle` and check the controller's `IOPowerManagement` | `btidle-applied = 3`, `btidle-status` has `if0=100 p81=100 p82=100`; `CurrentPowerState = 1`, `CapabilityFlags` contains `65536`. With Bluetooth off, `applied = 0` is expected |
+| T08.16 | `bash scripts/macos/power-now.sh --once` | prints percentage, source and a plausible watt draw (no root) |
 
 ## Phase 9 — Sleep (known broken, informational)
 
@@ -215,7 +220,7 @@ date:
 BIOS:            F.35 (2025-11-17)
 macOS:           26.x (Tahoe) or 15.8.2 (24H232, Darwin 24.6.0)
 EFI variant:     wex080-adlp / hp-adlp-edp / airportitlwm-tahoe / airportitlwm-sequoia / debug=no
-WhateverXe:      0.8.0  fa7dcf28…  or  0.6.0  197da23b…
+WhateverXe:      0.8.0  a84472e2…  or  0.6.0  197da23b…
 Compat:          0.8.0  or  0.6.0
 Graphics pkg:    0.4.1  or  0.3.1
 T03.2 Guard[19]: 01 (Sequoia 0.6.0) / n/a (0.8.0 dynamic)
