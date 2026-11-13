@@ -287,10 +287,12 @@ patches its 24H232 Sequoia constant as described in §5. The older commit
 history of this repository.
 
 The 0.8.0 default is rebuilt from the `main` tip of
-[lamjiidii1/WhateverXe](https://github.com/lamjiidii1/WhateverXe) at `dffff32`
-(which already carries the `adlp-edp` patchset, the Display 13 Type-C route
-mask, `-wex-mtl-poshfix` and `-wex-flip-dedupe`) plus two XE-PM patches on the
-`tune/xepm-epp96` branch (`e339315`):
+[lamjiidii1/WhateverXe](https://github.com/lamjiidii1/WhateverXe) at `e339315`
+(which carries the `adlp-edp` patchset, the Display 13 Type-C route mask,
+`-wex-mtl-poshfix`, `-wex-flip-dedupe`, and the two XE-PM changes below). The
+XE-PM work was developed on `fix/xepm-hwp-caps` (`00193a7`) and
+`tune/xepm-epp96` (`e339315`) on top of `dffff32`, then fast-forwarded into
+`main`:
 
 - `tools/patches/whateverxe-xepm-hwp-caps.patch` changes `xpSetMult` so it
   converts XCPM's 100 MHz request into the current core's HWP units
@@ -306,7 +308,14 @@ The result is pinned as `a84472e2…`. It replaces the earlier `fa7dcf28…`
 The rebuild is not byte-identical to either (21 fewer symbols than
 `cc7b83a2…`, ~8 KB less text) because it is built from a later source tip. It
 was boot-tested on 2026-11-12; the cap fix was measured on 2026-11-11 and the
-EPP 96 change on 2026-11-12.
+EPP 96 change on 2026-11-12. Booted again on 2026-11-13 for the clean idle
+baseline, where `debug.xepm.epp: 96`, `debug.xepm.route: 1` and the absence of
+`debug.xepm.msr` confirm this exact shipped binary.
+
+The MSR probe used to investigate package C-states
+(`tools/patches/whateverxe-xepm-msr-probe.patch`, adds `debug.xepm.msr` /
+`debug.xepm.pcst`) is archived next to those patches and is deliberately
+**not** part of this binary.
 
 The other kexts were taken from their named upstream releases; their
 individual hashes in `payloads.tsv` are the authority.

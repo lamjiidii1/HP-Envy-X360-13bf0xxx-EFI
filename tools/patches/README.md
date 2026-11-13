@@ -74,6 +74,37 @@ Changes XE-PM's built-in EPP default from `0` to `96` (and documents why).
 - **Tested:** i7-1250U (2P+8E), Tahoe 26.7.1 (25G241); the deployed kext has
   SHA-256 `a84472e2510e7ec2cf8885ff1a922c00a4593af694f5d5e5b29a8102276aaa64`.
 
+## `whateverxe-xepm-msr-probe.patch`
+
+Diagnostic-only patch used to answer "why does the package never go below
+PC3?" on this laptop. It is **not** part of the shipped EFI; keep it for the
+next time package C-states come up.
+
+- **Adds:** `debug.xepm.msr`, a read-only binary snapshot of 20 power MSRs
+  (`{u32 id, i32 status, u64 value}[]`: `0xE2`, `0x60`, `0x3F8`–`0x3FA`,
+  `0x630`–`0x632`, `0xDB0`, `0xDB1`, `0x1FC`, `0x1A0`, `0x1B0`, `0x19C`,
+  `0x610`, `0x614`, `0x770`, `0x771`, `0x774`, `0xCE`), read through
+  `rdmsr_carefully()` so unimplemented MSRs are reported instead of faulting;
+  and `debug.xepm.pcst` / `debug.xepm.pcst_status`, a guarded write of the
+  `0xE2` bits 3:0 package C-state limit that refuses to run when the CFG lock
+  is set.
+- **Source:** [lamjiidii1/WhateverXe](https://github.com/lamjiidii1/WhateverXe)
+  branch `tune/xepm-epp96` @ `e339315`, on top of `whateverxe-xepm-epp96.patch`.
+- **Apply:** `git apply whateverxe-xepm-msr-probe.patch`, `python3
+  tools/build.py --release`, then decode two snapshots with
+  `python3 scripts/macos/xepm-msr.py first.bin second.bin --seconds N`.
+- **What it settled** (i7-1250U, Tahoe 26.7.1, quiet battery idle):
+  `0xE2 = 0x74008008` — limit 8 (C10), CFG lock set, C1 and package demotion
+  enabled; so the limit was never the blocker. `0x60` is unsupported;
+  `0x3F8` (PC3) advances ~87 s per 120 s window while `0x3F9`–`0x632` stay at
+  zero, i.e. the package stops at PC3. `0x771`/`0x774` confirmed HWP is
+  enabled with EPP 96. The earlier "P-cores never idle" reading was traced to
+  measuring with the agent desktop active, not to these registers.
+- **Caveat:** the snapshot loops the MSR list once per read; read it twice and
+  divide by `machdep.tsc.frequency`, as `xepm-msr.py` does. The probe build is
+  not byte-identical to the shipped kext (debug sysctls only), so do not ship
+  it.
+
 ## `patch-intel-bt-lowpower` (built into `scripts/build_efi.py`)
 
 Forces `IntelBluetoothFirmware` to advertise `kIOPMLowPower` for the USB

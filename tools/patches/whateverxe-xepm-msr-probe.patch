@@ -1,0 +1,109 @@
+diff --git a/WhateverXe/kern_xepm.cpp b/WhateverXe/kern_xepm.cpp
+index 5ceb23b..3595369 100644
+--- a/WhateverXe/kern_xepm.cpp
++++ b/WhateverXe/kern_xepm.cpp
+@@ -24,6 +24,10 @@
+ //     only if the three entries carry exactly those hints.
+ //  5. D3hot for PCI functions macOS has no driver for (IPU camera, GNA, ISH, DPTF participant, Thunderbolt/USB4 DMA),
+ //     by device id, only when nothing is attached (or only a client that never matched).
++//  6. Package C-state diagnostics. debug.xepm.msr returns a binary snapshot of the package C-state limit/residency and
++//     HWP/power MSRs (safe reads via rdmsr_carefully, unavailable MSRs are reported, never faulted). Package residency
++//     counters are monotonic, so read it twice to get a residency delta. This is read-only unless debug.xepm.pcst is
++//     written on a platform whose 0xE2 CFG lock is clear.
+ //  Measured on a Dell XPS 13 Plus 9320 (i7-1360P): Geekbench 7 single-core 1269 -> 1697, multi-core 5859 -> 6148,
+ //  one-thread clock 3.3 -> 4.3-4.85 GHz, idle package ~4.6 -> ~3.3 W.
+ #include <Headers/kern_api.hpp>
+@@ -133,6 +137,71 @@ static int xpD3() {
+ 	return n;
+ }
+ 
++// ─── 6: package/power MSR snapshot ──────────────────────────────────────────────────────────────────────────────
++// rdmsr_carefully() probes the MSR and reports a fault instead of taking a #GP in the kernel, so the snapshot is safe
++// on parts that do not implement a C-state (e.g. no C8/C9/C10 residency MSR).
++extern "C" int rdmsr_carefully(uint32_t msr, uint32_t *lo, uint32_t *hi);
++
++struct XpMsrSample { uint32_t id; int32_t status; uint64_t value; };
++static const uint32_t gXpMsrIds[] = {
++	0x0E2,  // MSR_PKG_CST_CONFIG_CONTROL: bits 3:0 package C-state limit, bit 15 CFG lock
++	0x060,  // MSR_PKG_C2_RESIDENCY
++	0x3F8,  // MSR_PKG_C3_RESIDENCY
++	0x3F9,  // MSR_PKG_C6_RESIDENCY
++	0x3FA,  // MSR_PKG_C7_RESIDENCY
++	0x630,  // MSR_PKG_C8_RESIDENCY
++	0x631,  // MSR_PKG_C9_RESIDENCY
++	0x632,  // MSR_PKG_C10_RESIDENCY
++	0xDB0,  // MSR_PKG_HDC_CTL (hardware duty cycling can hold the package out of deep C-states)
++	0xDB1,  // MSR_PM_CTL1 (per-core idle target)
++	0x1FC,  // MSR_POWER_CTL
++	0x1A0,  // IA32_MISC_ENABLE
++	0x1B0,  // IA32_ENERGY_PERF_BIAS
++	0x19C,  // IA32_THERM_STATUS
++	0x610,  // MSR_PKG_POWER_LIMIT
++	0x614,  // MSR_PKG_POWER_INFO
++	0x770,  // IA32_PM_ENABLE
++	0x771,  // IA32_HWP_CAPABILITIES
++	0x774,  // IA32_HWP_REQUEST
++	0x0CE,  // MSR_PLATFORM_INFO
++};
++static const size_t gXpMsrCount = sizeof(gXpMsrIds) / sizeof(gXpMsrIds[0]);
++static XpMsrSample gXpMsr[sizeof(gXpMsrIds) / sizeof(gXpMsrIds[0])];
++
++static int xpMsrHandler SYSCTL_HANDLER_ARGS {
++	for (size_t i = 0; i < gXpMsrCount; i++) {
++		uint32_t lo = 0, hi = 0;
++		const int err = rdmsr_carefully(gXpMsrIds[i], &lo, &hi);
++		gXpMsr[i].id = gXpMsrIds[i];
++		gXpMsr[i].status = err;
++		gXpMsr[i].value = err ? 0 : ((uint64_t)hi << 32) | lo;
++	}
++	return sysctl_handle_opaque(oidp, gXpMsr, sizeof(gXpMsr), req);
++}
++
++static int gXpPcst = -1, gXpPcstStatus = -2;   // debug.xepm.pcst: attempted package C-state limit, applied value
++
++// Writing debug.xepm.pcst sets MSR 0xE2 bits 3:0 (deepest enabled package C-state) on the current CPU. The write is
++// refused when the CFG lock bit is set, because a locked 0xE2 write faults and would panic the kernel. 8 is the deepest
++// encoding and "no limit" on TGL/ADL/RPL; 9-15 are reserved. Compared with the residency counters in debug.xepm.msr to
++// prove whether the limit is what holds the package out of C2+.
++static int xpPcstHandler SYSCTL_HANDLER_ARGS {
++	int v = gXpPcst;
++	const int rc = sysctl_handle_int(oidp, &v, 0, req);
++	if (rc || !req->newptr) return rc;
++	if (v < 0 || v > 8) { gXpPcstStatus = -1; return EINVAL; }
++	uint32_t lo = 0, hi = 0;
++	if (rdmsr_carefully(0x0E2, &lo, &hi)) { gXpPcstStatus = -2; return EIO; }
++	const uint64_t old = ((uint64_t)hi << 32) | lo;
++	if (old & (1ULL << 15)) { gXpPcstStatus = -3; return EPERM; }   // CFG lock
++	if ((old & 0xF) != (uint64_t)v) xpWrmsr(0x0E2, (old & ~0xFULL) | (uint64_t)v);
++	uint32_t nlo = 0, nhi = 0;
++	gXpPcst = rdmsr_carefully(0x0E2, &nlo, &nhi) ? v : (int)(nlo & 0xF);
++	gXpPcstStatus = gXpPcst;
++	IOLog("WEX PM: package C-state limit %u -> %d (0xE2 was 0x%llx)\n", (unsigned)v, gXpPcst, old);
++	return 0;
++}
++
+ static void xpApply(thread_call_param_t, thread_call_param_t) {
+ 	gXpCst = xpCstFix();
+ 	gXpD3 += xpD3();
+@@ -151,6 +220,11 @@ SYSCTL_INT(_debug_xepm, OID_AUTO, eet_off, CTLFLAG_RD, &gXpEet, 0, "");
+ SYSCTL_INT(_debug_xepm, OID_AUTO, cst, CTLFLAG_RD, &gXpCst, 0, "1 = C8/C10 on");
+ SYSCTL_INT(_debug_xepm, OID_AUTO, d3, CTLFLAG_RD, &gXpD3, 0, "");
+ SYSCTL_INT(_debug_xepm, OID_AUTO, route, CTLFLAG_RD, &gXpRoute, 0, "1 = HWP route installed");
++SYSCTL_PROC(_debug_xepm, OID_AUTO, msr, CTLTYPE_STRUCT | CTLFLAG_RD, 0, 0, xpMsrHandler, "S",
++            "package/power MSR snapshot: {u32 id, i32 status, u64 value}[]");
++SYSCTL_PROC(_debug_xepm, OID_AUTO, pcst, CTLTYPE_INT | CTLFLAG_RW, 0, 0, xpPcstHandler, "I",
++            "package C-state limit written to 0xE2 bits 3:0, -1 = untouched");
++SYSCTL_INT(_debug_xepm, OID_AUTO, pcst_status, CTLFLAG_RD, &gXpPcstStatus, 0, "0xE2 limit now applied / negative = refused");
+ 
+ void xePmInstall(KernelPatcher &patcher) {
+ 	if (!checkKernelArgument("-wex-pm")) return;
+@@ -181,6 +255,9 @@ void xePmInstall(KernelPatcher &patcher) {
+ 	sysctl_register_oid(&sysctl__debug_xepm_cst);
+ 	sysctl_register_oid(&sysctl__debug_xepm_d3);
+ 	sysctl_register_oid(&sysctl__debug_xepm_route);
++	sysctl_register_oid(&sysctl__debug_xepm_msr);
++	sysctl_register_oid(&sysctl__debug_xepm_pcst);
++	sysctl_register_oid(&sysctl__debug_xepm_pcst_status);
+ 	uint64_t dl;
+ 	thread_call_t t20 = thread_call_allocate(xpApply, nullptr), t60 = thread_call_allocate(xpApply, nullptr);
+ 	clock_interval_to_deadline(20, kSecondScale, &dl);

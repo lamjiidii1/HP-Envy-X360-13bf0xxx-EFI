@@ -51,9 +51,11 @@ Two limits are not pmset settings:
 
 - the P-cores sustain about **3.6 GHz**, not 4.7 GHz, with
   `CPU LIMIT ICCMAX/PL4/OTHER` in every phase — a firmware power limit;
-- package C-state residency is **0.00 %** and GPU DC6 is **0.00 %**. Without
-  GuC the iGPU never enters DC6, so the package cannot reach its deepest
-  states. This is a diagnostic, not a knob.
+- GPU DC6 is **0.00 %** and the package never goes past **PC3**. Without GuC
+  the iGPU never enters DC6, so the DMC-gated deeper package states stay out of
+  reach. The **0.00 % package residency** originally written here was
+  measurement contamination, not the platform: a quiet window shows PC3
+  93–96 % and the cores in C6/C7 (see the clean baseline below).
 
 Full detail: [06-usb-acpi-power.md](06-usb-acpi-power.md#measured-effect-2026-11-05).
 
@@ -72,10 +74,10 @@ battery:
 
 A four-thread run under `lowpowermode 1` kept all ten cores at or below
 2.5 GHz (P-cores ~2.0–2.2 GHz), so the cap is enforced on both core types.
-Package C-state residency stayed at 0.00 % while cores were busy; that is
-expected without GPU DC6 and is unrelated to this change. Battery draw with
-OpenCode, WindowServer and post-boot background work active fell from 17.2 W
-to 14.4 W, but that is not an idle baseline.
+All ten cores were busy, so the package cannot be in a C-state at all; that
+figure says nothing about this change. The idle figure is below. Battery draw
+with OpenCode, WindowServer and post-boot background work active fell from
+17.2 W to 14.4 W, but that is not an idle baseline.
 
 ### Idle power: timer coalescing and EPP 96 (2026-11-12)
 
@@ -109,6 +111,60 @@ documented as mechanisms in
 [06-usb-acpi-power.md](06-usb-acpi-power.md#idle-power-timers-epp-and-device-idle-2026-11-12)
 and [04-wifi-bluetooth.md](04-wifi-bluetooth.md#bluetooth-idle); do not assign
 them a wattage until one is measured.
+
+### Clean idle baseline (2026-11-13)
+
+The idle numbers above were taken with the agent desktop (OpenCode, its TUI
+renderer and WindowServer) active, and that tooling alone keeps cores out of
+their deep C-states and roughly doubles package power. The corrected baseline
+is a hand-run window on battery, Tahoe 26.7.1, `balanced`, brightness
+unchanged, with OpenCode and the desktop quit:
+
+```sh
+sudo scripts/macos/idle-baseline.sh 120                    # display on
+sudo scripts/macos/idle-baseline.sh 120 --display-sleep    # panel off
+```
+
+The script sleeps through the window, reads the battery at both ends, and only
+then starts powermetrics/top/assertions, so the samplers do not land inside the
+interval they describe.
+
+| Metric | display on | display asleep |
+|---|---|---|
+| package power (energy model) | **2.46 W** | **2.14 W** |
+| package C-state | **92.7 %** (C2 15.8, C3 76.9) | **96.3 %** (C2 1.6, C3 94.7) |
+| PC6–PC10 | 0.00 % | 0.00 % |
+| P-cores C7 | 96.34 / 95.93 % | 97.60 / 97.77 % |
+| E-cores C6 | 98.7–99.9 % | 99.4–99.9 % |
+| whole-machine draw | **7.07 W** | **5.84 W** |
+| top interrupt rates | TMR 53.7/s, IPI 22–32/s | IPI 22–34/s, TMR 29/s |
+
+Both reads show the same `0xE2 = 0x74008008` (limit 8 = C10, CFG lock set) and
+`deep_idle_count = 0`; the GPU stays at RC6 ~100 % with `GPU Busy 0.00 %`.
+
+**Correction.** The "package and cores never idle, stuck in PC0" conclusion in
+earlier revisions of this page was an artifact of the measuring session. With
+the desktop quit, the package sits in PC3 ~93–96 %, the P-cores in C7 ~96–98 %
+and the E-cores in C6 ~99 %. There is no P-core blocker to fix. Package PC6+
+and GPU DC6 remain at zero because they need a DMC/PMC path WhateverXe does
+not implement, so that headroom is a driver project with low expected gain,
+not a configuration toggle.
+
+Confirmed again on the **shipped** kext (`a84472e2…`, no probe sysctls) after
+a reboot, display asleep: **2.24 W** package, **95.3 %** package residency
+(C2 1.6 / C3 93.7), P-cores C7 97.8 / 97.5 %, **6.29 W** whole-machine. The
+probe build carried only three read-only/debug sysctls, so this is the expected
+result.
+
+The 7.07 W vs 5.84 W split is the useful part: with the panel off the SoC is
+only ~2.2 W, so ~3.7 W is PCH/VRM, NVMe, Wi-Fi, Bluetooth and the EC. Further
+idle work belongs there, not in CPU C-states.
+
+One contamination example from the same session: the first run after that
+reboot read 4.45 W and 47.9 % residency because `triald` (12.8 % CPU) and
+Spotlight (`mds`/`mdworker`) were still indexing, with IPIs at ~750/s.
+Post-boot background work has to finish before any of these numbers mean
+anything.
 
 ## 3. Geekbench 7: the runs, and why most were invalid
 
@@ -247,8 +303,12 @@ The gap is the important result:
 - **macOS: 7.9 W reading a PDF with no background apps.**
 
 That is roughly **+3.7 W (+88 %)** at the lightest comparable load, before any
-browser tab is added. It is consistent with the macOS package never reaching
-C2–C10 or GPU DC6 (§2), while Fedora's i915/GuC stack can enter those states.
+browser tab is added. The CPU-idle half of that gap is **not** explained by
+C-state residency: both systems reach their shallow package states, and macOS
+idles in PC3 93–96 % (§2). The plausible remainder is the DMC-gated deep
+package states and GPU DC6, which macOS never enters without a GuC/DMC path;
+no Fedora-side residency data was captured to prove it.
+
 The practical consequences are the ones reported on the machine: a warmer
 chassis and roughly half the battery runtime even when idle.
 
@@ -322,6 +382,10 @@ sudo bash scripts/macos/power-audit.sh --compare-lpm
 
 # one snapshot: pmset, XCPM sysctls, WhateverXe -wex-pm state, thermals
 sudo bash scripts/macos/power-audit.sh
+
+# quiet idle baseline (quit OpenCode first; 120 s window, optional panel off)
+sudo bash scripts/macos/idle-baseline.sh 120
+sudo bash scripts/macos/idle-baseline.sh 120 --display-sleep
 
 # real discharge over normal use (no root)
 INTERVAL=10 bash scripts/macos/battery-watch.sh

@@ -479,8 +479,9 @@ Healthy signs:
   settings are the only heat levers.
 - **P-cores sustain about 3.6 GHz**, not the 4.7 GHz in the XCPM table, because
   the firmware enforces `CPU LIMIT ICCMAX/PL4/OTHER`.
-- **GPU DC6 stays at 0 %** without GuC; package C-states are shallow. Treat
-  this as a diagnostic, not a tunable.
+- **GPU DC6 stays at 0 %** without GuC, and the package stops at PC3 (PC6+
+  stays 0 %). Cores do idle: P-cores C7 ~96–98 %, E-cores C6 ~99 %. Treat
+  PC6+ as a diagnostic, not a tunable.
 - **Benchmarks under the OpenCode desktop are invalid**; the agent UI uses
   about two cores.
 

@@ -191,24 +191,34 @@ The cap is worth keeping even for reading: the same session with
 full-charge runtime from 8.0 h to **5.4 h (−33 %)**. The 10.3 → 19.9 W AC
 result was not the whole story; UI bursts alone are enough to pay for the cap.
 
-Two platform limits appear in the same runs and are not pmset settings:
+Two platform limits show up in these runs and in the
+[quiet baseline](14-measurements.md#clean-idle-baseline-2026-11-13); neither is
+a pmset setting:
 
 - The P-cores (reported as CPU 0–3) sustain about 3.6 GHz with one busy
   thread, not the 4.7 GHz in the XCPM table. powermetrics reports
   `CPU LIMIT ICCMAX/PL4/OTHER` in every phase, and a single-thread package
   draw of ~14 W is consistent with a firmware power limit rather than a
   frequency-table error.
-- Package C-state residency reports 0.00% (C2–C10) and GPU DC6 reports 0.00%
-  at idle. The DC6 part is real — the iGPU never enters DC6 without GuC — so
-  the package cannot reach its deepest states. Treat the C-state line as a
-  diagnostic, not as a tunable target.
+- The package never goes deeper than **PC3**. In a quiet window it reports
+  PC3 ~93–96 % residency, the P-cores sit in **C7** ~96–98 % and the E-cores
+  in **C6** ~99 %; **PC6–PC10 and GPU DC6 stay at 0.00 %**. The iGPU never
+  enters DC6 without GuC, so the DMC-gated deeper package states are
+  unreachable. Treat PC6+ as a diagnostic, not a tunable target. The
+  "0.00 % residency" figure published earlier was contamination from
+  measuring with the agent desktop active; see
+  [14 § 2](14-measurements.md#clean-idle-baseline-2026-11-13).
 
 The same hardware therefore loses roughly half its sustained CPU power budget
 under the macOS `lowpowermode` cap, whereas Fedora's `balance` profile can use
 the full PL1/PL2 envelope. The bigger difference is at idle: the same Fedora
 machine held **4.2 W with 15 Firefox tabs open**, against **7.9 W on macOS
-reading a PDF with no background apps** — a gap that tracks the missing
-C2–C10/DC6 states rather than the CPU governor. See
+reading a PDF with no background apps**. The CPU-idle half of that gap is
+*not* explained by C-states: macOS does reach PC3 and idles there ~93–95 %
+([14 § 2](14-measurements.md#clean-idle-baseline-2026-11-13)). The plausible
+remainder is the DMC-gated deep package states and GPU DC6, which macOS never
+enters without a GuC/DMC path; that has not been measured on the Fedora side.
+See
 [14-measurements.md § 4](14-measurements.md#same-machine-on-fedora-a-hardware-reference).
 
 ### Idle power: timers, EPP, and device idle (2026-11-12)
@@ -256,22 +266,25 @@ Two device-level properties complete the package:
   `IntelBluetoothFirmware`; see
   [04-wifi-bluetooth.md § Bluetooth idle](04-wifi-bluetooth.md#bluetooth-idle).
 
-The largest remaining gap is still platform-level: package C-states and GPU
-DC6 stay at 0.00 %, and WhateverXe has no DMC/DC-state control. The
+The largest remaining gap is platform-level: the package stops at PC3
+(**PC6–PC10 stay 0.00 %**) and GPU DC6 stays 0.00 %, because WhateverXe has no
+DMC/DC-state control. With the panel asleep the machine still draws ~5.8 W
+while the SoC itself accounts for only ~2.1–2.2 W, so most of the idle floor
+is PCH, VRM, NVMe, Wi-Fi and Bluetooth rather than CPU idle. The
 `lowpowermode` cap and these idle tweaks reduce what the machine burns while
 awake; they do not make it reach C8/C10.
 
 ### Hybrid P-cores and the `-wex-pm` route
 
-The ~3.6 GHz ceiling and the missing C-states have a common cause in XCPM,
-which predates Intel's hybrid CPUs:
+The ~3.6 GHz ceiling and the C-state table XCPM installs have a common cause
+in XCPM, which predates Intel's hybrid CPUs:
 
 - XCPM writes the HWP turbo limit in 100 MHz units, but Alder Lake P-cores
   count HWP performance in ~78.7 MHz units. A 4.7 GHz table entry therefore
   becomes ~3.7 GHz on the P-cores.
 - Its default EPP (0x80) clips one-core turbo on Alder/Raptor Lake mobile.
-- Its idle table enables C3 (which these CPUs do not have) and disables
-  C8/C10, so cores stop at C6 or fall back to C1.
+- Its idle table enables a C3 entry this CPU never reports and disables
+  C8/C10, so cores stop at C6/C7 instead of the deeper states.
 
 WhateverXe ships an XE-PM profile behind `-wex-pm` that addresses this:
 converts the HWP request to per-core units on P-cores, writes EPP 96, disables
@@ -303,9 +316,10 @@ thread, same boot:
 
 With the rebuild, a four-thread load under `lowpowermode 1` kept every core at
 or below 2.5 GHz; the P-cores sat at ~2.0–2.2 GHz. E-cores use 100 MHz HWP
-units and were already correct. Package C-state residency still reads 0.00 %
-while any core is busy (the GPU never enters DC6 without GuC), so that line is
-not a regression from this change.
+units and were already correct. With cores busy the package cannot be in a
+C-state at all, so package residency is 0 % by definition and says nothing
+about this change; the idle number is in
+[14 § 2](14-measurements.md#clean-idle-baseline-2026-11-13).
 
 Independent measurements of the same profile on a 2P+8E **i5-1245U** (Dell
 Latitude 7430) report Geekbench 6 single-core **1370 → 1832 (+34 %)**, multi
